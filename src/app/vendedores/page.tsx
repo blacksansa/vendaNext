@@ -46,8 +46,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Progress } from "@/components/ui/progress"
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 
 interface GrupoVendedores {
   id: string
@@ -400,7 +401,7 @@ export default function VendedoresPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="mes" />
                   <YAxis />
-                  <Tooltip formatter={(value) => formatarMoeda(Number(value))} />
+                  <RechartsTooltip formatter={(value) => formatarMoeda(Number(value))} />
                   <Line type="monotone" dataKey="vendas" stroke="#8884d8" strokeWidth={2} />
                   <Line type="monotone" dataKey="meta" stroke="#82ca9d" strokeWidth={2} strokeDasharray="5 5" />
                 </LineChart>
@@ -418,7 +419,7 @@ export default function VendedoresPage() {
                   <CartesianGrid strokeDasharray="3 3" />
                   <XAxis dataKey="nome" />
                   <YAxis />
-                  <Tooltip formatter={(value) => formatarMoeda(Number(value))} />
+                  <RechartsTooltip formatter={(value) => formatarMoeda(Number(value))} />
                   <Bar dataKey="vendas" fill="#8884d8" />
                 </BarChart>
               </ResponsiveContainer>
@@ -598,7 +599,18 @@ export default function VendedoresPage() {
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               {vendedor.nome}
-                              {isAdmin && <Crown className="h-4 w-4 text-yellow-500" title="Administrador do Grupo" />}
+                              {isAdmin && (
+                                <TooltipProvider>
+                                  <Tooltip>
+                                    <TooltipTrigger>
+                                      <Crown className="h-4 w-4 text-yellow-500" />
+                                    </TooltipTrigger>
+                                    <TooltipContent>
+                                      <p>Administrador do Grupo</p>
+                                    </TooltipContent>
+                                  </Tooltip>
+                                </TooltipProvider>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>{vendedor.cargo}</TableCell>
@@ -877,7 +889,18 @@ export default function VendedoresPage() {
                             <div key={vendedor.id} className="flex items-center justify-between p-2 bg-muted rounded">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm">{vendedor.nome}</span>
-                                {grupo.administradorId === vendedor.id && <Crown className="h-4 w-4 text-yellow-500" />}
+                                {grupo.administradorId === vendedor.id && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger>
+                                        <Crown className="h-4 w-4 text-yellow-500" />
+                                      </TooltipTrigger>
+                                      <TooltipContent>
+                                        <p>Administrador do Grupo</p>
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
                               </div>
                               <Button
                                 size="sm"

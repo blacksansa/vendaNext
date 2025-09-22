@@ -1,8 +1,16 @@
-import NextAuth from "next-auth";
+import NextAuth, { type AuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
-import { jwtDecode } from "jwt-decode"
+import { jwtDecode, type JwtPayload } from "jwt-decode"
 
-export const authOptions = {
+interface DecodedToken extends JwtPayload {
+  resource_access?: {
+    [key: string]: {
+      roles: string[];
+    };
+  };
+}
+
+export const authOptions: AuthOptions = {
   providers: [
     KeycloakProvider({
       clientId: process.env.KEYCLOAK_ID!,
@@ -16,18 +24,18 @@ export const authOptions = {
   },
   callbacks: {
     async jwt({ token, account,}) {
-      if(account) {
+      if(account && account.access_token) {
         console.log("PRIMEIRO LOGIN: O objeto 'account' está disponível.");
         try {
           // 1. Decodificar o access_token do provedor
-          const decodedToken = jwtDecode(account.access_token); // ✅ Correct usage
+          const decodedToken: DecodedToken = jwtDecode(account.access_token); // ✅ Correct usage
           console.log("Token do provedor DECODIFICADO:", decodedToken);
 
           if (decodedToken.resource_access) {
             // 3. Adicionar as roles ao token do NextAuth
             token.roles = decodedToken.resource_access
           } else {
-            console.log("Nenhuma 'resource_access' ou roles encontradas para o client ID:", clientId);
+            console.log("Nenhuma 'resource_access' ou roles encontradas para o client ID:", process.env.KEYCLOAK_ID!);
           }
         } catch (error) {
           console.error("Erro ao processar o token do provedor:", error);
