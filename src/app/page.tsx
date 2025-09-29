@@ -49,18 +49,10 @@ import { useState } from "react"
 import { RoleGuard } from "@/components/role-guard"
 import { useAuth } from "@/hooks/use-auth"
 
-interface TarefaRapida {
-  id: number
-  titulo: string
-  icone: string
-  url: string
-  cor: string
-}
-
 export default function CRMDashboard() {
   const { user } = useAuth()
   const [isResumoExpanded, setIsResumoExpanded] = useState(true)
-  const [tarefasRapidas, setTarefasRapidas] = useState<TarefaRapida[]>([
+  const [tarefasRapidas, setTarefasRapidas] = useState([
     { id: 1, titulo: "Adicionar Novo Cliente", icone: "Users", url: "/customers", cor: "blue" },
     { id: 2, titulo: "Agendar Ligação", icone: "Phone", url: "#", cor: "green" },
     { id: 3, titulo: "Enviar Email", icone: "Mail", url: "#", cor: "purple" },
@@ -68,10 +60,10 @@ export default function CRMDashboard() {
     { id: 5, titulo: "Ver Análises", icone: "BarChart3", url: "/analytics", cor: "red" },
   ])
   const [novaTarefa, setNovaTarefa] = useState({ titulo: "", icone: "Users", url: "", cor: "blue" })
-  const [editandoTarefa, setEditandoTarefa] = useState<TarefaRapida | null>(null)
+  const [editandoTarefa, setEditandoTarefa] = useState(null)
 
-  const getIcone = (nomeIcone: string) => {
-    const icones: { [key: string]: React.ElementType } = {
+  const getIcone = (nomeIcone) => {
+    const icones = {
       Users,
       Phone,
       Mail,
@@ -93,18 +85,16 @@ export default function CRMDashboard() {
     }
   }
 
-  const removerTarefaRapida = (id: number) => {
+  const removerTarefaRapida = (id) => {
     setTarefasRapidas(tarefasRapidas.filter((t) => t.id !== id))
   }
 
-  const editarTarefaRapida = (tarefa: TarefaRapida) => {
+  const editarTarefaRapida = (tarefa) => {
     setEditandoTarefa(tarefa)
     setNovaTarefa({ titulo: tarefa.titulo, icone: tarefa.icone, url: tarefa.url, cor: tarefa.cor })
   }
 
   const salvarEdicao = () => {
-    if (!editandoTarefa) return
-
     if (novaTarefa.titulo.trim()) {
       setTarefasRapidas(
         tarefasRapidas.map((t) => (t.id === editandoTarefa.id ? { ...editandoTarefa, ...novaTarefa } : t)),
@@ -841,7 +831,7 @@ export default function CRMDashboard() {
                 })
                 .map((tarefa) => {
                   const IconeComponent = getIcone(tarefa.icone)
-                  const TarefaButton = ({ children, ...props }: { children: React.ReactNode; [key: string]: any }) => (
+                  const TarefaButton = ({ children, ...props }) => (
                     <Button className="w-full justify-start bg-transparent" variant="outline" {...props}>
                       {children}
                     </Button>

@@ -1,6 +1,6 @@
 import NextAuth, { type AuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
-import { jwtDecode, type JwtPayload } from "jwt-decode"
+import { jwtDecode, type JwtPayload } from "jwt-decode";
 
 interface DecodedToken extends JwtPayload {
   resource_access?: {
@@ -23,31 +23,29 @@ export const authOptions: AuthOptions = {
     strategy: "jwt",
   },
   callbacks: {
-    async jwt({ token, account,}) {
-      if(account && account.access_token) {
-        console.log("PRIMEIRO LOGIN: O objeto 'account' está disponível.");
+    async jwt({ token, account }) {
+      if (account && account.access_token) {
         try {
-          // 1. Decodificar o access_token do provedor
-          const decodedToken: DecodedToken = jwtDecode(account.access_token); // ✅ Correct usage
-          console.log("Token do provedor DECODIFICADO:", decodedToken);
+          const decodedToken: DecodedToken = jwtDecode(account.access_token);
+          const clientId = process.env.KEYCLOAK_ID!;
 
-          if (decodedToken.resource_access) {
-            // 3. Adicionar as roles ao token do NextAuth
-            token.roles = decodedToken.resource_access
+          if (decodedToken.resource_access && decodedToken.resource_access[clientId]) {
+            const keycloakRoles = decodedToken.resource_access[clientId].roles;
+            token.roles = keycloakRoles;
           } else {
-            console.log("Nenhuma 'resource_access' ou roles encontradas para o client ID:", process.env.KEYCLOAK_ID!);
+            token.roles = [];
           }
         } catch (error) {
-          console.error("Erro ao processar o token do provedor:", error);
+          console.error("Erro ao decodificar o token:", error);
+          token.roles = [];
         }
-        
       }
-      return token
+      return token;
     },
     async session({ session, token }) {
-      console.log({ session, token });
-      if(session.user) {
+      if (session.user) {
         session.user.roles = token.roles;
+        console.log("Sessão do usuário:", session.user);
       }
       return session;
     },

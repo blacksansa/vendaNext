@@ -37,6 +37,7 @@ import { Badge } from "@/components/ui/badge"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
+import { signOut } from "next-auth/react"
 import { getVisibleNavigation, hasPermission } from "@/lib/permissions"
 
 const iconMap = {
@@ -157,7 +158,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton>
+            <SidebarMenuButton onClick={() => signOut()}>
               <Avatar className="h-6 w-6">
                 <AvatarImage src={user?.avatar || "/placeholder.svg"} />
                 <AvatarFallback>

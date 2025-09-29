@@ -11,6 +11,7 @@ import {
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
 
+// TODO: Remove mock data
 // Menu items.
 const items = [
   {

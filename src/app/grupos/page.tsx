@@ -25,43 +25,10 @@ import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, AlertCircle, Tr
 import { useAuth } from "@/hooks/use-auth"
 import { RoleGuard } from "@/components/role-guard"
 
-interface Vendedor {
-  nome: string
-  vendas: number
-  status: string
-  email?: string
-  telefone?: string
-}
-
-interface Grupo {
-  id: number
-  nome: string
-  lider: string
-  liderUserId: string
-  membros: number
-  metaMensal: number
-  vendidoMes: number
-  status: string
-  descricao: string
-  vendedores: Vendedor[]
-}
-
-interface GrupoEditando {
-  id: number
-  nome: string
-  lider: string
-  descricao: string
-  metaMensal: string
-}
-
-interface MembroEditando extends Vendedor {
-  index: number
-}
-
 export default function GruposPage() {
   const { user } = useAuth()
 
-  const [grupos, setGrupos] = useState<Grupo[]>([
+  const [grupos, setGrupos] = useState([
     {
       id: 1,
       nome: "Equipe Alpha",
@@ -96,7 +63,7 @@ export default function GruposPage() {
     },
   ])
 
-  const [gruposFiltrados, setGruposFiltrados] = useState<Grupo[]>([])
+  const [gruposFiltrados, setGruposFiltrados] = useState([])
   const [podeGerenciarTodos, setPodeGerenciarTodos] = useState(false)
   const [novoGrupo, setNovoGrupo] = useState({
     nome: "",
@@ -104,13 +71,13 @@ export default function GruposPage() {
     descricao: "",
     metaMensal: "",
   })
-  const [grupoSelecionado, setGrupoSelecionado] = useState<Grupo | null>(null)
+  const [grupoSelecionado, setGrupoSelecionado] = useState(null)
   const [dialogoEditarAberto, setDialogoEditarAberto] = useState(false)
   const [dialogoGerenciarAberto, setDialogoGerenciarAberto] = useState(false)
-  const [grupoEditando, setGrupoEditando] = useState<GrupoEditando | null>(null)
+  const [grupoEditando, setGrupoEditando] = useState(null)
 
   const [novoMembro, setNovoMembro] = useState({ nome: "", email: "", telefone: "" })
-  const [membroEditando, setMembroEditando] = useState<MembroEditando | null>(null)
+  const [membroEditando, setMembroEditando] = useState(null)
   const [dialogoAdicionarMembroAberto, setDialogoAdicionarMembroAberto] = useState(false)
   const [dialogoEditarMembroAberto, setDialogoEditarMembroAberto] = useState(false)
 
@@ -155,12 +122,11 @@ export default function GruposPage() {
     setNovoGrupo({ nome: "", lider: "", descricao: "", metaMensal: "" })
   }
 
-  const calcularPerformance = (vendido: number, meta: number) => {
-    if (meta === 0) return 0
-    return (vendido / meta) * 100
+  const calcularPerformance = (vendido, meta) => {
+    return ((vendido / meta) * 100).toFixed(1)
   }
 
-  const editarGrupo = (grupo: Grupo) => {
+  const editarGrupo = (grupo) => {
     setGrupoEditando({
       id: grupo.id,
       nome: grupo.nome,
@@ -172,8 +138,6 @@ export default function GruposPage() {
   }
 
   const salvarEdicaoGrupo = () => {
-    if (!grupoEditando) return
-
     const gruposAtualizados = grupos.map((grupo) =>
       grupo.id === grupoEditando.id
         ? {
@@ -190,14 +154,12 @@ export default function GruposPage() {
     setGrupoEditando(null)
   }
 
-  const gerenciarGrupo = (grupo: Grupo) => {
+  const gerenciarGrupo = (grupo) => {
     setGrupoSelecionado(grupo)
     setDialogoGerenciarAberto(true)
   }
 
   const adicionarMembro = () => {
-    if (!grupoSelecionado) return
-
     if (!novoMembro.nome || !novoMembro.email) {
       alert("Nome e email são obrigatórios")
       return
@@ -223,19 +185,17 @@ export default function GruposPage() {
     )
 
     setGrupos(gruposAtualizados)
-    setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id) ?? null)
+    setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id))
     setNovoMembro({ nome: "", email: "", telefone: "" })
     setDialogoAdicionarMembroAberto(false)
   }
 
-  const editarMembro = (vendedor: Vendedor, index: number) => {
+  const editarMembro = (vendedor, index) => {
     setMembroEditando({ ...vendedor, index })
     setDialogoEditarMembroAberto(true)
   }
 
   const salvarEdicaoMembro = () => {
-    if (!grupoSelecionado || !membroEditando) return
-
     const gruposAtualizados = grupos.map((grupo) =>
       grupo.id === grupoSelecionado.id
         ? {
@@ -254,14 +214,12 @@ export default function GruposPage() {
     )
 
     setGrupos(gruposAtualizados)
-    setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id) ?? null)
+    setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id))
     setMembroEditando(null)
     setDialogoEditarMembroAberto(false)
   }
 
-  const removerMembro = (index: number) => {
-    if (!grupoSelecionado) return
-
+  const removerMembro = (index) => {
     if (confirm("Tem certeza que deseja remover este membro do grupo?")) {
       const gruposAtualizados = grupos.map((grupo) =>
         grupo.id === grupoSelecionado.id
@@ -274,7 +232,7 @@ export default function GruposPage() {
       )
 
       setGrupos(gruposAtualizados)
-      setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id) ?? null)
+      setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id))
     }
   }
 
@@ -471,7 +429,7 @@ export default function GruposPage() {
                     {calcularPerformance(
                       gruposFiltrados.reduce((acc, grupo) => acc + grupo.vendidoMes, 0),
                       gruposFiltrados.reduce((acc, grupo) => acc + grupo.metaMensal, 0),
-                    ).toFixed(1)}
+                    )}
                     %
                   </div>
                   <p className="text-xs text-muted-foreground">Da meta mensal</p>
@@ -511,7 +469,7 @@ export default function GruposPage() {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Performance</p>
-                        <p className="font-medium">{calcularPerformance(grupo.vendidoMes, grupo.metaMensal).toFixed(1)}%</p>
+                        <p className="font-medium">{calcularPerformance(grupo.vendidoMes, grupo.metaMensal)}%</p>
                       </div>
                     </div>
 
@@ -660,7 +618,7 @@ export default function GruposPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-lg">
-                              {calcularPerformance(grupo.vendidoMes, grupo.metaMensal).toFixed(1)}%
+                              {calcularPerformance(grupo.vendidoMes, grupo.metaMensal)}%
                             </p>
                             <p className="text-sm text-muted-foreground">
                               R$ {grupo.vendidoMes.toLocaleString()} / R$ {grupo.metaMensal.toLocaleString()}

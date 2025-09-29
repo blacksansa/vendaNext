@@ -8,13 +8,14 @@ import { SidebarProvider } from "@/components/ui/sidebar"
 import { AppSidebar } from "@/components/app-sidebar"
 import { ThemeProvider } from "@/components/theme-provider"
 import { Suspense } from "react"
-import { Providers } from "./providers"
 
 export const metadata: Metadata = {
   title: "Painel Administrativo CRM",
   description: "Sistema profissional de gerenciamento CRM",
   generator: "v0.app",
 }
+
+import { Providers } from "./providers"
 
 export default function RootLayout({
   children,
@@ -24,16 +25,16 @@ export default function RootLayout({
   return (
     <html lang="pt-BR" suppressHydrationWarning>
       <body className={`font-sans ${GeistSans.variable} ${GeistMono.variable}`}>
-        <Providers session={null}>
-          <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-            <Suspense fallback={<div>Carregando...</div>}>
+        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+          <Suspense fallback={<div>Carregando...</div>}>
+            <Providers>
               <SidebarProvider>
                 <AppSidebar />
                 <main className="flex-1">{children}</main>
               </SidebarProvider>
-            </Suspense>
-          </ThemeProvider>
-        </Providers>
+            </Providers>
+          </Suspense>
+        </ThemeProvider>
         <Analytics />
       </body>
     </html>
