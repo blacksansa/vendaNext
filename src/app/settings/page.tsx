@@ -31,9 +31,10 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react"
-import { toast } from "@/hooks/use-toast"
+import { useToast } from "@/hooks/use-toast"
 
 export default function SettingsPage() {
+  const { toast } = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [profileImage, setProfileImage] = useState("/professional-avatar.png")
   const [isLoading, setIsLoading] = useState(false)

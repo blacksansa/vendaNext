@@ -23,7 +23,7 @@ import {
   // Adicione outros tipos de './types' conforme necessário
 } from "./types"; // Garanta que o caminho para types.ts esteja correto
 
-const API_BASE_URL = "/api"; // Em produção, pode ser a URL completa da sua API (ex: https://api.venda.plus/api)
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "/api";
 
 /**
  * Função genérica para realizar requisições à API.

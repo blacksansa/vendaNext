@@ -100,11 +100,11 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
     try {
       const newCustomer = await createCustomer(newCustomerData);
       setCustomers([newCustomer, ...customers]);
-      toast({ title: "Success", description: "Customer created successfully." });
+      toast.success("Success", { description: "Customer created successfully." });
       setIsAddDialogOpen(false);
       router.refresh();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error("Error", { description: error.message });
     }
   };
 
@@ -118,12 +118,12 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
     try {
       const updatedCustomer = await updateCustomer(selectedCustomer.id, updatedCustomerData);
       setCustomers(customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
-      toast({ title: "Success", description: "Customer updated successfully." });
+      toast.success("Success", { description: "Customer updated successfully." });
       setIsEditDialogOpen(false);
       setSelectedCustomer(null);
       router.refresh();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error("Error", { description: error.message });
     }
   };
 
@@ -133,12 +133,12 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
     try {
       await deleteCustomer(selectedCustomer.id);
       setCustomers(customers.filter(c => c.id !== selectedCustomer.id));
-      toast({ title: "Success", description: "Customer deleted successfully." });
+      toast.success("Success", { description: "Customer deleted successfully." });
       setIsDeleteDialogOpen(false);
       setSelectedCustomer(null);
       router.refresh();
     } catch (error: any) {
-      toast({ title: "Error", description: error.message, variant: "destructive" });
+      toast.error("Error", { description: error.message });
     }
   };
 
@@ -157,8 +157,22 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
       {/* Filters and Search */}
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-lg">Customer Database</CardTitle>
-          <CardDescription>Manage and track all your customer relationships</CardDescription>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="text-lg">Customer Database</CardTitle>
+              <CardDescription>Manage and track all your customer relationships</CardDescription>
+            </div>
+            <div className="flex items-center gap-4">
+              <Button variant="outline" size="sm">
+                <Download className="h-4 w-4 mr-2" />
+                Export
+              </Button>
+              <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Customer
+              </Button>
+            </div>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col sm:flex-row gap-4">

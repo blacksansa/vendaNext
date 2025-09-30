@@ -191,3 +191,57 @@ export interface AddressType extends AbstractCodeNameEntity {
 export interface ContactType extends AbstractCodeNameEntity {
     // Adicionar campos da entidade ContactType
 }
+
+export interface CustomerReceivableSums {
+  amount?: number;
+  netAmount?: number;
+  balance?: number;
+}
+
+export interface ReceivableType extends AbstractCodeNameEntity {
+  // Adicionar campos da entidade ReceivableType
+}
+
+export interface ReceivableHolder extends AbstractCodeNameEntity {
+  // Adicionar campos da entidade ReceivableHolder
+}
+
+export interface ReceivableStatus extends AbstractCodeNameEntity {
+  // Adicionar campos da entidade ReceivableStatus
+}
+
+export interface Receivable extends AbstractFullEntity {
+  prefix?: string;
+  document?: string;
+  series?: string;
+  installment?: number;
+  type?: ReceivableType;
+  holder?: ReceivableHolder;
+  status?: ReceivableStatus;
+  issuanceDate?: number; // timestamp
+  dueDate?: number; // timestamp
+  realDueDate?: number; // timestamp
+  settlementDate?: number; // timestamp
+  amount?: number;
+  balance?: number;
+  interest?: number;
+  discount?: number;
+  penalty?: number;
+  netAmount?: number;
+  financialDiscount?: number;
+  addiction?: number;
+  reduction?: number;
+  group?: string;
+  history?: string;
+}
+
+export interface AiPurchaseSuggestion extends AbstractFullEntity {
+    // Adicionar campos da entidade AiPurchaseSuggestion
+}
+
+export interface AiCustomerCentral extends AbstractFullEntity {
+  customer?: Customer;
+  mainAnalysis?: string;
+  financialAnalysis?: string;
+  nextPurchaseOrder?: AiPurchaseSuggestion;
+}

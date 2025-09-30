@@ -25,10 +25,29 @@ import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, AlertCircle, Tr
 import { useAuth } from "@/hooks/use-auth"
 import { RoleGuard } from "@/components/role-guard"
 
+interface Vendedor {
+  nome: string;
+  vendas: number;
+  status: string;
+}
+
+interface Grupo {
+  id: number;
+  nome: string;
+  lider: string;
+  liderUserId: string;
+  membros: number;
+  metaMensal: number;
+  vendidoMes: number;
+  status: string;
+  descricao: string;
+  vendedores: Vendedor[];
+}
+
 export default function GruposPage() {
   const { user } = useAuth()
 
-  const [grupos, setGrupos] = useState([
+  const [grupos, setGrupos] = useState<Grupo[]>([
     {
       id: 1,
       nome: "Equipe Alpha",
@@ -63,7 +82,7 @@ export default function GruposPage() {
     },
   ])
 
-  const [gruposFiltrados, setGruposFiltrados] = useState([])
+  const [gruposFiltrados, setGruposFiltrados] = useState<Grupo[]>([])
   const [podeGerenciarTodos, setPodeGerenciarTodos] = useState(false)
   const [novoGrupo, setNovoGrupo] = useState({
     nome: "",
@@ -74,7 +93,7 @@ export default function GruposPage() {
   const [grupoSelecionado, setGrupoSelecionado] = useState(null)
   const [dialogoEditarAberto, setDialogoEditarAberto] = useState(false)
   const [dialogoGerenciarAberto, setDialogoGerenciarAberto] = useState(false)
-  const [grupoEditando, setGrupoEditando] = useState(null)
+  const [grupoEditando, setGrupoEditando] = useState<Grupo | null>(null)
 
   const [novoMembro, setNovoMembro] = useState({ nome: "", email: "", telefone: "" })
   const [membroEditando, setMembroEditando] = useState(null)
@@ -122,11 +141,11 @@ export default function GruposPage() {
     setNovoGrupo({ nome: "", lider: "", descricao: "", metaMensal: "" })
   }
 
-  const calcularPerformance = (vendido, meta) => {
+  const calcularPerformance = (vendido: number, meta: number) => {
     return ((vendido / meta) * 100).toFixed(1)
   }
 
-  const editarGrupo = (grupo) => {
+  const editarGrupo = (grupo: Grupo) => {
     setGrupoEditando({
       id: grupo.id,
       nome: grupo.nome,
