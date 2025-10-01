@@ -60,6 +60,7 @@ import { Customer } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { createCustomer, updateCustomer, deleteCustomer } from "@/lib/api.client";
 import { useToast } from "@/hooks/use-toast";
+import { CustomerForm } from "@/components/customer-form";
 
 // Helper functions (could be moved to a utils file)
 const getInitials = (name: string) => {
@@ -92,13 +93,9 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-  const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const formData = new FormData(event.currentTarget);
-    const newCustomerData = Object.fromEntries(formData.entries()) as unknown as Partial<Customer>;
-    
+  const handleCreate = async (data: Partial<Customer>) => {
     try {
-      const newCustomer = await createCustomer(newCustomerData);
+      const newCustomer = await createCustomer(data);
       setCustomers([newCustomer, ...customers]);
       toast.success("Success", { description: "Customer created successfully." });
       setIsAddDialogOpen(false);
@@ -295,7 +292,7 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
                 </TableRow>
               )}
             </TableBody>
-          </Table>
+          </Table>.
         </CardContent>
       </Card>
 
@@ -306,21 +303,7 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
             <DialogTitle>Add New Customer</DialogTitle>
             <DialogDescription>Create a new customer profile.</DialogDescription>
           </DialogHeader>
-          <form onSubmit={handleCreate}>
-            <div className="grid gap-4 py-4">
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="name" className="text-right">Name</Label>
-                <Input id="name" name="name" required className="col-span-3" />
-              </div>
-              <div className="grid grid-cols-4 items-center gap-4">
-                <Label htmlFor="companyName" className="text-right">Company</Label>
-                <Input id="companyName" name="companyName" className="col-span-3" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button type="submit">Add Customer</Button>
-            </DialogFooter>
-          </form>
+          <CustomerForm onSubmit={handleCreate} />
         </DialogContent>
       </Dialog>
 

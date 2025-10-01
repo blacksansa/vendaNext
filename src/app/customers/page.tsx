@@ -8,6 +8,8 @@ import { SidebarInset } from '@/components/ui/sidebar';
 import { Separator } from '@/components/ui/separator';
 import Loading from './loading';
 
+const CUSTOMERS_CACHE_KEY = 'customersCache';
+
 export default function CustomersPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -15,9 +17,25 @@ export default function CustomersPage() {
 
   useEffect(() => {
     const fetchCustomers = async () => {
+      // Try to load from cache first
+      try {
+        const cachedCustomers = localStorage.getItem(CUSTOMERS_CACHE_KEY);
+        if (cachedCustomers) {
+          setCustomers(JSON.parse(cachedCustomers));
+        }
+      } catch (e) {
+        console.error("Failed to load customers from cache", e);
+      }
+
       try {
         const fetchedCustomers = await getCustomers();
         setCustomers(fetchedCustomers);
+        // Save to cache
+        try {
+          localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(fetchedCustomers));
+        } catch (e) {
+          console.error("Failed to save customers to cache", e);
+        }
       } catch (err: any) {
         setError(err.message || 'Failed to fetch customers');
       }
@@ -37,9 +55,9 @@ export default function CustomersPage() {
       </header>
 
       <div className="p-6">
-        {loading && <Loading />}
+        {loading && customers.length === 0 && <Loading />}
         {error && <p className="text-red-500">{error}</p>}
-        {!loading && !error && <CustomersView initialCustomers={customers} />}
+        {customers.length > 0 && <CustomersView initialCustomers={customers} />}
       </div>
     </SidebarInset>
   );

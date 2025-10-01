@@ -1,5 +1,5 @@
 
-import api from "./customers";
+import api from "./api-instance";
 import {
   Customer,
   CustomerListItem,

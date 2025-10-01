@@ -3,12 +3,18 @@ import { JWT } from "next-auth/jwt";
 import { UserRole } from "@/lib/permissions";
 
 declare module "next-auth" {
-  interface Session {
-    accessToken?: string;
-    user: {
-      roles?: UserRole[];
-    } & DefaultSession["user"];
-  }
+    interface Session {
+        accessToken?: string;
+        refreshToken?: string;
+        expiresAt?: number;
+    }
+
+    interface JWT {
+        accessToken?: string;
+        refreshToken?: string;
+        expiresAt?: number;
+    }
+}
 
   interface User {
     accessToken?: string;
