@@ -1,32 +1,24 @@
-"use client";
+'use client';
 
-import { useSession, signIn } from "next-auth/react";
-import type { ReactNode } from "react";
-import { useEffect } from "react";
+import { useSession, signIn } from 'next-auth/react';
+import { useEffect } from 'react';
 
-interface AuthGuardProps {
-  children: ReactNode;
-}
-
-//Todo: Melhorar o loading
-
-export function AuthGuard({ children }: AuthGuardProps) {
+export function AuthGuard({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession();
-  const isUser = !!session?.user;
 
   useEffect(() => {
-    if (status === "loading") {
-      return; // Do nothing while loading
+    if (status === 'unauthenticated') {
+      signIn('keycloak');
     }
-    if (!isUser) {
-      signIn("keycloak"); // Redirect to Keycloak if not authenticated
-    }
-  }, [isUser, status]);
+  }, [status]);
 
-  // Show loading indicator while session is loading or while redirecting
-  if (!isUser) {
-    return <div>Loading...</div>;
+  if (status === 'loading') {
+    return <p>Loading...</p>;
   }
 
-  return <>{children}</>;
+  if (status === 'authenticated') {
+    return <>{children}</>;
+  }
+
+  return null;
 }

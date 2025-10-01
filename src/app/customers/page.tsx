@@ -43,6 +43,18 @@ export default function CustomersPage() {
     };
 
     fetchCustomers();
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        fetchCustomers();
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
   }, []);
 
   return (

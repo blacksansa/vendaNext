@@ -17,6 +17,8 @@ export const metadata: Metadata = {
 
 import { Providers } from "./providers"
 
+import { AuthGuard } from "@/components/auth-guard";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -28,10 +30,12 @@ export default function RootLayout({
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
           <Suspense fallback={<div>Carregando...</div>}>
             <Providers>
-              <SidebarProvider>
-                <AppSidebar />
-                <main className="flex-1">{children}</main>
-              </SidebarProvider>
+              <AuthGuard>
+                <SidebarProvider>
+                  <AppSidebar />
+                  <main className="flex-1">{children}</main>
+                </SidebarProvider>
+              </AuthGuard>
             </Providers>
           </Suspense>
         </ThemeProvider>

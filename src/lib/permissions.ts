@@ -9,22 +9,22 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
     { module: "dashboard", actions: ["view", "edit"] },
     { module: "customers", actions: ["view", "create", "edit", "delete"] },
-    { module: "vendedores", actions: ["view", "create", "edit", "delete"] },
+    { module: "sellers", actions: ["view", "create", "edit", "delete"] },
     { module: "lideres", actions: ["view", "create", "edit", "delete"] },
-    { module: "grupos", actions: ["view", "create", "edit", "delete"] },
+    { module: "teams", actions: ["view", "create", "edit", "delete"] },
     { module: "pipeline", actions: ["view", "create", "edit", "delete"] },
     { module: "analytics", actions: ["view", "export"] },
     { module: "tarefas", actions: ["view", "create", "edit", "delete"] },
     { module: "relatorios", actions: ["view", "create", "export"] },
-    { module: "usuarios", actions: ["view", "create", "edit", "delete"] },
+    { module: "users", actions: ["view", "create", "edit", "delete"] },
     { module: "settings", actions: ["view", "edit"] },
   ],
   manager: [
     { module: "dashboard", actions: ["view"] },
     { module: "customers", actions: ["view", "create", "edit"] },
-    { module: "vendedores", actions: ["view", "edit"] },
+    { module: "sellers", actions: ["view", "edit"] },
     { module: "lideres", actions: ["view"] },
-    { module: "grupos", actions: ["view", "edit"] },
+    { module: "teams", actions: ["view", "edit"] },
     { module: "pipeline", actions: ["view", "create", "edit"] },
     { module: "analytics", actions: ["view"] },
     { module: "tarefas", actions: ["view", "create", "edit"] },
@@ -34,9 +34,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   team_leader: [
     { module: "dashboard", actions: ["view"] },
     { module: "customers", actions: ["view", "create", "edit"] },
-    { module: "vendedores", actions: ["view"] },
+    { module: "sellers", actions: ["view"] },
     { module: "lideres", actions: ["view"] },
-    { module: "grupos", actions: ["view"] }, // Apenas seu próprio grupo
+    { module: "teams", actions: ["view"] }, // Apenas seu próprio grupo
     { module: "pipeline", actions: ["view", "create", "edit"] },
     { module: "analytics", actions: ["view"] },
     { module: "tarefas", actions: ["view", "create", "edit"] },
@@ -59,14 +59,14 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 export const NAVIGATION_ITEMS = [
   { title: "Dashboard", url: "/", icon: "Home", module: "dashboard" },
   { title: "Clientes", url: "/customers", icon: "Users", module: "customers" },
-  { title: "Vendedores", url: "/vendedores", icon: "UserPlus", module: "vendedores" },
+  { title: "Sellers", url: "/sellers", icon: "UserPlus", module: "sellers" },
   { title: "Dashboard Líderes", url: "/lideres", icon: "Crown", module: "lideres" },
-  { title: "Grupos", url: "/grupos", icon: "Users", module: "grupos" },
+  { title: "Teams", url: "/teams", icon: "Users", module: "teams" },,
   { title: "Pipeline", url: "/pipeline", icon: "GitBranch", module: "pipeline" },
   { title: "Análises", url: "/analytics", icon: "BarChart3", module: "analytics" },
   { title: "Tarefas", url: "/tarefas", icon: "Kanban", module: "tarefas" },
   { title: "Relatórios", url: "/relatorios", icon: "FileText", module: "relatorios" },
-  { title: "Controle de Acesso", url: "/usuarios", icon: "Shield", module: "usuarios" },
+  { title: "Users", url: "/users", icon: "Shield", module: "users" },
 ]
 
 export function hasPermission(userRole: UserRole, module: string, action: string): boolean {

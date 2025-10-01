@@ -13,6 +13,8 @@ interface DecodedToken extends JwtPayload {
 
 
 async function refreshAccessToken(token) {
+  console.log("Access token in refreshAccessToken:", token.accessToken);
+  console.log("Refresh token in refreshAccessToken:", token.refreshToken);
   try {
     const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/common/validate`, {
       headers: { "Content-Type": "application/json" },
@@ -20,11 +22,16 @@ async function refreshAccessToken(token) {
       body: JSON.stringify({ rt: token.refreshToken }),
     });
 
-    const refreshedTokens = await response.json();
-
     if (!response.ok) {
-      throw refreshedTokens;
+      const responseText = await response.text();
+      if (!responseText) {
+        throw new Error("Invalid refresh token");
+      }
+      console.error("Error from /common/validate:", responseText);
+      throw new Error(responseText);
     }
+
+    const refreshedTokens = await response.json();
 
     return {
       ...token,
@@ -33,7 +40,7 @@ async function refreshAccessToken(token) {
       refreshToken: refreshedTokens.refresh_token ?? token.refreshToken,
     };
   } catch (error) {
-    console.error("Error refreshing access token", error);
+    console.error("Error in refreshAccessToken:", error);
     return { ...token, error: "RefreshAccessTokenError" };
   }
 }
@@ -57,6 +64,7 @@ export const authOptions: AuthOptions = {
         token.accessToken = account.access_token;
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
+        token.idToken = account.id_token;
         return token;
       }
 
@@ -64,13 +72,43 @@ export const authOptions: AuthOptions = {
         return token;
       }
 
-      return await refreshAccessToken(token);
+      const refreshedToken = await refreshAccessToken(token);
+      if (refreshedToken.error) {
+        return null;
+      }
+      return { ...token, ...refreshedToken };
     },
     async session({ session, token }) {
       session.accessToken = token.accessToken;
       session.refreshToken = token.refreshToken;
       session.expiresAt = token.expiresAt;
       return session;
+    },
+  },
+  events: {
+    async signOut({ token }) {
+      const issuerUrl = process.env.KEYCLOAK_ISSUER;
+      if (issuerUrl) {
+        const logOutUrl = new URL(`${issuerUrl}/protocol/openid-connect/logout`);
+        const idToken = token.idToken as string;
+        const postLogoutRedirectUri = process.env.NEXTAUTH_URL;
+
+        if (idToken) {
+          logOutUrl.searchParams.set("id_token_hint", idToken);
+        }
+        if (postLogoutRedirectUri) {
+          logOutUrl.searchParams.set(
+            "post_logout_redirect_uri",
+            postLogoutRedirectUri
+          );
+        }
+
+        try {
+          await fetch(logOutUrl);
+        } catch (error) {
+          console.error("Error during sign out:", error);
+        }
+      }
     },
   },
 };

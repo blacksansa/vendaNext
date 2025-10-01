@@ -60,7 +60,7 @@ import { Customer } from "@/lib/types";
 import { useRouter } from "next/navigation";
 import { createCustomer, updateCustomer, deleteCustomer } from "@/lib/api.client";
 import { useToast } from "@/hooks/use-toast";
-import { CustomerForm } from "@/components/customer-form";
+
 
 // Helper functions (could be moved to a utils file)
 const getInitials = (name: string) => {
@@ -93,10 +93,19 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
 
-  const handleCreate = async (data: Partial<Customer>) => {
+const CUSTOMERS_CACHE_KEY = 'customersCache';
+
+  const handleCreate = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const formData = new FormData(event.currentTarget);
+    const newCustomerData = Object.fromEntries(formData.entries()) as unknown as Partial<Customer>;
+
     try {
-      const newCustomer = await createCustomer(data);
-      setCustomers([newCustomer, ...customers]);
+      const newCustomer = await createCustomer(newCustomerData);
+      const updatedCustomers = [newCustomer, ...customers];
+      setCustomers(updatedCustomers);
+      localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(updatedCustomers));
       toast.success("Success", { description: "Customer created successfully." });
       setIsAddDialogOpen(false);
       router.refresh();
@@ -114,7 +123,9 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
 
     try {
       const updatedCustomer = await updateCustomer(selectedCustomer.id, updatedCustomerData);
-      setCustomers(customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c));
+      const updatedCustomers = customers.map(c => c.id === updatedCustomer.id ? updatedCustomer : c);
+      setCustomers(updatedCustomers);
+      localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(updatedCustomers));
       toast.success("Success", { description: "Customer updated successfully." });
       setIsEditDialogOpen(false);
       setSelectedCustomer(null);
@@ -129,7 +140,9 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
 
     try {
       await deleteCustomer(selectedCustomer.id);
-      setCustomers(customers.filter(c => c.id !== selectedCustomer.id));
+      const updatedCustomers = customers.filter(c => c.id !== selectedCustomer.id);
+      setCustomers(updatedCustomers);
+      localStorage.setItem(CUSTOMERS_CACHE_KEY, JSON.stringify(updatedCustomers));
       toast.success("Success", { description: "Customer deleted successfully." });
       setIsDeleteDialogOpen(false);
       setSelectedCustomer(null);
@@ -164,7 +177,7 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
                 <Download className="h-4 w-4 mr-2" />
                 Export
               </Button>
-              <Button size="sm" onClick={() => setIsAddDialogOpen(true)}>
+              <Button size="sm" onClick={() => { console.log("Add customer button clicked"); setIsAddDialogOpen(true); }}>
                 <Plus className="h-4 w-4 mr-2" />
                 Add Customer
               </Button>
@@ -263,10 +276,10 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm">
+                        <DropdownMenuTrigger>
+                          <button>
                             <MoreHorizontal className="h-4 w-4" />
-                          </Button>
+                          </button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>
@@ -303,7 +316,25 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
             <DialogTitle>Add New Customer</DialogTitle>
             <DialogDescription>Create a new customer profile.</DialogDescription>
           </DialogHeader>
-          <CustomerForm onSubmit={handleCreate} />
+          <form onSubmit={handleCreate}>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="code-add" className="text-right">Código</Label>
+                <Input id="code-add" name="code" required className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="name-add" className="text-right">Nome</Label>
+                <Input id="name-add" name="name" required className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="companyName-add" className="text-right">Razão Social</Label>
+                <Input id="companyName-add" name="companyName" required className="col-span-3" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="submit">Save Customer</Button>
+            </DialogFooter>
+          </form>
         </DialogContent>
       </Dialog>
 
@@ -323,6 +354,18 @@ export function CustomersView({ initialCustomers }: CustomersViewProps) {
               <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="companyName-edit" className="text-right">Company</Label>
                 <Input id="companyName-edit" name="companyName" defaultValue={selectedCustomer?.companyName} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="cnpj-edit" className="text-right">CNPJ</Label>
+                <Input id="cnpj-edit" name="cnpj" defaultValue={selectedCustomer?.cnpj} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="document-edit" className="text-right">Document</Label>
+                <Input id="document-edit" name="document" defaultValue={selectedCustomer?.document} className="col-span-3" />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="creditLimit-edit" className="text-right">Credit Limit</Label>
+                <Input id="creditLimit-edit" name="creditLimit" type="number" defaultValue={selectedCustomer?.creditLimit} className="col-span-3" />
               </div>
                <div className="grid grid-cols-4 items-center gap-4">
                 <Label htmlFor="active-edit" className="text-right">Status</Label>

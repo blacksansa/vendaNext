@@ -106,10 +106,6 @@ class CustomerApi extends Api<Customer, number> {
 // --- Instâncias da API ---
 const customerApi = new CustomerApi();
 const teamApi = new Api<Team, number>("/team");
-const userApi = new Api<User, string>("/user");
-const sellerApi = new Api<Seller, number>("/seller");
-const stageApi = new Api<Stage, number>("/stage");
-const opportunityApi = new Api<Opportunity, number>("/opportunity");
 
 // --- Clientes (Customer) ---
 export const getCustomers = (term: string = "", page: number = 0, size: number = 20): Promise<CustomerListItem[]> => {
@@ -126,6 +122,14 @@ export const getCustomerInvoiceItemCount = (id: number, term: string = "", start
 export const getCustomerInvoiceItemList = (id: number, page: number = 0, size: number = 20, term: string = "", startDate?: Date, endDate?: Date): Promise<InvoiceItem[]> => customerApi.invoiceItemList(id, page, size, term, startDate, endDate);
 export const getAiCustomerCentralLast = (id: number): Promise<AiCustomerCentral> => customerApi.aiCustomerCentralLast(id);
 export const createAiCustomerCentral = (id: number): Promise<AiCustomerCentral> => customerApi.aiCustomerCentralCreate(id);
+
+
+// --- Times / Grupos (Team) ---
+export const getTeams = (term: string = "", page: number = 0, size: number = 20): Promise<Team[]> => teamApi.list(page, size, term);
+export const createTeam = (teamData: Partial<Team>): Promise<Team> => teamApi.saveOrUpdate(teamData);
+export const updateTeam = (id: number, teamData: Partial<Team>): Promise<Team> => teamApi.saveOrUpdate({ ...teamData, id });
+export const deleteTeam = (id: number): Promise<void> => teamApi.delete(id);
+
 
 
 // --- Times / Grupos (Team) ---

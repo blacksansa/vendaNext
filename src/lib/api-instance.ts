@@ -60,7 +60,7 @@ api.interceptors.response.use(
             console.log('Response Interceptor: Token refresh successful');
             originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
             processQueue(null, session.accessToken);
-            resolve(axios(originalRequest));
+            resolve(api(originalRequest));
           } else {
             throw new Error("No session after refresh");
           }
