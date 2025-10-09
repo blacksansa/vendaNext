@@ -57,7 +57,7 @@ export default function TeamsPage() {
       <div className="p-6">
         {loading && teams.length === 0 && <Loading />}
         {error && <p className="text-red-500">{error}</p>}
-        {teams.length > 0 && <TeamsView initialTeams={teams} />}
+        {!loading && !error && <TeamsView initialTeams={teams} />}
       </div>
     </SidebarInset>
   );

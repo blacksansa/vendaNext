@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { DragDropContext, Droppable, Draggable } from 'react-beautiful-dnd';
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
@@ -90,7 +90,8 @@ export function PipelineView({ initialStages, initialDeals }: PipelineViewProps)
       </div>
       <DragDropContext onDragEnd={onDragEnd}>
         <div className="flex space-x-4 overflow-x-auto pb-4">
-          {stages.map(stage => (
+          {stages.length > 0 ? (
+            stages.map(stage => (
             <Droppable droppableId={stage.id.toString()} key={stage.id}>
               {(provided) => (
                 <div
@@ -129,7 +130,12 @@ export function PipelineView({ initialStages, initialDeals }: PipelineViewProps)
                 </div>
               )}
             </Droppable>
-          ))}
+          ))
+          ) : (
+            <div className="flex justify-center items-center h-full w-full">
+              <p className="text-muted-foreground">No stages found. Please add a stage to get started.</p>
+            </div>
+          )}
         </div>
       </DragDropContext>
 

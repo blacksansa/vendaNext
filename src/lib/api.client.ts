@@ -10,7 +10,8 @@ import {
   CustomerReceivableSums,
   Receivable,
   InvoiceItem,
-  AiCustomerCentral
+  AiCustomerCentral,
+  Task
 } from "./types";
 
 class CustomerApi extends Api<Customer, number> {
@@ -106,6 +107,11 @@ class CustomerApi extends Api<Customer, number> {
 // --- Instâncias da API ---
 const customerApi = new CustomerApi();
 const teamApi = new Api<Team, number>("/team");
+const userApi = new Api<User, string>("/user");
+const sellerApi = new Api<Seller, number>("/seller");
+const stageApi = new Api<Stage, number>("/stage");
+const opportunityApi = new Api<Opportunity, number>("/opportunity");
+const taskApi = new Api<Task, number>("/task");
 
 // --- Clientes (Customer) ---
 export const getCustomers = (term: string = "", page: number = 0, size: number = 20): Promise<CustomerListItem[]> => {
@@ -157,3 +163,9 @@ export const getDeals = (term: string = "", page: number = 0, size: number = 20)
 export const createDeal = (dealData: Partial<Opportunity>): Promise<Opportunity> => opportunityApi.saveOrUpdate(dealData);
 export const updateDeal = (dealId: number, dealData: Partial<Opportunity>): Promise<Opportunity> => opportunityApi.saveOrUpdate({ ...dealData, id: dealId });
 export const deleteDeal = (dealId: number): Promise<void> => opportunityApi.delete(dealId);
+
+// --- Tarefas (Task) ---
+export const getTasks = (term: string = "", page: number = 0, size: number = 20): Promise<Task[]> => taskApi.list(page, size, term);
+export const createTask = (taskData: Partial<Task>): Promise<Task> => taskApi.saveOrUpdate(taskData);
+export const updateTask = (taskId: number, taskData: Partial<Task>): Promise<Task> => taskApi.saveOrUpdate({ ...taskData, id: taskId });
+export const deleteTask = (taskId: number): Promise<void> => taskApi.delete(taskId);

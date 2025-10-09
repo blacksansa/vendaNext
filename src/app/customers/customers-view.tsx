@@ -276,10 +276,10 @@ const CUSTOMERS_CACHE_KEY = 'customersCache';
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
-                        <DropdownMenuTrigger>
-                          <button>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon">
                             <MoreHorizontal className="h-4 w-4" />
-                          </button>
+                          </Button>
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Actions</DropdownMenuLabel>

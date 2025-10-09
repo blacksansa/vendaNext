@@ -57,7 +57,7 @@ export default function SellersPage() {
       <div className="p-6">
         {loading && sellers.length === 0 && <Loading />}
         {error && <p className="text-red-500">{error}</p>}
-        {sellers.length > 0 && <SellersView initialSellers={sellers} />}
+        {!loading && !error && <SellersView initialSellers={sellers} />}
       </div>
     </SidebarInset>
   );

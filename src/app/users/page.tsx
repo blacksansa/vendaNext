@@ -57,7 +57,7 @@ export default function UsersPage() {
       <div className="p-6">
         {loading && users.length === 0 && <Loading />}
         {error && <p className="text-red-500">{error}</p>}
-        {users.length > 0 && <UsersView initialUsers={users} />}
+        {!loading && !error && <UsersView initialUsers={users} />}
       </div>
     </SidebarInset>
   );

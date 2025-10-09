@@ -69,7 +69,7 @@ export default function CustomersPage() {
       <div className="p-6">
         {loading && customers.length === 0 && <Loading />}
         {error && <p className="text-red-500">{error}</p>}
-        {customers.length > 0 && <CustomersView initialCustomers={customers} />}
+        {!loading && !error && <CustomersView initialCustomers={customers} />}
       </div>
     </SidebarInset>
   );

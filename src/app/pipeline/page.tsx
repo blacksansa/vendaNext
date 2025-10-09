@@ -68,7 +68,7 @@ export default function PipelinePage() {
       <div className="p-6">
         {loading && stages.length === 0 && deals.length === 0 && <Loading />}
         {error && <p className="text-red-500">{error}</p>}
-        {(stages.length > 0 || deals.length > 0) && <PipelineView initialStages={stages} initialDeals={deals} />}
+        {!loading && !error && <PipelineView initialStages={stages} initialDeals={deals} />}
       </div>
     </SidebarInset>
   );

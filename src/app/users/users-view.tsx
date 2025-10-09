@@ -52,10 +52,11 @@ import {
   Trash2,
   Filter,
   Download,
+  Key,
 } from "lucide-react";
 import { User } from "@/lib/types";
 import { useRouter } from "next/navigation";
-import { createUser, updateUser, deleteUser } from "@/lib/api.client";
+import { createUser, updateUser, deleteUser, resetPassword } from "@/lib/api.client";
 import { useToast } from "@/hooks/use-toast";
 import { UserForm } from "./user-form";
 
@@ -88,6 +89,7 @@ export function UsersView({ initialUsers }: UsersViewProps) {
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   const handleCreate = async (data: Partial<User>) => {
@@ -131,6 +133,19 @@ export function UsersView({ initialUsers }: UsersViewProps) {
       setIsDeleteDialogOpen(false);
       setSelectedUser(null);
       router.refresh();
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error", description: error.message });
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!selectedUser) return;
+
+    try {
+      await resetPassword(selectedUser.id);
+      toast({ title: "Success", description: "Password reset link sent successfully." });
+      setIsResetPasswordDialogOpen(false);
+      setSelectedUser(null);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
     }
@@ -251,6 +266,10 @@ export function UsersView({ initialUsers }: UsersViewProps) {
                             <Edit className="h-4 w-4 mr-2" />
                             Edit User
                           </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => { setSelectedUser(user); setIsResetPasswordDialogOpen(true); }}>
+                            <Key className="h-4 w-4 mr-2" />
+                            Reset Password
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem className="text-destructive" onClick={() => { setSelectedUser(user); setIsDeleteDialogOpen(true); }}>
                             <Trash2 className="h-4 w-4 mr-2" />
@@ -337,6 +356,22 @@ export function UsersView({ initialUsers }: UsersViewProps) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)}>Cancel</Button>
             <Button variant="destructive" onClick={handleDelete}>Delete</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset Password Confirmation Dialog */}
+      <Dialog open={isResetPasswordDialogOpen} onOpenChange={setIsResetPasswordDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Are you sure?</DialogTitle>
+            <DialogDescription>
+              This will send a password reset link to the user: <span className="font-semibold">{selectedUser?.email}</span>.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleResetPassword}>Send Link</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
