@@ -3,14 +3,17 @@ import { Badge } from "@/components/ui/badge";
 import { Task } from "@/lib/types";
 import { Droppable, Draggable } from "@hello-pangea/dnd";
 import { KanbanCard } from "./KanbanCard";
-import { Clock, AlertCircle, CheckCircle } from "lucide-react";
+import { statusMap, TaskStatus } from "@/lib/status-map";
 
 interface KanbanColumnProps {
-  status: string;
+  status: TaskStatus;
   tasks: Task[];
 }
 
 export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
+  const statusInfo = statusMap[status];
+  const Icon = statusInfo?.icon;
+
   return (
     <Droppable droppableId={status} key={status}>
       {(provided) => (
@@ -19,10 +22,8 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  {status === 'pendentes' && <Clock className="h-5 w-5 text-orange-500" />}
-                  {status === 'emAndamento' && <AlertCircle className="h-5 w-5 text-blue-500" />}
-                  {status === 'concluidas' && <CheckCircle className="h-5 w-5 text-green-500" />}
-                  <CardTitle className="text-lg">{status.charAt(0).toUpperCase() + status.slice(1)}</CardTitle>
+                  {Icon && <Icon className={`h-5 w-5 ${statusInfo.color}`} />}
+                  <CardTitle className="text-lg">{statusInfo?.label || status}</CardTitle>
                 </div>
                 <Badge variant="secondary">{tasks.length}</Badge>
               </div>

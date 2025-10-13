@@ -167,5 +167,5 @@ export const deleteDeal = (dealId: number): Promise<void> => opportunityApi.dele
 // --- Tarefas (Task) ---
 export const getTasks = (term: string = "", page: number = 0, size: number = 20): Promise<Task[]> => taskApi.list(page, size, term);
 export const createTask = (taskData: Partial<Task>): Promise<Task> => taskApi.saveOrUpdate(taskData);
-export const updateTask = (taskId: number, taskData: Partial<Task>): Promise<Task> => taskApi.saveOrUpdate({ ...taskData, id: taskId });
+export const updateTask = (taskId: number, taskData: Partial<Task>): Promise<Task> => taskApi.patch(taskId, taskData);
 export const deleteTask = (taskId: number): Promise<void> => taskApi.delete(taskId);

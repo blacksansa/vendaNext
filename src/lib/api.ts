@@ -69,6 +69,13 @@ class Api<T, T_ID> {
     }
   }
 
+  async patch(id: T_ID, data: Partial<T>): Promise<T> {
+    return fetchData<T>(`${this.path}/${id}`, {
+      method: "PATCH",
+      body: data,
+    });
+  }
+
   async delete(id: T_ID): Promise<void> {
     return fetchData<void>(`${this.path}/${id}`, { method: "DELETE" });
   }
