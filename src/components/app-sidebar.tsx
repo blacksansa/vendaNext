@@ -14,8 +14,12 @@ import {
   Kanban,
   FileText,
   Shield,
-  GitBranch,
   Crown,
+  CheckSquare,
+  FolderOpen,
+  ListTodo,
+  ShoppingCart,
+  GitBranch,
 } from "lucide-react"
 
 import {
@@ -51,6 +55,10 @@ const iconMap = {
   FileText,
   Shield,
   Settings,
+  CheckSquare,
+  FolderOpen,
+  ListTodo,
+  ShoppingCart,
 }
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
@@ -73,13 +81,13 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               size="lg"
               className="data-[state=open]:bg-sidebar-accent data-[state=open]:text-sidebar-accent-foreground cursor-pointer"
               onClick={toggleSidebar}
-              title={state === "collapsed" ? "Expandir sidebar" : "Colapsar sidebar"}
+              title={state === "collapsed" ? "Expandir sidebar" : "Recolher sidebar"}
             >
               <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <TrendingUp className="size-4" />
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
-                <span className="truncate font-semibold">CRM Admin</span>
+                <span className="truncate font-semibold">Admin CRM</span>
                 <Badge variant="secondary" className="w-fit text-xs">
                   {user?.role.toUpperCase()}
                 </Badge>

@@ -63,7 +63,7 @@ export default function AnalyticsPage() {
         <SidebarTrigger className="-ml-1" />
         <Separator orientation="vertical" className="mr-2 h-4" />
         <div className="flex items-center justify-between w-full">
-          <h1 className="text-lg font-semibold">Analytics & Reports</h1>
+          <h1 className="text-lg font-semibold">Análises e Relatórios</h1>
           <div className="flex items-center gap-4">
             <Select defaultValue="30days">
               <SelectTrigger className="w-[180px]">
@@ -71,15 +71,15 @@ export default function AnalyticsPage() {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7days">Last 7 days</SelectItem>
-                <SelectItem value="30days">Last 30 days</SelectItem>
-                <SelectItem value="90days">Last 90 days</SelectItem>
-                <SelectItem value="1year">Last year</SelectItem>
+                <SelectItem value="7days">Últimos 7 dias</SelectItem>
+                <SelectItem value="30days">Últimos 30 dias</SelectItem>
+                <SelectItem value="90days">Últimos 90 dias</SelectItem>
+                <SelectItem value="1year">Último ano</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="outline" size="sm">
               <Download className="h-4 w-4 mr-2" />
-              Export Report
+              Exportar Relatório
             </Button>
           </div>
         </div>
@@ -88,10 +88,10 @@ export default function AnalyticsPage() {
       <div className="p-6">
         <Tabs defaultValue="overview" className="space-y-6">
           <TabsList className="grid w-full grid-cols-4">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="sales">Sales</TabsTrigger>
-            <TabsTrigger value="customers">Customers</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
+            <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+            <TabsTrigger value="sales">Vendas</TabsTrigger>
+            <TabsTrigger value="customers">Clientes</TabsTrigger>
+            <TabsTrigger value="performance">Desempenho</TabsTrigger>
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -99,56 +99,56 @@ export default function AnalyticsPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-200/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Total Revenue</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Receita Total</CardTitle>
                   <DollarSign className="h-4 w-4 text-green-500" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-foreground">$328,000</div>
                   <div className="flex items-center text-xs text-muted-foreground">
                     <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-                    <span className="text-green-500">+12.5%</span> vs last period
+                    <span className="text-green-500">+12.5%</span> vs período anterior
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-200/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">New Customers</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Novos Clientes</CardTitle>
                   <Users className="h-4 w-4 text-blue-500" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-foreground">148</div>
                   <div className="flex items-center text-xs text-muted-foreground">
                     <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-                    <span className="text-green-500">+8.2%</span> vs last period
+                    <span className="text-green-500">+8.2%</span> vs período anterior
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-200/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Conversion Rate</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Conversão</CardTitle>
                   <Target className="h-4 w-4 text-purple-500" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-foreground">24.8%</div>
                   <div className="flex items-center text-xs text-muted-foreground">
                     <TrendingDown className="h-3 w-3 text-red-500 mr-1" />
-                    <span className="text-red-500">-2.1%</span> vs last period
+                    <span className="text-red-500">-2.1%</span> vs período anterior
                   </div>
                 </CardContent>
               </Card>
 
               <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-200/20">
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium text-muted-foreground">Avg Deal Size</CardTitle>
+                  <CardTitle className="text-sm font-medium text-muted-foreground">Tamanho Médio do Negócio</CardTitle>
                   <Activity className="h-4 w-4 text-orange-500" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold text-foreground">$4,890</div>
                   <div className="flex items-center text-xs text-muted-foreground">
                     <TrendingUp className="h-3 w-3 text-green-500 mr-1" />
-                    <span className="text-green-500">+5.7%</span> vs last period
+                    <span className="text-green-500">+5.7%</span> vs período anterior
                   </div>
                 </CardContent>
               </Card>
@@ -158,8 +158,8 @@ export default function AnalyticsPage() {
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Revenue Trend</CardTitle>
-                  <CardDescription>Monthly revenue and customer acquisition</CardDescription>
+                  <CardTitle>Tendência de Receita</CardTitle>
+                  <CardDescription>Receita mensal e aquisição de clientes</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -182,8 +182,8 @@ export default function AnalyticsPage() {
 
               <Card>
                 <CardHeader>
-                  <CardTitle>Customer Distribution</CardTitle>
-                  <CardDescription>Breakdown by customer status</CardDescription>
+                  <CardTitle>Distribuição de Clientes</CardTitle>
+                  <CardDescription>Detalhamento por status do cliente</CardDescription>
                 </CardHeader>
                 <CardContent>
                   <ResponsiveContainer width="100%" height={300}>
@@ -222,8 +222,8 @@ export default function AnalyticsPage() {
           <TabsContent value="sales" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Sales Funnel</CardTitle>
-                <CardDescription>Track leads through the sales process</CardDescription>
+                <CardTitle>Funil de Vendas</CardTitle>
+                <CardDescription>Acompanhe os leads pelo processo de vendas</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -234,7 +234,7 @@ export default function AnalyticsPage() {
                         <div className="flex items-center gap-4">
                           <span className="text-sm text-muted-foreground">{stage.count} leads</span>
                           <Badge variant="outline" className="text-xs">
-                            {stage.conversion}% conversion
+                            {stage.conversion}% conversão
                           </Badge>
                         </div>
                       </div>
@@ -249,8 +249,8 @@ export default function AnalyticsPage() {
           <TabsContent value="customers" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Customer Growth</CardTitle>
-                <CardDescription>Monthly customer acquisition and revenue</CardDescription>
+                <CardTitle>Crescimento de Clientes</CardTitle>
+                <CardDescription>Aquisição mensal de clientes e receita</CardDescription>
               </CardHeader>
               <CardContent>
                 <ResponsiveContainer width="100%" height={400}>
@@ -277,8 +277,8 @@ export default function AnalyticsPage() {
           <TabsContent value="performance" className="space-y-6">
             <Card>
               <CardHeader>
-                <CardTitle>Top Performers</CardTitle>
-                <CardDescription>Sales team performance metrics</CardDescription>
+                <CardTitle>Melhores Desempenhos</CardTitle>
+                <CardDescription>Métricas de desempenho da equipe de vendas</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
@@ -295,7 +295,7 @@ export default function AnalyticsPage() {
                         </div>
                         <div>
                           <p className="font-medium text-foreground">{performer.name}</p>
-                          <p className="text-sm text-muted-foreground">{performer.deals} deals closed</p>
+                          <p className="text-sm text-muted-foreground">{performer.deals} negócios fechados</p>
                         </div>
                       </div>
                       <div className="text-right">

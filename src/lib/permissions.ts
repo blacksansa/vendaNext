@@ -9,22 +9,26 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   admin: [
     { module: "dashboard", actions: ["view", "edit"] },
     { module: "customers", actions: ["view", "create", "edit", "delete"] },
-    { module: "sellers", actions: ["view", "create", "edit", "delete"] },
+    { module: "vendedores", actions: ["view", "create", "edit", "delete"] },
     { module: "lideres", actions: ["view", "create", "edit", "delete"] },
-    { module: "teams", actions: ["view", "create", "edit", "delete"] },
+    { module: "grupos", actions: ["view", "create", "edit", "delete"] },
     { module: "pipeline", actions: ["view", "create", "edit", "delete"] },
     { module: "analytics", actions: ["view", "export"] },
     { module: "tarefas", actions: ["view", "create", "edit", "delete"] },
     { module: "relatorios", actions: ["view", "create", "export"] },
-    { module: "users", actions: ["view", "create", "edit", "delete"] },
+    { module: "usuarios", actions: ["view", "create", "edit", "delete"] },
     { module: "settings", actions: ["view", "edit"] },
+    { module: "minhas-tarefas", actions: ["view"] },
+    { module: "ordens", actions: ["view"] },
+    { module: "aprovacoes", actions: ["view"] },
+    { module: "cadastros", actions: ["view"] },
   ],
   manager: [
     { module: "dashboard", actions: ["view"] },
     { module: "customers", actions: ["view", "create", "edit"] },
-    { module: "sellers", actions: ["view", "edit"] },
+    { module: "vendedores", actions: ["view", "edit"] },
     { module: "lideres", actions: ["view"] },
-    { module: "teams", actions: ["view", "edit"] },
+    { module: "grupos", actions: ["view", "edit"] },
     { module: "pipeline", actions: ["view", "create", "edit"] },
     { module: "analytics", actions: ["view"] },
     { module: "tarefas", actions: ["view", "create", "edit"] },
@@ -34,9 +38,9 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   team_leader: [
     { module: "dashboard", actions: ["view"] },
     { module: "customers", actions: ["view", "create", "edit"] },
-    { module: "sellers", actions: ["view"] },
+    { module: "vendedores", actions: ["view"] },
     { module: "lideres", actions: ["view"] },
-    { module: "teams", actions: ["view"] }, // Apenas seu próprio grupo
+    { module: "grupos", actions: ["view"] }, // Apenas seu próprio grupo
     { module: "pipeline", actions: ["view", "create", "edit"] },
     { module: "analytics", actions: ["view"] },
     { module: "tarefas", actions: ["view", "create", "edit"] },
@@ -57,16 +61,20 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
 }
 
 export const NAVIGATION_ITEMS = [
-  { title: "Dashboard", url: "/", icon: "Home", module: "dashboard" },
+  { title: "Painel", url: "/", icon: "Home", module: "dashboard" },
   { title: "Clientes", url: "/customers", icon: "Users", module: "customers" },
-  { title: "Sellers", url: "/sellers", icon: "UserPlus", module: "sellers" },
-  { title: "Dashboard Líderes", url: "/lideres", icon: "Crown", module: "lideres" },
-  { title: "Teams", url: "/teams", icon: "Users", module: "teams" },,
-  { title: "Pipeline", url: "/pipeline", icon: "GitBranch", module: "pipeline" },
+  { title: "Vendedores", url: "/vendedores", icon: "UserPlus", module: "vendedores" },
+  { title: "Painel Líderes", url: "/lideres", icon: "Crown", module: "lideres" },
+  { title: "Grupos", url: "/grupos", icon: "Users", module: "grupos" },
+  { title: "Funil de Vendas", url: "/pipeline", icon: "GitBranch", module: "pipeline" },
   { title: "Análises", url: "/analytics", icon: "BarChart3", module: "analytics" },
   { title: "Tarefas", url: "/tarefas", icon: "Kanban", module: "tarefas" },
+  { title: "Minhas Tarefas", url: "/minhas-tarefas", icon: "ListTodo", module: "minhas-tarefas" },
+  { title: "Ordens", url: "/ordens", icon: "ShoppingCart", module: "ordens" },
+  { title: "Aprovações", url: "/aprovacoes", icon: "CheckSquare", module: "aprovacoes" },
+  { title: "Cadastros", url: "/cadastros", icon: "FolderOpen", module: "cadastros" },
   { title: "Relatórios", url: "/relatorios", icon: "FileText", module: "relatorios" },
-  { title: "Users", url: "/users", icon: "Shield", module: "users" },
+  { title: "Usuários", url: "/usuarios", icon: "Shield", module: "usuarios" },
 ]
 
 export function hasPermission(userRole: UserRole, module: string, action: string): boolean {
@@ -86,8 +94,8 @@ export function canAccessModule(userRole: UserRole, module: string): boolean {
 export const DASHBOARD_COMPONENTS = [
   {
     id: "overview-cards",
-    name: "Cards de Visão Geral",
-    description: "Métricas principais do dashboard",
+    name: "Cartões de Visão Geral",
+    description: "Métricas principais do painel",
     requiredPermissions: [{ module: "dashboard", action: "view" }],
   },
   {
@@ -104,14 +112,14 @@ export const DASHBOARD_COMPONENTS = [
   },
   {
     id: "team-performance",
-    name: "Performance da Equipe",
-    description: "Métricas de performance dos vendedores",
+    name: "Desempenho da Equipe",
+    description: "Métricas de desempenho dos vendedores",
     requiredPermissions: [{ module: "vendedores", action: "view" }],
   },
   {
     id: "pipeline-overview",
-    name: "Visão Geral do Pipeline",
-    description: "Status atual do pipeline de vendas",
+    name: "Visão Geral do Funil de Vendas",
+    description: "Status atual do funil de vendas",
     requiredPermissions: [{ module: "pipeline", action: "view" }],
   },
   {
@@ -122,7 +130,7 @@ export const DASHBOARD_COMPONENTS = [
   },
   {
     id: "admin-tools",
-    name: "Ferramentas de Admin",
+    name: "Ferramentas de Administrador",
     description: "Ferramentas exclusivas para administradores",
     requiredPermissions: [{ module: "usuarios", action: "view" }],
   },

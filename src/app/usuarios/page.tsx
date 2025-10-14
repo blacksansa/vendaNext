@@ -1,5 +1,7 @@
 "use client"
-import { useState } from "react"
+import { useEffect, useState } from "react"
+import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi } from "@/lib/api.client"
+import { User } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -41,49 +43,6 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 // Mock data para usuários
-const mockUsers = [
-  {
-    id: 1,
-    name: "Admin Sistema",
-    email: "admin@crm.com",
-    role: "admin",
-    status: "active",
-    lastLogin: "2024-01-15 14:30",
-    avatar: "/professional-avatar.png",
-    permissions: ["all"],
-  },
-  {
-    id: 2,
-    name: "João Silva",
-    email: "joao@crm.com",
-    role: "manager",
-    status: "active",
-    lastLogin: "2024-01-15 10:15",
-    avatar: null,
-    permissions: ["dashboard", "customers", "vendedores", "analytics"],
-  },
-  {
-    id: 3,
-    name: "Maria Santos",
-    email: "maria@crm.com",
-    role: "vendedor",
-    status: "inactive",
-    lastLogin: "2024-01-14 16:45",
-    avatar: null,
-    permissions: ["dashboard", "customers", "tarefas"],
-  },
-  {
-    id: 4,
-    name: "Pedro Costa",
-    email: "pedro@crm.com",
-    role: "vendedor",
-    status: "active",
-    lastLogin: "2024-01-15 09:20",
-    avatar: null,
-    permissions: ["dashboard", "customers"],
-  },
-]
-
 const roles = [
   { value: "admin", label: "Administrador", color: "bg-red-500" },
   { value: "manager", label: "Gerente", color: "bg-blue-500" },
@@ -103,7 +62,9 @@ const permissions = [
 ]
 
 export default function UsuariosPage() {
-  const [users, setUsers] = useState(mockUsers)
+  const [users, setUsers] = useState<User[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false)
@@ -117,31 +78,71 @@ export default function UsuariosPage() {
     permissions: [] as string[],
   })
 
-  const handleCreateUser = () => {
-    const user = {
-      id: users.length + 1,
-      ...newUser,
-      status: "active",
-      lastLogin: "Nunca",
-      avatar: null,
+  const fetchUsers = async () => {
+    try {
+      setLoading(true)
+      const fetchedUsers = await getUsers()
+      setUsers(fetchedUsers)
+    } catch (err: any) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
     }
-    setUsers([...users, user])
-    setNewUser({ name: "", email: "", role: "", password: "", permissions: [] })
-    setIsCreateDialogOpen(false)
   }
 
-  const handleToggleUserStatus = (userId: number) => {
-    setUsers(
-      users.map((user) =>
-        user.id === userId ? { ...user, status: user.status === "active" ? "inactive" : "active" } : user,
-      ),
-    )
+  useEffect(() => {
+    fetchUsers()
+  }, [])
+
+  const handleCreateUser = async () => {
+    try {
+      await createUser(newUser as any) // O `any` pode ser refinado com um tipo específico
+      fetchUsers() // Atualiza a lista de usuários
+      setNewUser({ name: "", email: "", role: "", password: "", permissions: [] })
+      setIsCreateDialogOpen(false)
+    } catch (err: any) {
+      setError(err.message)
+    }
   }
 
-  const handleResetPassword = () => {
-    // Simular reset de senha
-    setIsResetPasswordDialogOpen(false)
-    // Aqui seria enviado email de reset
+  const handleDeleteUser = async (userId: string) => {
+    try {
+      await deleteUser(userId)
+      fetchUsers()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleToggleUserStatus = async (user: User) => {
+    try {
+      await updateUser(user.id!, { ...user, status: user.status === "active" ? "inactive" : "active" })
+      fetchUsers()
+    } catch (err: any) {
+      setError(err.message)
+    }
+  }
+
+  const handleUpdateUser = async () => {
+    if (!selectedUser) return
+    try {
+      await updateUser(selectedUser.id!, selectedUser)
+      fetchUsers()
+      setIsEditDialogOpen(false)
+      setSelectedUser(null)
+    } catch (err: any) { 
+      setError(err.message)
+    }
+  }
+
+  const handleResetPassword = async () => {
+    if (!selectedUser) return
+    try {
+      await resetPasswordApi(selectedUser.id!)
+      setIsResetPasswordDialogOpen(false)
+    } catch (err: any) {
+      setError(err.message)
+    }
   }
 
   const getRoleColor = (role: string) => {
@@ -354,10 +355,12 @@ export default function UsuariosPage() {
                             <AvatarImage src={user.avatar || "/placeholder.svg"} />
                             <AvatarFallback>
                               {user.name
-                                .split(" ")
-                                .map((n) => n[0])
-                                .join("")
-                                .toUpperCase()}
+                                ? user.name
+                                    .split(" ")
+                                    .map((n) => n[0])
+                                    .join("")
+                                    .toUpperCase()
+                                : "NN"}
                             </AvatarFallback>
                           </Avatar>
                           <div>
@@ -414,8 +417,7 @@ export default function UsuariosPage() {
                               <Key className="mr-2 h-4 w-4" />
                               Reset Senha
                             </DropdownMenuItem>
-                            <DropdownMenuItem onClick={() => handleToggleUserStatus(user.id)}>
-                              {user.status === "active" ? (
+                            <DropdownMenuItem onClick={() => handleToggleUserStatus(user)}>
                                 <>
                                   <Lock className="mr-2 h-4 w-4" />
                                   Desativar
@@ -427,7 +429,7 @@ export default function UsuariosPage() {
                                 </>
                               )}
                             </DropdownMenuItem>
-                            <DropdownMenuItem className="text-red-600">
+                            <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUser(user.id!)}>
                               <Trash2 className="mr-2 h-4 w-4" />
                               Excluir
                             </DropdownMenuItem>
@@ -457,7 +459,7 @@ export default function UsuariosPage() {
                       <p className="text-sm text-muted-foreground">{permission.description}</p>
                     </div>
                     <Badge variant="outline">
-                      {users.filter((u) => u.permissions.includes(permission.id)).length} usuários
+                      {users.filter((u) => u.permissions && u.permissions.includes(permission.id)).length} usuários
                     </Badge>
                   </div>
                 ))}
@@ -529,6 +531,68 @@ export default function UsuariosPage() {
               <Mail className="mr-2 h-4 w-4" />
               Enviar Email
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Edit User */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Editar Usuário</DialogTitle>
+            <DialogDescription>Atualize as informações do usuário.</DialogDescription>
+          </DialogHeader>
+          {selectedUser && (
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name-edit">Nome Completo</Label>
+                  <Input
+                    id="name-edit"
+                    value={selectedUser.name}
+                    onChange={(e) => setSelectedUser({ ...selectedUser, name: e.target.value })}
+                    placeholder="Digite o nome completo"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="email-edit">Email</Label>
+                  <Input
+                    id="email-edit"
+                    type="email"
+                    value={selectedUser.email}
+                    onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })}
+                    placeholder="usuario@empresa.com"
+                  />
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="role-edit">Função</Label>
+                <Select
+                  value={selectedUser.role}
+                  onValueChange={(value) => setSelectedUser({ ...selectedUser, role: value })}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione uma função" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {roles.map((role) => (
+                      <SelectItem key={role.value} value={role.value}>
+                        <div className="flex items-center gap-2">
+                          <div className={`w-2 h-2 rounded-full ${role.color}`} />
+                          {role.label}
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateUser}>Salvar Alterações</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
