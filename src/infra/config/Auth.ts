@@ -65,6 +65,14 @@ export const authOptions: AuthOptions = {
         token.refreshToken = account.refresh_token;
         token.expiresAt = account.expires_at;
         token.idToken = account.id_token;
+
+        if (account.access_token) {
+          const decodedToken = jwtDecode<DecodedToken>(account.access_token);
+          const clientRoles =
+            decodedToken.resource_access?.[process.env.KEYCLOAK_ID!]?.roles;
+          token.roles = clientRoles;
+        }
+
         return token;
       }
 
@@ -82,6 +90,7 @@ export const authOptions: AuthOptions = {
       session.accessToken = token.accessToken;
       session.refreshToken = token.refreshToken;
       session.expiresAt = token.expiresAt;
+      session.roles = token.roles;
       return session;
     },
   },

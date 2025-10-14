@@ -45,11 +45,15 @@ import {
   Trash2,
   Edit,
 } from "lucide-react"
-import { useState } from "react"
+import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { RoleGuard } from "@/components/role-guard"
 import { useAuth } from "@/hooks/use-auth"
 
 export default function CRMDashboard() {
+  const { data: session } = useSession()
+  console.log("Session:", session)
+
   const { user } = useAuth()
   const [isResumoExpanded, setIsResumoExpanded] = useState(true)
   const [tarefasRapidas, setTarefasRapidas] = useState([
