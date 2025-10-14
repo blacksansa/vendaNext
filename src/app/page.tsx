@@ -45,23 +45,19 @@ import {
   Trash2,
   Edit,
 } from "lucide-react"
-import { useSession } from "next-auth/react";
 import { useState } from "react";
 import { RoleGuard } from "@/components/role-guard"
 import { useAuth } from "@/hooks/use-auth"
 
 export default function CRMDashboard() {
-  const { data: session } = useSession()
-  console.log("Session:", session)
-
-  const { user } = useAuth()
+  const { user, roles } = useAuth()
   const [isResumoExpanded, setIsResumoExpanded] = useState(true)
   const [tarefasRapidas, setTarefasRapidas] = useState([
-    { id: 1, titulo: "Adicionar Novo Cliente", icone: "Users", url: "/customers", cor: "blue" },
-    { id: 2, titulo: "Agendar Ligação", icone: "Phone", url: "#", cor: "green" },
-    { id: 3, titulo: "Enviar Email", icone: "Mail", url: "#", cor: "purple" },
-    { id: 4, titulo: "Ver Calendário", icone: "Calendar", url: "#", cor: "orange" },
-    { id: 5, titulo: "Ver Análises", icone: "BarChart3", url: "/analytics", cor: "red" },
+    { id: 1, titulo: "Adicionar Novo Cliente", icone: "Users", url: "/customers", cor: "blue", requiredRole: "manageCustomers" },
+    { id: 2, titulo: "Agendar Ligação", icone: "Phone", url: "#", cor: "green", requiredRole: "manageTasks" },
+    { id: 3, titulo: "Enviar Email", icone: "Mail", url: "#", cor: "purple", requiredRole: "manageTasks" },
+    { id: 4, titulo: "Ver Calendário", icone: "Calendar", url: "#", cor: "orange", requiredRole: "manageTasks" },
+    { id: 5, titulo: "Ver Análises", icone: "BarChart3", url: "/analytics", cor: "red", requiredRole: "manageAnalytics" },
   ])
   const [novaTarefa, setNovaTarefa] = useState({ titulo: "", icone: "Users", url: "", cor: "blue" })
   const [editandoTarefa, setEditandoTarefa] = useState(null)
@@ -189,16 +185,11 @@ export default function CRMDashboard() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <h1 className="text-lg font-semibold">Dashboard</h1>
-          {user && (
-            <Badge variant="outline" className="ml-auto">
-              {user.role.toUpperCase()}
-            </Badge>
-          )}
         </div>
       </header>
 
       <div className="flex flex-1 flex-col gap-4 p-4 pt-0">
-        <RoleGuard module="analytics" action="view" allowedRoles={["admin", "manager"]}>
+        <RoleGuard requiredRole="manageAnalytics">
           <Collapsible open={isResumoExpanded} onOpenChange={setIsResumoExpanded}>
             <Card className="mb-6 bg-gradient-to-r from-purple-500/10 to-blue-500/10 border-purple-200/20">
               <CollapsibleTrigger asChild>
@@ -315,7 +306,7 @@ export default function CRMDashboard() {
           </Card>
         </div>
 
-        <RoleGuard module="grupos" action="view" allowedRoles={["admin", "manager", "team_leader"]}>
+        <RoleGuard requiredRole="manageUserGroups">
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -323,7 +314,7 @@ export default function CRMDashboard() {
                   <CardTitle className="text-foreground">Performance dos Grupos</CardTitle>
                   <CardDescription>Acompanhamento das equipes de vendas</CardDescription>
                 </div>
-                <RoleGuard module="vendedores" action="view" allowedRoles={["admin", "manager"]}>
+                <RoleGuard requiredRole="manageSellers">
                   <Link href="/vendedores">
                     <Button variant="outline" size="sm">
                       Gerenciar Grupos
@@ -335,12 +326,6 @@ export default function CRMDashboard() {
             <CardContent>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {gruposVendedores
-                  .filter((grupo) => {
-                    if (user?.role === "team_leader") {
-                      return user.groupId === grupo.id.toString()
-                    }
-                    return true
-                  })
                   .map((grupo) => (
                     <Card key={grupo.id} className="border-border">
                       <CardHeader className="pb-3">
@@ -392,7 +377,7 @@ export default function CRMDashboard() {
           </Card>
         </RoleGuard>
 
-        <RoleGuard module="tarefas" action="view">
+        <RoleGuard requiredRole="manageTasks">
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">
@@ -406,7 +391,7 @@ export default function CRMDashboard() {
                       Ver Detalhes
                     </Button>
                   </Link>
-                  <RoleGuard module="tarefas" action="create">
+                  <RoleGuard requiredRole="manageTasks">
                     <Dialog>
                       <DialogTrigger asChild>
                         <Button size="sm">
@@ -588,7 +573,7 @@ export default function CRMDashboard() {
         </RoleGuard>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          <RoleGuard module="customers" action="view">
+          <RoleGuard requiredRole="manageCustomers">
             <Card className="lg:col-span-2">
               <CardHeader>
                 <div className="flex items-center justify-between">
@@ -682,7 +667,7 @@ export default function CRMDashboard() {
                   <CardTitle className="text-foreground">Ações Rápidas</CardTitle>
                   <CardDescription>Tarefas comuns e atalhos personalizados</CardDescription>
                 </div>
-                <RoleGuard module="settings" action="edit" allowedRoles={["admin", "manager"]}>
+                <RoleGuard requiredRole="manageSettings">
                   <Dialog>
                     <DialogTrigger asChild>
                       <Button variant="outline" size="sm">
@@ -827,12 +812,7 @@ export default function CRMDashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {tarefasRapidas
-                .filter((tarefa) => {
-                  if (tarefa.url === "/analytics" && !user) return false
-                  if (tarefa.url === "/analytics" && user?.role === "sales_rep") return false
-                  if (tarefa.url === "/customers" && user?.role === "viewer") return false
-                  return true
-                })
+                .filter(tarefa => roles.includes(tarefa.requiredRole))
                 .map((tarefa) => {
                   const IconeComponent = getIcone(tarefa.icone)
                   const TarefaButton = ({ children, ...props }) => (

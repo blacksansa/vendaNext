@@ -63,10 +63,10 @@ const iconMap = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { toggleSidebar, state } = useSidebar()
-  const { user, loading } = useAuth()
+  const { user, roles, loading } = useAuth()
 
-  const visibleNavigation = user ? getVisibleNavigation(user.role) : []
-  const canAddCustomer = user ? hasPermission(user.role, "customers", "create") : false
+  const visibleNavigation = getVisibleNavigation(roles)
+  const canAddCustomer = hasPermission(roles, "manageCustomers")
 
   if (loading) {
     return null // ou um skeleton loader
@@ -88,9 +88,6 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
               </div>
               <div className="grid flex-1 text-left text-sm leading-tight">
                 <span className="truncate font-semibold">Admin CRM</span>
-                <Badge variant="secondary" className="w-fit text-xs">
-                  {user?.role.toUpperCase()}
-                </Badge>
               </div>
             </SidebarMenuButton>
           </SidebarMenuItem>
@@ -119,21 +116,19 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {(canAddCustomer || user?.role === "admin") && (
+        {canAddCustomer && (
           <SidebarGroup>
             <SidebarGroupLabel>Ações Rápidas</SidebarGroupLabel>
             <SidebarGroupContent>
               <SidebarMenu>
-                {canAddCustomer && (
-                  <SidebarMenuItem>
-                    <SidebarMenuButton asChild>
-                      <Link href="/customers">
-                        <Plus />
-                        <span>Adicionar Cliente</span>
-                      </Link>
-                    </SidebarMenuButton>
-                  </SidebarMenuItem>
-                )}
+                <SidebarMenuItem>
+                  <SidebarMenuButton asChild>
+                    <Link href="/customers">
+                      <Plus />
+                      <span>Adicionar Cliente</span>
+                    </Link>
+                  </SidebarMenuButton>
+                </SidebarMenuItem>
                 <SidebarMenuItem>
                   <SidebarMenuButton>
                     <Search />
@@ -145,7 +140,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         )}
 
-        {hasPermission(user?.role || "viewer", "settings", "view") && (
+        {hasPermission(roles, "manageSettings") && (
           <SidebarGroup className="mt-auto">
             <SidebarGroupContent>
               <SidebarMenu>
@@ -168,10 +163,10 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           <SidebarMenuItem>
             <SidebarMenuButton onClick={() => signOut()}>
               <Avatar className="h-6 w-6">
-                <AvatarImage src={user?.avatar || "/placeholder.svg"} />
+                <AvatarImage src={user?.image || "/placeholder.svg"} />
                 <AvatarFallback>
                   {user?.name
-                    .split(" ")
+                    ?.split(" ")
                     .map((n) => n[0])
                     .join("")}
                 </AvatarFallback>
