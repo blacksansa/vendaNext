@@ -1,4 +1,3 @@
-
 "use client"
 
 import { useState, useEffect } from 'react';
@@ -9,20 +8,34 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { NAVIGATION_ITEMS } from '@/lib/permissions';
 import { useToast } from "@/hooks/use-toast";
 import { ShieldCheck, Save } from 'lucide-react';
-import { mockGroups as fetchMockGroups } from '@/lib/mock-groups';
+import { getUserGroups, updateUserGroup } from '@/lib/api.client';
 
 const allPermissions = NAVIGATION_ITEMS.map(item => item.requiredRole).filter((value, index, self) => self.indexOf(value) === index);
 
 export function GroupPermissions() {
   const { toast } = useToast();
-  const [groups, setGroups] = useState([]);
-  const [selectedGroup, setSelectedGroup] = useState(null);
+  const [groups, setGroups] = useState<any[]>([]);
+  const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
 
   useEffect(() => {
-    // Simulate fetching data from the backend
-    setGroups(fetchMockGroups);
-    setSelectedGroup(fetchMockGroups[0]);
-  }, []);
+    async function fetchGroups() {
+      try {
+        const fetchedGroups = await getUserGroups();
+        setGroups(fetchedGroups);
+        if (fetchedGroups.length > 0) {
+          setSelectedGroup(fetchedGroups[0]);
+        }
+      } catch (error) {
+        toast({
+          title: "Erro ao buscar grupos",
+          description: "Não foi possível carregar a lista de grupos.",
+          variant: "destructive",
+        });
+      }
+    }
+
+    fetchGroups();
+  }, [toast]);
 
   const handlePermissionChange = (permission, checked) => {
     if (!selectedGroup) return;
@@ -35,19 +48,22 @@ export function GroupPermissions() {
     setSelectedGroup(updatedGroup);
   };
 
-  const handleUpdateRoles = () => {
+  const handleUpdateRoles = async () => {
     if (!selectedGroup) return;
 
-    // In a real application, you would make an API call here to update the group's permissions.
-    console.log("Updating roles for group:", selectedGroup.name, selectedGroup.permissions);
-
-    const updatedGroups = groups.map(g => (g.id === selectedGroup.id ? selectedGroup : g));
-    setGroups(updatedGroups);
-
-    toast({
-      title: "Funções atualizadas!",
-      description: `As permissões para o grupo ${selectedGroup.name} foram salvas.`,
-    });
+    try {
+      await updateUserGroup(selectedGroup.id, { roles: selectedGroup.permissions });
+      toast({
+        title: "Funções atualizadas!",
+        description: `As permissões para o grupo ${selectedGroup.name} foram salvas.`,
+      });
+    } catch (error) {
+      toast({
+        title: "Erro ao atualizar permissões",
+        description: "Não foi possível salvar as alterações.",
+        variant: "destructive",
+      });
+    }
   };
 
   if (!selectedGroup) {
@@ -67,13 +83,13 @@ export function GroupPermissions() {
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Select onValueChange={(groupId) => setSelectedGroup(groups.find(g => g.id === groupId)!)} defaultValue={selectedGroup.id}>
+          <Select onValueChange={(groupId) => setSelectedGroup(groups.find(g => g.id === Number(groupId))!)} defaultValue={String(selectedGroup.id)}>
             <SelectTrigger className="w-full md:w-1/3 text-base py-6">
               <SelectValue placeholder="Selecione um grupo" />
             </SelectTrigger>
             <SelectContent>
               {groups.map(group => (
-                <SelectItem key={group.id} value={group.id} className="text-base py-2">{group.name}</SelectItem>
+                <SelectItem key={group.id} value={String(group.id)} className="text-base py-2">{group.name}</SelectItem>
               ))}
             </SelectContent>
           </Select>
@@ -90,7 +106,7 @@ export function GroupPermissions() {
               <div key={permission} className="flex items-center space-x-3 p-3 rounded-md hover:bg-muted/50 transition-colors">
                 <Checkbox
                   id={permission}
-                  checked={selectedGroup.permissions.includes(permission)}
+                  checked={selectedGroup.permissions?.includes(permission)}
                   onCheckedChange={(checked) => handlePermissionChange(permission, checked)}
                   className="h-5 w-5"
                 />

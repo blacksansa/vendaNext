@@ -1,6 +1,6 @@
 "use client"
 import { useEffect, useState } from "react"
-import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi } from "@/lib/api.client"
+import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup } from "@/lib/api.client"
 import { User } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -39,7 +39,7 @@ import {
   XCircle,
   AlertCircle,
 } from "lucide-react"
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 import { GroupPermissions } from "@/components/group-permissions";
@@ -80,17 +80,23 @@ export default function UsuariosPage() {
     permissions: [] as string[],
   })
 
+  const [userGroups, setUserGroups] = useState<any[]>([]);
+
   const fetchUsers = async () => {
     try {
-      setLoading(true)
-      const fetchedUsers = await getUsers()
-      setUsers(fetchedUsers)
+      setLoading(true);
+      const [fetchedUsers, fetchedGroups] = await Promise.all([
+        getUsers(),
+        getUserGroups(),
+      ]);
+      setUsers(fetchedUsers);
+      setUserGroups(fetchedGroups);
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
-  }
+  };
 
   useEffect(() => {
     fetchUsers()
@@ -146,6 +152,19 @@ export default function UsuariosPage() {
       setError(err.message)
     }
   }
+
+  const handleGroupAssignment = async (user: User, groupId: string, checked: boolean) => {
+    try {
+      if (checked) {
+        await addUserToGroup(groupId, user.id!);
+      } else {
+        await removeUserFromGroup(groupId, user.id!);
+      }
+      fetchUsers();
+    } catch (err: any) {
+      setError(err.message);
+    }
+  };
 
   const getRoleColor = (role: string) => {
     return roles.find((r) => r.value === role)?.color || "bg-gray-500"
@@ -402,6 +421,25 @@ export default function UsuariosPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
+                          <DropdownMenuSub>
+                            <DropdownMenuSubTrigger>
+                              <Users className="mr-2 h-4 w-4" />
+                              Atribuir Grupo
+                            </DropdownMenuSubTrigger>
+                            <DropdownMenuPortal>
+                              <DropdownMenuSubContent>
+                                {userGroups.map((group) => (
+                                  <DropdownMenuCheckboxItem
+                                    key={group.id}
+                                    checked={user.groups?.some((g) => g.id === group.id)}
+                                    onCheckedChange={(checked) => handleGroupAssignment(user, group.id, checked)}
+                                  >
+                                    {group.name}
+                                  </DropdownMenuCheckboxItem>
+                                ))}
+                              </DropdownMenuSubContent>
+                            </DropdownMenuPortal>
+                          </DropdownMenuSub>
                             <DropdownMenuItem
                               onClick={() => {
                                 setSelectedUser(user)

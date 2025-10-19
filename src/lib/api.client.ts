@@ -112,6 +112,7 @@ const sellerApi = new Api<Seller, number>("/seller");
 const stageApi = new Api<Stage, number>("/stage");
 const opportunityApi = new Api<Opportunity, number>("/opportunity");
 const taskApi = new Api<Task, number>("/task");
+const userGroupApi = new Api<any, string>("/user-group");
 
 // --- Clientes (Customer) ---
 export const getCustomers = (term: string = "", page: number = 0, size: number = 20): Promise<CustomerListItem[]> => {
@@ -149,6 +150,13 @@ export const getUsers = (term: string = "", page: number = 0, size: number = 20)
 export const createUser = (userData: Partial<User>): Promise<User> => userApi.saveOrUpdate(userData);
 export const updateUser = (userId: string, userData: Partial<User>): Promise<User> => userApi.saveOrUpdate({ ...userData, id: userId });
 export const deleteUser = (userId: string): Promise<void> => userApi.delete(userId);
+
+// --- Grupos de Usuários (UserGroup) ---
+export const getUserGroups = (term: string = "", page: number = 0, size: number = 20): Promise<any[]> => userGroupApi.list(page, size, term);
+export const updateUserGroup = (groupId: string, groupData: Partial<any>): Promise<any> => userGroupApi.saveOrUpdate({ ...groupData, id: groupId });
+
+export const addUserToGroup = (groupId: string, userId: string): Promise<void> => userGroupApi.post(`${groupId}/user/${userId}`);
+export const removeUserFromGroup = (groupId: string, userId: string): Promise<void> => userGroupApi.delete(`${groupId}/user/${userId}`);
 
 // --- Vendedores (Seller) ---
 export const getSellers = (term: string = "", page: number = 0, size: number = 20): Promise<Seller[]> => sellerApi.list(page, size, term);
