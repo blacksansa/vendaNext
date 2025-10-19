@@ -70,6 +70,7 @@ export const authOptions: AuthOptions = {
           const decodedToken = jwtDecode<DecodedToken>(account.access_token);
           const clientRoles =
             decodedToken.resource_access?.[process.env.KEYCLOAK_ID!]?.roles;
+          console.log("Client roles extracted from token:", clientRoles);
           token.roles = clientRoles;
         }
 

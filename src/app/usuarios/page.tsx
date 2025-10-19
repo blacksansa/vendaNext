@@ -42,6 +42,8 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
+import { GroupPermissions } from "@/components/group-permissions";
+
 // Mock data para usuários
 const roles = [
   { value: "admin", label: "Administrador", color: "bg-red-500" },
@@ -281,6 +283,7 @@ export default function UsuariosPage() {
         <TabsList>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
           <TabsTrigger value="permissoes">Permissões</TabsTrigger>
+          <TabsTrigger value="grupos-e-permissoes">Grupos e Permissões</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
 
@@ -509,6 +512,10 @@ export default function UsuariosPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="grupos-e-permissoes" className="space-y-4">
+          <GroupPermissions />
         </TabsContent>
       </Tabs>
 

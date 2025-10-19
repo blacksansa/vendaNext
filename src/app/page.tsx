@@ -51,6 +51,7 @@ import { useAuth } from "@/hooks/use-auth"
 
 export default function CRMDashboard() {
   const { user, roles } = useAuth()
+  console.log("Current roles:", roles);
   const [isResumoExpanded, setIsResumoExpanded] = useState(true)
   const [tarefasRapidas, setTarefasRapidas] = useState([
     { id: 1, titulo: "Adicionar Novo Cliente", icone: "Users", url: "/customers", cor: "blue", requiredRole: "manageCustomers" },
