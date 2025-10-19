@@ -44,24 +44,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 
 import { GroupPermissions } from "@/components/group-permissions";
 
-// Mock data para usuários
-const roles = [
-  { value: "admin", label: "Administrador", color: "bg-red-500" },
-  { value: "manager", label: "Gerente", color: "bg-blue-500" },
-  { value: "vendedor", label: "Vendedor", color: "bg-green-500" },
-  { value: "viewer", label: "Visualizador", color: "bg-gray-500" },
-]
 
-const permissions = [
-  { id: "dashboard", label: "Dashboard", description: "Visualizar dashboard principal" },
-  { id: "customers", label: "Clientes", description: "Gerenciar clientes" },
-  { id: "vendedores", label: "Vendedores", description: "Gerenciar vendedores" },
-  { id: "analytics", label: "Análises", description: "Visualizar relatórios e análises" },
-  { id: "tarefas", label: "Tarefas", description: "Gerenciar tarefas" },
-  { id: "relatorios", label: "Relatórios", description: "Gerar relatórios" },
-  { id: "usuarios", label: "Usuários", description: "Gerenciar usuários e permissões" },
-  { id: "settings", label: "Configurações", description: "Configurações do sistema" },
-]
+
+interface NewUser {
+  name: string;
+  email: string;
+  role: string;
+  password: string;
+}
 
 export default function UsuariosPage() {
   const [users, setUsers] = useState<User[]>([])
@@ -70,32 +60,55 @@ export default function UsuariosPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<any>(null)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
   const [showPassword, setShowPassword] = useState(false)
-  const [newUser, setNewUser] = useState({
+  const [newUser, setNewUser] = useState<NewUser>({
     name: "",
     email: "",
     role: "",
     password: "",
-    permissions: [] as string[],
   })
 
   const [userGroups, setUserGroups] = useState<any[]>([]);
 
   const fetchUsers = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const [fetchedUsers, fetchedGroups] = await Promise.all([
-        getUsers(),
-        getUserGroups(),
-      ]);
+      const fetchedUsers = await getUsers();
       setUsers(fetchedUsers);
+    } catch (err: any) {
+      setError(err.message);
+    }
+
+    try {
+      const fetchedGroups = await getUserGroups();
       setUserGroups(fetchedGroups);
     } catch (err: any) {
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
+
+    try {
+      const total = await getUserCount();
+      setTotalUsers(total);
+    } catch (err: any) {
+      setError(err.message);
+    }
+
+    try {
+      const active = await getUserCountByEnabled(true);
+      setActiveUsers(active);
+    } catch (err: any) {
+      setError(err.message);
+    }
+
+    try {
+      const admins = await getUserCountByGroup("Administradores");
+      setAdminUsers(admins);
+    } catch (err: any) {
+      setError(err.message);
+    }
+
+    setLoading(false);
   };
 
   useEffect(() => {
@@ -166,13 +179,7 @@ export default function UsuariosPage() {
     }
   };
 
-  const getRoleColor = (role: string) => {
-    return roles.find((r) => r.value === role)?.color || "bg-gray-500"
-  }
 
-  const getRoleLabel = (role: string) => {
-    return roles.find((r) => r.value === role)?.label || role
-  }
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6">
@@ -221,11 +228,11 @@ export default function UsuariosPage() {
                         <SelectValue placeholder="Selecione uma função" />
                       </SelectTrigger>
                       <SelectContent>
-                        {roles.map((role) => (
-                          <SelectItem key={role.value} value={role.value}>
+                        {userGroups.map((group) => (
+                          <SelectItem key={group.id} value={group.name}>
                             <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${role.color}`} />
-                              {role.label}
+                              <div className={`w-2 h-2 rounded-full ${group.color || 'bg-gray-500'}`} />
+                              {group.name}
                             </div>
                           </SelectItem>
                         ))}
@@ -254,38 +261,7 @@ export default function UsuariosPage() {
                     </div>
                   </div>
                 </div>
-                <div className="space-y-3">
-                  <Label>Permissões</Label>
-                  <div className="grid grid-cols-2 gap-3">
-                    {permissions.map((permission) => (
-                      <div key={permission.id} className="flex items-start space-x-2">
-                        <Checkbox
-                          id={permission.id}
-                          checked={newUser.permissions.includes(permission.id)}
-                          onCheckedChange={(checked) => {
-                            if (checked) {
-                              setNewUser({
-                                ...newUser,
-                                permissions: [...newUser.permissions, permission.id],
-                              })
-                            } else {
-                              setNewUser({
-                                ...newUser,
-                                permissions: newUser.permissions.filter((p) => p !== permission.id),
-                              })
-                            }
-                          }}
-                        />
-                        <div className="grid gap-1.5 leading-none">
-                          <Label htmlFor={permission.id} className="text-sm font-medium">
-                            {permission.label}
-                          </Label>
-                          <p className="text-xs text-muted-foreground">{permission.description}</p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
+
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -301,8 +277,7 @@ export default function UsuariosPage() {
       <Tabs defaultValue="usuarios" className="space-y-4">
         <TabsList>
           <TabsTrigger value="usuarios">Usuários</TabsTrigger>
-          <TabsTrigger value="permissoes">Permissões</TabsTrigger>
-          <TabsTrigger value="grupos-e-permissoes">Grupos e Permissões</TabsTrigger>
+          <TabsTrigger value="permissoes">Grupos e Permissões</TabsTrigger>
           <TabsTrigger value="auditoria">Auditoria</TabsTrigger>
         </TabsList>
 
@@ -340,16 +315,7 @@ export default function UsuariosPage() {
                 <p className="text-xs text-muted-foreground">Acesso total ao sistema</p>
               </CardContent>
             </Card>
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                <CardTitle className="text-sm font-medium">Últimos Logins</CardTitle>
-                <Calendar className="h-4 w-4 text-muted-foreground" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.lastLogin !== "Nunca").length}</div>
-                <p className="text-xs text-muted-foreground">Hoje</p>
-              </CardContent>
-            </Card>
+
           </div>
 
           <Card>
@@ -362,9 +328,10 @@ export default function UsuariosPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Usuário</TableHead>
-                    <TableHead>Função</TableHead>
+
+                    <TableHead>Grupos</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Último Login</TableHead>
+
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -386,20 +353,22 @@ export default function UsuariosPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{user.name}</div>
+                                                    <div className="font-medium">{user.name} {user.groups?.some(g => g.name === 'Administradores') && <Shield className="w-4 h-4 inline-block ml-1 text-red-500" />}</div>
                             <div className="text-sm text-muted-foreground">{user.email}</div>
                           </div>
                         </div>
                       </TableCell>
+
                       <TableCell>
-                        <Badge variant="secondary" className="gap-1">
-                          <div className={`w-2 h-2 rounded-full ${getRoleColor(user.role)}`} />
-                          {getRoleLabel(user.role)}
-                        </Badge>
+                        <div className="flex flex-wrap gap-1">
+                          {user.groups?.map(group => (
+                            <Badge key={group.id} variant="secondary">{group.name}</Badge>
+                          ))}
+                        </div>
                       </TableCell>
                       <TableCell>
-                        <Badge variant={user.status === "active" ? "default" : "secondary"}>
-                          {user.status === "active" ? (
+                        <Badge variant={user.enabled ? "default" : "secondary"}>
+                          {user.enabled ? (
                             <>
                               <CheckCircle className="w-3 h-3 mr-1" />
                               Ativo
@@ -412,7 +381,7 @@ export default function UsuariosPage() {
                           )}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-sm text-muted-foreground">{user.lastLogin}</TableCell>
+
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -486,27 +455,7 @@ export default function UsuariosPage() {
         </TabsContent>
 
         <TabsContent value="permissoes" className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Gerenciamento de Permissões</CardTitle>
-              <CardDescription>Configure as permissões disponíveis no sistema.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="grid gap-4">
-                {permissions.map((permission) => (
-                  <div key={permission.id} className="flex items-center justify-between p-4 border rounded-lg">
-                    <div>
-                      <h4 className="font-medium">{permission.label}</h4>
-                      <p className="text-sm text-muted-foreground">{permission.description}</p>
-                    </div>
-                    <Badge variant="outline">
-                      {users.filter((u) => u.permissions && u.permissions.includes(permission.id)).length} usuários
-                    </Badge>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
+          <GroupPermissions />
         </TabsContent>
 
         <TabsContent value="auditoria" className="space-y-4">
@@ -620,11 +569,11 @@ export default function UsuariosPage() {
                     <SelectValue placeholder="Selecione uma função" />
                   </SelectTrigger>
                   <SelectContent>
-                    {roles.map((role) => (
-                      <SelectItem key={role.value} value={role.value}>
+                    {userGroups.map((group) => (
+                      <SelectItem key={group.id} value={group.name}>
                         <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${role.color}`} />
-                          {role.label}
+                          <div className={`w-2 h-2 rounded-full ${group.color || 'bg-gray-500'}`} />
+                          {group.name}
                         </div>
                       </SelectItem>
                     ))}
