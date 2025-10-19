@@ -1,15 +1,16 @@
-"use client"
-import Loading from "./loading";
-import { useEffect, useState } from "react"
-import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup } from "@/lib/api.client"
-import { User } from "@/lib/types"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Badge } from "@/components/ui/badge"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+
+"use client";
+
+import { useEffect, useState } from "react";
+import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup } from "@/lib/api.client";
+import { User } from "@/lib/types";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Dialog,
   DialogContent,
@@ -18,10 +19,10 @@ import {
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Alert, AlertDescription } from "@/components/ui/alert"
+} from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import {
   Users,
   UserPlus,
@@ -39,133 +40,98 @@ import {
   CheckCircle,
   XCircle,
   AlertCircle,
-} from "lucide-react"
+} from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuPortal, DropdownMenuSubContent, DropdownMenuCheckboxItem } from "@/components/ui/dropdown-menu";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { GroupPermissions } from "@/components/group-permissions";
 
-
-
-interface NewUser {
-  name: string;
-  email: string;
-  role: string;
-  password: string;
+interface UsuariosPageClientProps {
+  users: User[];
+  userGroups: any[];
+  totalUsers: number;
+  activeUsers: number;
+  adminUsers: number;
 }
 
-export default function UsuariosPage() {
-  const [users, setUsers] = useState<User[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
-  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
-  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
-  const [showPassword, setShowPassword] = useState(false)
-  const [newUser, setNewUser] = useState<NewUser>({
+export function UsuariosPageClient({
+  users: initialUsers,
+  userGroups: initialUserGroups,
+  totalUsers: initialTotalUsers,
+  activeUsers: initialActiveUsers,
+  adminUsers: initialAdminUsers,
+}: UsuariosPageClientProps) {
+  const [users, setUsers] = useState(initialUsers);
+  const [userGroups, setUserGroups] = useState(initialUserGroups);
+  const [totalUsers, setTotalUsers] = useState(initialTotalUsers);
+  const [activeUsers, setActiveUsers] = useState(initialActiveUsers);
+  const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newUser, setNewUser] = useState({
     name: "",
     email: "",
     role: "",
     password: "",
-  })
-
-  const [userGroups, setUserGroups] = useState<any[]>([]);
+  });
 
   const fetchUsers = async () => {
-    setLoading(true);
-    try {
-      const fetchedUsers = await getUsers();
-      setUsers(fetchedUsers);
-    } catch (err: any) {
-      setError(err.message);
-    }
-
-    try {
-      const fetchedGroups = await getUserGroups();
-      setUserGroups(fetchedGroups);
-    } catch (err: any) {
-      setError(err.message);
-    }
-
-    try {
-      const total = await getUserCount();
-      setTotalUsers(total);
-    } catch (err: any) {
-      setError(err.message);
-    }
-
-    try {
-      const active = await getUserCountByEnabled(true);
-      setActiveUsers(active);
-    } catch (err: any) {
-      setError(err.message);
-    }
-
-    try {
-      const admins = await getUserCountByGroup("Administradores");
-      setAdminUsers(admins);
-    } catch (err: any) {
-      setError(err.message);
-    }
-
-    setLoading(false);
+    const fetchedUsers = await getUsers();
+    setUsers(fetchedUsers);
   };
-
-  useEffect(() => {
-    fetchUsers()
-  }, [])
 
   const handleCreateUser = async () => {
     try {
-      await createUser(newUser as any) // O `any` pode ser refinado com um tipo específico
-      fetchUsers() // Atualiza a lista de usuários
-      setNewUser({ name: "", email: "", role: "", password: "", permissions: [] })
-      setIsCreateDialogOpen(false)
+      await createUser(newUser as any);
+      fetchUsers();
+      setNewUser({ name: "", email: "", role: "", password: "" });
+      setIsCreateDialogOpen(false);
     } catch (err: any) {
-      setError(err.message)
+      // setError(err.message);
     }
-  }
+  };
 
   const handleDeleteUser = async (userId: string) => {
     try {
-      await deleteUser(userId)
-      fetchUsers()
+      await deleteUser(userId);
+      fetchUsers();
     } catch (err: any) {
-      setError(err.message)
+      // setError(err.message);
     }
-  }
+  };
 
   const handleToggleUserStatus = async (user: User) => {
     try {
-      await updateUser(user.id!, { ...user, status: user.status === "active" ? "inactive" : "active" })
-      fetchUsers()
+      await updateUser(user.id!, { ...user, enabled: !user.enabled });
+      fetchUsers();
     } catch (err: any) {
-      setError(err.message)
+      // setError(err.message);
     }
-  }
+  };
 
   const handleUpdateUser = async () => {
-    if (!selectedUser) return
+    if (!selectedUser) return;
     try {
-      await updateUser(selectedUser.id!, selectedUser)
-      fetchUsers()
-      setIsEditDialogOpen(false)
-      setSelectedUser(null)
-    } catch (err: any) { 
-      setError(err.message)
+      await updateUser(selectedUser.id!, selectedUser);
+      fetchUsers();
+      setIsEditDialogOpen(false);
+      setSelectedUser(null);
+    } catch (err: any) {
+      // setError(err.message);
     }
-  }
+  };
 
   const handleResetPassword = async () => {
-    if (!selectedUser) return
+    if (!selectedUser) return;
     try {
-      await resetPasswordApi(selectedUser.id!)
-      setIsResetPasswordDialogOpen(false)
+      await resetPasswordApi(selectedUser.id!);
+      setIsResetPasswordDialogOpen(false);
     } catch (err: any) {
-      setError(err.message)
+      // setError(err.message);
     }
-  }
+  };
 
   const handleGroupAssignment = async (user: User, groupId: string, checked: boolean) => {
     try {
@@ -176,15 +142,9 @@ export default function UsuariosPage() {
       }
       fetchUsers();
     } catch (err: any) {
-      setError(err.message);
+      // setError(err.message);
     }
   };
-
-
-
-  if (loading) {
-    return <Loading />;
-  }
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6">
@@ -227,24 +187,6 @@ export default function UsuariosPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="role">Função</Label>
-                    <Select value={newUser.role} onValueChange={(value) => setNewUser({ ...newUser, role: value })}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione uma função" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {userGroups.map((group) => (
-                          <SelectItem key={group.id} value={group.name}>
-                            <div className="flex items-center gap-2">
-                              <div className={`w-2 h-2 rounded-full ${group.color || 'bg-gray-500'}`} />
-                              {group.name}
-                            </div>
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="space-y-2">
                     <Label htmlFor="password">Senha Temporária</Label>
                     <div className="relative">
                       <Input
@@ -266,7 +208,6 @@ export default function UsuariosPage() {
                     </div>
                   </div>
                 </div>
-
               </div>
               <DialogFooter>
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -287,15 +228,14 @@ export default function UsuariosPage() {
         </TabsList>
 
         <TabsContent value="usuarios" className="space-y-4">
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.length}</div>
-                <p className="text-xs text-muted-foreground">+2 desde o mês passado</p>
+                <div className="text-2xl font-bold">{totalUsers}</div>
               </CardContent>
             </Card>
             <Card>
@@ -304,10 +244,7 @@ export default function UsuariosPage() {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.status === "active").length}</div>
-                <p className="text-xs text-muted-foreground">
-                  {Math.round((users.filter((u) => u.status === "active").length / users.length) * 100)}% do total
-                </p>
+                <div className="text-2xl font-bold">{activeUsers}</div>
               </CardContent>
             </Card>
             <Card>
@@ -316,11 +253,9 @@ export default function UsuariosPage() {
                 <Shield className="h-4 w-4 text-red-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.role === "admin").length}</div>
-                <p className="text-xs text-muted-foreground">Acesso total ao sistema</p>
+                <div className="text-2xl font-bold">{adminUsers}</div>
               </CardContent>
             </Card>
-
           </div>
 
           <Card>
@@ -333,10 +268,8 @@ export default function UsuariosPage() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Usuário</TableHead>
-
                     <TableHead>Grupos</TableHead>
                     <TableHead>Status</TableHead>
-
                     <TableHead>Ações</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -358,12 +291,11 @@ export default function UsuariosPage() {
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                                                    <div className="font-medium">{user.name} {user.groups?.some(g => g.name === 'Administradores') && <Shield className="w-4 h-4 inline-block ml-1 text-red-500" />}</div>
+                            <div className="font-medium">{user.name} {user.groups?.some(g => g.name === 'Administradores') && <Shield className="w-4 h-4 inline-block ml-1 text-red-500" />}</div>
                             <div className="text-sm text-muted-foreground">{user.email}</div>
                           </div>
                         </div>
                       </TableCell>
-
                       <TableCell>
                         <div className="flex flex-wrap gap-1">
                           {user.groups?.map(group => (
@@ -386,7 +318,6 @@ export default function UsuariosPage() {
                           )}
                         </Badge>
                       </TableCell>
-
                       <TableCell>
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild>
@@ -395,29 +326,29 @@ export default function UsuariosPage() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                          <DropdownMenuSub>
-                            <DropdownMenuSubTrigger>
-                              <Users className="mr-2 h-4 w-4" />
-                              Atribuir Grupo
-                            </DropdownMenuSubTrigger>
-                            <DropdownMenuPortal>
-                              <DropdownMenuSubContent>
-                                {userGroups.map((group) => (
-                                  <DropdownMenuCheckboxItem
-                                    key={group.id}
-                                    checked={user.groups?.some((g) => g.id === group.id)}
-                                    onCheckedChange={(checked) => handleGroupAssignment(user, group.id, checked)}
-                                  >
-                                    {group.name}
-                                  </DropdownMenuCheckboxItem>
-                                ))}
-                              </DropdownMenuSubContent>
-                            </DropdownMenuPortal>
-                          </DropdownMenuSub>
+                            <DropdownMenuSub>
+                              <DropdownMenuSubTrigger>
+                                <Users className="mr-2 h-4 w-4" />
+                                Atribuir Grupo
+                              </DropdownMenuSubTrigger>
+                              <DropdownMenuPortal>
+                                <DropdownMenuSubContent>
+                                  {userGroups.map((group) => (
+                                    <DropdownMenuCheckboxItem
+                                      key={group.id}
+                                      checked={user.groups?.some((g) => g.id === group.id)}
+                                      onCheckedChange={(checked) => handleGroupAssignment(user, group.id, checked)}
+                                    >
+                                      {group.name}
+                                    </DropdownMenuCheckboxItem>
+                                  ))}
+                                </DropdownMenuSubContent>
+                              </DropdownMenuPortal>
+                            </DropdownMenuSub>
                             <DropdownMenuItem
                               onClick={() => {
-                                setSelectedUser(user)
-                                setIsEditDialogOpen(true)
+                                setSelectedUser(user);
+                                setIsEditDialogOpen(true);
                               }}
                             >
                               <Edit className="mr-2 h-4 w-4" />
@@ -425,14 +356,15 @@ export default function UsuariosPage() {
                             </DropdownMenuItem>
                             <DropdownMenuItem
                               onClick={() => {
-                                setSelectedUser(user)
-                                setIsResetPasswordDialogOpen(true)
+                                setSelectedUser(user);
+                                setIsResetPasswordDialogOpen(true);
                               }}
                             >
                               <Key className="mr-2 h-4 w-4" />
                               Reset Senha
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleToggleUserStatus(user)}>
+                              {user.enabled ? (
                                 <>
                                   <Lock className="mr-2 h-4 w-4" />
                                   Desativar
@@ -505,10 +437,6 @@ export default function UsuariosPage() {
             </CardContent>
           </Card>
         </TabsContent>
-
-        <TabsContent value="grupos-e-permissoes" className="space-y-4">
-          <GroupPermissions />
-        </TabsContent>
       </Tabs>
 
       {/* Dialog Reset Password */}
@@ -564,27 +492,6 @@ export default function UsuariosPage() {
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="role-edit">Função</Label>
-                <Select
-                  value={selectedUser.role}
-                  onValueChange={(value) => setSelectedUser({ ...selectedUser, role: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Selecione uma função" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {userGroups.map((group) => (
-                      <SelectItem key={group.id} value={group.name}>
-                        <div className="flex items-center gap-2">
-                          <div className={`w-2 h-2 rounded-full ${group.color || 'bg-gray-500'}`} />
-                          {group.name}
-                        </div>
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           )}
           <DialogFooter>
@@ -596,5 +503,5 @@ export default function UsuariosPage() {
         </DialogContent>
       </Dialog>
     </div>
-  )
+  );
 }

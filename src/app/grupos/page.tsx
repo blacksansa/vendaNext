@@ -1,3 +1,5 @@
+import { getGroups } from "@/lib/api.client";
+import Loading from "./loading";
 "use client"
 
 import { useState, useEffect } from "react"
@@ -47,40 +49,23 @@ interface Grupo {
 export default function GruposPage() {
   const { user } = useAuth()
 
-  const [grupos, setGrupos] = useState<Grupo[]>([
-    {
-      id: 1,
-      nome: "Equipe Alpha",
-      lider: "João Silva",
-      liderUserId: "1", // Ajustado para corresponder ao ID do usuário mockado
-      membros: 8,
-      metaMensal: 150000,
-      vendidoMes: 120000,
-      status: "ativo",
-      descricao: "Equipe focada em grandes contas corporativas",
-      vendedores: [
-        { nome: "Maria Santos", vendas: 25000, status: "ativo" },
-        { nome: "Pedro Costa", vendas: 18000, status: "ativo" },
-        { nome: "Ana Lima", vendas: 22000, status: "ativo" },
-      ],
-    },
-    {
-      id: 2,
-      nome: "Equipe Beta",
-      lider: "Maria Oliveira",
-      liderUserId: "2",
-      membros: 6,
-      metaMensal: 100000,
-      vendidoMes: 95000,
-      status: "ativo",
-      descricao: "Equipe especializada em PMEs",
-      vendedores: [
-        { nome: "Carlos Rocha", vendas: 20000, status: "ativo" },
-        { nome: "Lucia Ferreira", vendas: 15000, status: "ativo" },
-        { nome: "Roberto Silva", vendas: 18000, status: "inativo" },
-      ],
-    },
-  ])
+  const [grupos, setGrupos] = useState<Grupo[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchGrupos = async () => {
+      try {
+        const fetchedGrupos = await getGroups();
+        setGrupos(fetchedGrupos);
+      } catch (error) {
+        console.error("Error fetching groups:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchGrupos();
+  }, []);
 
   const [gruposFiltrados, setGruposFiltrados] = useState<Grupo[]>([])
   const [podeGerenciarTodos, setPodeGerenciarTodos] = useState(false)
@@ -281,6 +266,8 @@ export default function GruposPage() {
         </div>
       </SidebarInset>
     )
+  if (loading) {
+    return <Loading />;
   }
 
   return (
