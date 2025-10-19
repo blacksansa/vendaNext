@@ -21,6 +21,7 @@ export function GroupPermissions() {
     async function fetchGroups() {
       try {
         const fetchedGroups = await getUserGroups();
+        console.log("Fetched groups:", fetchedGroups);
         setGroups(fetchedGroups);
         if (fetchedGroups.length > 0) {
           setSelectedGroup(fetchedGroups[0]);
@@ -40,11 +41,11 @@ export function GroupPermissions() {
   const handlePermissionChange = (permission, checked) => {
     if (!selectedGroup) return;
 
-    const updatedPermissions = checked
-      ? [...selectedGroup.permissions, permission]
-      : selectedGroup.permissions.filter(p => p !== permission);
+    const updatedRoles = checked
+      ? [...selectedGroup.roles, permission]
+      : selectedGroup.roles.filter(p => p !== permission);
 
-    const updatedGroup = { ...selectedGroup, permissions: updatedPermissions };
+    const updatedGroup = { ...selectedGroup, roles: updatedRoles };
     setSelectedGroup(updatedGroup);
   };
 
@@ -52,7 +53,7 @@ export function GroupPermissions() {
     if (!selectedGroup) return;
 
     try {
-      await updateUserGroup(selectedGroup.id, { roles: selectedGroup.permissions });
+      await updateUserGroup(selectedGroup.id, selectedGroup);
       toast({
         title: "Funções atualizadas!",
         description: `As permissões para o grupo ${selectedGroup.name} foram salvas.`,
@@ -83,7 +84,14 @@ export function GroupPermissions() {
       </CardHeader>
       <CardContent className="p-6 space-y-6">
         <div className="flex items-center gap-4">
-          <Select onValueChange={(groupId) => setSelectedGroup(groups.find(g => g.id === Number(groupId))!)} defaultValue={String(selectedGroup.id)}>
+          <Select onValueChange={(groupId) => {
+            console.log("Selected groupId:", groupId);
+            const group = groups.find(g => g.id === groupId);
+            if (group) {
+              setSelectedGroup(group);
+              console.log("Permissions for selected group:", group.roles);
+            }
+          }} defaultValue={String(selectedGroup.id)}>
             <SelectTrigger className="w-full md:w-1/3 text-base py-6">
               <SelectValue placeholder="Selecione um grupo" />
             </SelectTrigger>
@@ -106,7 +114,7 @@ export function GroupPermissions() {
               <div key={permission} className="flex items-center space-x-3 p-3 rounded-md hover:bg-muted/50 transition-colors">
                 <Checkbox
                   id={permission}
-                  checked={selectedGroup.permissions?.includes(permission)}
+                  checked={selectedGroup.roles?.includes(permission)}
                   onCheckedChange={(checked) => handlePermissionChange(permission, checked)}
                   className="h-5 w-5"
                 />
