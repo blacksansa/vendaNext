@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -11,6 +11,16 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   Dialog,
   DialogContent,
@@ -30,35 +40,11 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Plus, MoreHorizontal, Edit, Trash2, Package, Users, Building2 } from "lucide-react"
+import { createCustomer, getCustomers, getCustomerById, updateCustomer, deleteCustomer } from "@/lib/api.client"
+import { useToast } from "@/hooks/use-toast"
+import { Customer, CustomerListItem } from "@/lib/types"
 
 // Mock data
-const mockClientes = [
-  {
-    id: 1,
-    nome: "João Silva",
-    email: "joao@email.com",
-    telefone: "(11) 98765-4321",
-    empresa: "Tech Corp",
-    tipo: "Pessoa Física",
-  },
-  {
-    id: 2,
-    nome: "Maria Santos",
-    email: "maria@email.com",
-    telefone: "(11) 97654-3210",
-    empresa: "Design Studio",
-    tipo: "Pessoa Jurídica",
-  },
-  {
-    id: 3,
-    nome: "Pedro Costa",
-    email: "pedro@email.com",
-    telefone: "(11) 96543-2109",
-    empresa: "Marketing Plus",
-    tipo: "Pessoa Física",
-  },
-]
-
 const mockProdutos = [
   { id: 1, nome: "Produto A", codigo: "PRD-001", categoria: "Eletrônicos", preco: "R$ 1.500,00", estoque: 45 },
   { id: 2, nome: "Produto B", codigo: "PRD-002", categoria: "Móveis", preco: "R$ 2.800,00", estoque: 12 },
@@ -84,11 +70,126 @@ const mockFornecedores = [
   },
 ]
 
+const initialCustomerState = {
+  name: "",
+  type: "pf",
+  email: "",
+  phone: "",
+  companyName: "",
+  observation: "",
+}
+
 export default function CadastrosPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [isClienteDialogOpen, setIsClienteDialogOpen] = useState(false)
   const [isProdutoDialogOpen, setIsProdutoDialogOpen] = useState(false)
   const [isFornecedorDialogOpen, setIsFornecedorDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [newCustomer, setNewCustomer] = useState(initialCustomerState)
+  const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
+  const [deletingCustomerId, setDeletingCustomerId] = useState<number | null>(null)
+  const [customers, setCustomers] = useState<CustomerListItem[]>([])
+  const { toast } = useToast()
+
+  const fetchCustomers = async () => {
+    try {
+      const customerData = await getCustomers(searchTerm)
+      setCustomers(customerData)
+    } catch (error) {
+      console.error("Failed to fetch customers:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os clientes.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  useEffect(() => {
+    fetchCustomers()
+  }, [])
+
+  const handleCustomerInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { id, value } = e.target
+    setNewCustomer((prev) => ({ ...prev, [id]: value }))
+  }
+
+  const handleCustomerSelectChange = (value: string) => {
+    setNewCustomer((prev) => ({ ...prev, type: value }))
+  }
+
+  const handleSaveCustomer = async (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.preventDefault()
+    try {
+      const customerData = {
+        name: newCustomer.name,
+        companyName: newCustomer.companyName,
+        observation: newCustomer.observation,
+        code: Date.now().toString(), // Simple unique code
+      }
+
+      await createCustomer(customerData)
+
+      toast({
+        title: "Sucesso!",
+        description: "Cliente cadastrado com sucesso.",
+      })
+      setIsClienteDialogOpen(false)
+      setNewCustomer(initialCustomerState)
+      fetchCustomers() // Refetch customers after adding a new one
+    } catch (error) {
+      console.error("Failed to create customer:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível cadastrar o cliente. Tente novamente.",
+        variant: "destructive",
+      })
+    }
+  }
+
+  const handleUpdateCustomer = async () => {
+    if (!editingCustomer || !editingCustomer.id) return
+    try {
+      await updateCustomer(editingCustomer.id, editingCustomer)
+      setIsEditDialogOpen(false)
+      setEditingCustomer(null)
+      toast({ title: "Sucesso!", description: "Cliente atualizado com sucesso." })
+      fetchCustomers()
+    } catch (error) {
+      console.error("Failed to update customer:", error)
+      toast({ title: "Erro ao atualizar cliente", variant: "destructive" })
+    }
+  }
+
+  const handleDeleteCustomer = async () => {
+    if (!deletingCustomerId) return
+    try {
+      await deleteCustomer(deletingCustomerId)
+      setIsDeleteDialogOpen(false)
+      setDeletingCustomerId(null)
+      toast({ title: "Sucesso!", description: "Cliente excluído com sucesso." })
+      fetchCustomers()
+    } catch (error) {
+      console.error("Failed to delete customer:", error)
+      toast({ title: "Erro ao excluir cliente", variant: "destructive" })
+    }
+  }
+
+  const openEditDialog = async (customer: CustomerListItem) => {
+    try {
+      const fullCustomer = await getCustomerById(customer.id!)
+      setEditingCustomer(fullCustomer)
+      setIsEditDialogOpen(true)
+    } catch (error) {
+      toast({ title: "Erro", description: "Não foi possível carregar os dados do cliente." })
+    }
+  }
+
+  const openDeleteDialog = (id: number) => {
+    setDeletingCustomerId(id)
+    setIsDeleteDialogOpen(true)
+  }
 
   return (
     <SidebarInset>
@@ -139,12 +240,12 @@ export default function CadastrosPage() {
                       </DialogHeader>
                       <div className="grid gap-4 py-4">
                         <div className="grid gap-2">
-                          <Label htmlFor="nome">Nome Completo</Label>
-                          <Input id="nome" placeholder="João Silva" />
+                          <Label htmlFor="name">Nome Completo</Label>
+                          <Input id="name" placeholder="João Silva" value={newCustomer.name} onChange={handleCustomerInputChange} />
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="tipo">Tipo</Label>
-                          <Select>
+                          <Label htmlFor="type">Tipo</Label>
+                          <Select onValueChange={handleCustomerSelectChange} defaultValue="pf">
                             <SelectTrigger>
                               <SelectValue placeholder="Selecione o tipo" />
                             </SelectTrigger>
@@ -156,26 +257,26 @@ export default function CadastrosPage() {
                         </div>
                         <div className="grid gap-2">
                           <Label htmlFor="email">Email</Label>
-                          <Input id="email" type="email" placeholder="joao@email.com" />
+                          <Input id="email" type="email" placeholder="joao@email.com" value={newCustomer.email} onChange={handleCustomerInputChange} />
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="telefone">Telefone</Label>
-                          <Input id="telefone" placeholder="(11) 98765-4321" />
+                          <Label htmlFor="phone">Telefone</Label>
+                          <Input id="phone" placeholder="(11) 98765-4321" value={newCustomer.phone} onChange={handleCustomerInputChange} />
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="empresa">Empresa</Label>
-                          <Input id="empresa" placeholder="Nome da empresa" />
+                          <Label htmlFor="companyName">Empresa</Label>
+                          <Input id="companyName" placeholder="Nome da empresa" value={newCustomer.companyName} onChange={handleCustomerInputChange} />
                         </div>
                         <div className="grid gap-2">
-                          <Label htmlFor="observacoes">Observações</Label>
-                          <Textarea id="observacoes" placeholder="Informações adicionais..." />
+                          <Label htmlFor="observation">Observações</Label>
+                          <Textarea id="observation" placeholder="Informações adicionais..." value={newCustomer.observation} onChange={handleCustomerInputChange} />
                         </div>
                       </div>
                       <DialogFooter>
                         <Button variant="outline" onClick={() => setIsClienteDialogOpen(false)}>
                           Cancelar
                         </Button>
-                        <Button onClick={() => setIsClienteDialogOpen(false)}>Salvar Cliente</Button>
+                        <Button onClick={handleSaveCustomer}>Salvar Cliente</Button>
                       </DialogFooter>
                     </DialogContent>
                   </Dialog>
@@ -205,14 +306,14 @@ export default function CadastrosPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {mockClientes.map((cliente) => (
-                      <TableRow key={cliente.id}>
-                        <TableCell className="font-medium">{cliente.nome}</TableCell>
-                        <TableCell>{cliente.email}</TableCell>
-                        <TableCell>{cliente.telefone}</TableCell>
-                        <TableCell>{cliente.empresa}</TableCell>
+                    {customers.map((customer) => (
+                      <TableRow key={customer.id}>
+                        <TableCell className="font-medium">{customer.name}</TableCell>
+                        <TableCell>{/* Email not available */}</TableCell>
+                        <TableCell>{/* Telefone not available */}</TableCell>
+                        <TableCell>{customer.companyName}</TableCell>
                         <TableCell>
-                          <Badge variant="outline">{cliente.tipo}</Badge>
+                          <Badge variant="outline">{/* Tipo not available */}</Badge>
                         </TableCell>
                         <TableCell>
                           <DropdownMenu>
@@ -223,12 +324,15 @@ export default function CadastrosPage() {
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                              <DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEditDialog(customer)}>
                                 <Edit className="h-4 w-4 mr-2" />
                                 Editar
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
-                              <DropdownMenuItem className="text-destructive">
+                              <DropdownMenuItem
+                                className="text-destructive"
+                                onClick={() => openDeleteDialog(customer.id!)}
+                              >
                                 <Trash2 className="h-4 w-4 mr-2" />
                                 Excluir
                               </DropdownMenuItem>
@@ -482,6 +586,64 @@ export default function CadastrosPage() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[500px]">
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogDescription>Atualize os dados do cliente.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="edit-name">Nome Completo</Label>
+              <Input
+                id="edit-name"
+                value={editingCustomer?.name || ""}
+                onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-companyName">Empresa</Label>
+              <Input
+                id="edit-companyName"
+                value={editingCustomer?.companyName || ""}
+                onChange={(e) => setEditingCustomer({ ...editingCustomer, companyName: e.target.value })}
+              />
+            </div>
+            <div className="grid gap-2">
+              <Label htmlFor="edit-observation">Observações</Label>
+              <Textarea
+                id="edit-observation"
+                value={editingCustomer?.observation || ""}
+                onChange={(e) => setEditingCustomer({ ...editingCustomer, observation: e.target.value })}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleUpdateCustomer}>Salvar Alterações</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. Isso excluirá permanentemente o cliente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCustomer}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarInset>
   )
 }

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -9,6 +9,16 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,91 +40,124 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Search, Plus, MoreHorizontal, Phone, Mail, Edit, Trash2, Filter, Download } from "lucide-react"
+import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from "@/lib/api.client"
+import { Customer, CustomerListItem } from "@/lib/types"
+import { useToast } from "@/hooks/use-toast"
 
-// Mock customer data
-const customers = [
-  {
-    id: 1,
-    name: "Sarah Johnson",
-    email: "sarah.j@company.com",
-    phone: "+1 (555) 123-4567",
-    company: "Tech Solutions Inc",
-    status: "Active",
-    value: "$12,500",
-    lastContact: "2024-01-15",
-    avatar: "SJ",
-  },
-  {
-    id: 2,
-    name: "Michael Chen",
-    email: "m.chen@startup.io",
-    phone: "+1 (555) 234-5678",
-    company: "StartupIO",
-    status: "Lead",
-    value: "$8,200",
-    lastContact: "2024-01-14",
-    avatar: "MC",
-  },
-  {
-    id: 3,
-    name: "Emma Wilson",
-    email: "emma@design.co",
-    phone: "+1 (555) 345-6789",
-    company: "Design Co",
-    status: "Active",
-    value: "$15,800",
-    lastContact: "2024-01-13",
-    avatar: "EW",
-  },
-  {
-    id: 4,
-    name: "David Rodriguez",
-    email: "david.r@tech.com",
-    phone: "+1 (555) 456-7890",
-    company: "Tech Corp",
-    status: "Prospect",
-    value: "$5,400",
-    lastContact: "2024-01-12",
-    avatar: "DR",
-  },
-  {
-    id: 5,
-    name: "Lisa Anderson",
-    email: "lisa@marketing.com",
-    phone: "+1 (555) 567-8901",
-    company: "Marketing Plus",
-    status: "Active",
-    value: "$9,600",
-    lastContact: "2024-01-11",
-    avatar: "LA",
-  },
-]
+const initialNewCustomerState = {
+  name: "",
+  companyName: "",
+  observation: "",
+}
 
 export default function CustomersPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [statusFilter, setStatusFilter] = useState("all")
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false)
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [customers, setCustomers] = useState<CustomerListItem[]>([])
+  const [newCustomer, setNewCustomer] = useState(initialNewCustomerState)
+  const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
+  const [deletingCustomerId, setDeletingCustomerId] = useState<number | null>(null)
+  const { toast } = useToast()
+
+  const fetchCustomers = async () => {
+    try {
+      const data = await getCustomers(searchTerm)
+      setCustomers(data)
+    } catch (error) {
+      console.error("Failed to fetch customers:", error)
+      toast({ title: "Erro ao buscar clientes", variant: "destructive" })
+    }
+  }
+
+  useEffect(() => {
+    fetchCustomers()
+  }, []) // Initial fetch
+
+  const handleSearch = () => {
+    fetchCustomers()
+  }
+
+  const handleSaveCustomer = async () => {
+    try {
+      await createCustomer({
+        ...newCustomer,
+        code: Date.now().toString(), // Required field
+      })
+      setIsAddDialogOpen(false)
+      setNewCustomer(initialNewCustomerState)
+      toast({ title: "Sucesso!", description: "Cliente adicionado com sucesso." })
+      fetchCustomers() // Refresh list
+    } catch (error) {
+      console.error("Failed to create customer:", error)
+      toast({ title: "Erro ao criar cliente", variant: "destructive" })
+    }
+  }
+
+  const handleUpdateCustomer = async () => {
+    if (!editingCustomer || !editingCustomer.id) return
+    try {
+      await updateCustomer(editingCustomer.id, editingCustomer)
+      setIsEditDialogOpen(false)
+      setEditingCustomer(null)
+      toast({ title: "Sucesso!", description: "Cliente atualizado com sucesso." })
+      fetchCustomers() // Refresh list
+    } catch (error) {
+      console.error("Failed to update customer:", error)
+      toast({ title: "Erro ao atualizar cliente", variant: "destructive" })
+    }
+  }
+
+  const handleDeleteCustomer = async () => {
+    if (!deletingCustomerId) return
+    try {
+      await deleteCustomer(deletingCustomerId)
+      setIsDeleteDialogOpen(false)
+      setDeletingCustomerId(null)
+      toast({ title: "Sucesso!", description: "Cliente excluído com sucesso." })
+      fetchCustomers() // Refresh list
+    } catch (error) {
+      console.error("Failed to delete customer:", error)
+      toast({ title: "Erro ao excluir cliente", variant: "destructive" })
+    }
+  }
+
+  const openEditDialog = (customer: CustomerListItem) => {
+    setEditingCustomer(customer)
+    setIsEditDialogOpen(true)
+  }
+
+  const openDeleteDialog = (id: number) => {
+    setDeletingCustomerId(id)
+    setIsDeleteDialogOpen(true)
+  }
 
   const filteredCustomers = customers.filter((customer) => {
+    const searchLower = searchTerm.toLowerCase()
     const matchesSearch =
-      customer.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      customer.company.toLowerCase().includes(searchTerm.toLowerCase())
-    const matchesStatus = statusFilter === "all" || customer.status.toLowerCase() === statusFilter.toLowerCase()
+      customer.name?.toLowerCase().includes(searchLower) ||
+      customer.companyName?.toLowerCase().includes(searchLower)
+
+    const matchesStatus =
+      statusFilter === "all" ||
+      (statusFilter === "active" && customer.active) ||
+      (statusFilter === "inactive" && !customer.active)
+
     return matchesSearch && matchesStatus
   })
 
-  const getStatusVariant = (status: string) => {
-    switch (status.toLowerCase()) {
-      case "active":
-        return "default"
-      case "lead":
-        return "secondary"
-      case "prospect":
-        return "outline"
-      default:
-        return "outline"
-    }
+  const getStatusVariant = (active: boolean) => {
+    return active ? "default" : "secondary"
+  }
+
+  const getInitials = (name: string = "") => {
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
   }
 
   return (
@@ -140,57 +183,48 @@ export default function CustomersPage() {
               <DialogContent className="sm:max-w-[425px]">
                 <DialogHeader>
                   <DialogTitle>Adicionar Novo Cliente</DialogTitle>
-                  <DialogDescription>Crie um novo perfil de cliente com suas informações de contato.</DialogDescription>
+                  <DialogDescription>Crie um novo perfil de cliente.</DialogDescription>
                 </DialogHeader>
                 <div className="grid gap-4 py-4">
                   <div className="grid grid-cols-4 items-center gap-4">
                     <Label htmlFor="name" className="text-right">
                       Nome
                     </Label>
-                    <Input id="name" placeholder="João da Silva" className="col-span-3" />
+                    <Input
+                      id="name"
+                      placeholder="João da Silva"
+                      className="col-span-3"
+                      value={newCustomer.name}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, name: e.target.value })}
+                    />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="email" className="text-right">
-                      Email
-                    </Label>
-                    <Input id="email" placeholder="joao@example.com" className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="phone" className="text-right">
-                      Telefone
-                    </Label>
-                    <Input id="phone" placeholder="+1 (555) 123-4567" className="col-span-3" />
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="company" className="text-right">
+                    <Label htmlFor="companyName" className="text-right">
                       Empresa
                     </Label>
-                    <Input id="company" placeholder="Empresa Exemplo" className="col-span-3" />
+                    <Input
+                      id="companyName"
+                      placeholder="Empresa Exemplo"
+                      className="col-span-3"
+                      value={newCustomer.companyName}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, companyName: e.target.value })}
+                    />
                   </div>
                   <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="status" className="text-right">
-                      Status
-                    </Label>
-                    <Select>
-                      <SelectTrigger className="col-span-3">
-                        <SelectValue placeholder="Selecione o status" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="prospect">Prospect</SelectItem>
-                        <SelectItem value="lead">Lead</SelectItem>
-                        <SelectItem value="active">Ativo</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-4 items-center gap-4">
-                    <Label htmlFor="notes" className="text-right">
+                    <Label htmlFor="observation" className="text-right">
                       Observações
                     </Label>
-                    <Textarea id="notes" placeholder="Notas adicionais..." className="col-span-3" />
+                    <Textarea
+                      id="observation"
+                      placeholder="Notas adicionais..."
+                      className="col-span-3"
+                      value={newCustomer.observation}
+                      onChange={(e) => setNewCustomer({ ...newCustomer, observation: e.target.value })}
+                    />
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button type="submit" onClick={() => setIsAddDialogOpen(false)}>
+                  <Button type="submit" onClick={handleSaveCustomer}>
                     Adicionar Cliente
                   </Button>
                 </DialogFooter>
@@ -212,7 +246,7 @@ export default function CustomersPage() {
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                 <Input
-                  placeholder="Buscar clientes, empresas ou emails..."
+                  placeholder="Buscar por nome ou empresa..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
@@ -226,10 +260,10 @@ export default function CustomersPage() {
                 <SelectContent>
                   <SelectItem value="all">Todos os Status</SelectItem>
                   <SelectItem value="active">Ativo</SelectItem>
-                  <SelectItem value="lead">Lead</SelectItem>
-                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="inactive">Inativo</SelectItem>
                 </SelectContent>
               </Select>
+              <Button onClick={handleSearch}>Buscar</Button>
             </div>
           </CardContent>
         </Card>
@@ -256,7 +290,7 @@ export default function CustomersPage() {
                       <div className="flex items-center gap-3">
                         <Avatar className="h-10 w-10">
                           <AvatarFallback className="bg-primary/10 text-primary font-medium">
-                            {customer.avatar}
+                            {getInitials(customer.name)}
                           </AvatarFallback>
                         </Avatar>
                         <div>
@@ -269,27 +303,27 @@ export default function CustomersPage() {
                       <div className="space-y-1">
                         <div className="flex items-center gap-2 text-sm">
                           <Mail className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-foreground">{customer.email}</span>
+                          <span className="text-foreground">{/* Email not available */}</span>
                         </div>
                         <div className="flex items-center gap-2 text-sm">
                           <Phone className="h-3 w-3 text-muted-foreground" />
-                          <span className="text-muted-foreground">{customer.phone}</span>
+                          <span className="text-muted-foreground">{/* Phone not available */}</span>
                         </div>
                       </div>
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium text-foreground">{customer.company}</span>
+                      <span className="font-medium text-foreground">{customer.companyName}</span>
                     </TableCell>
                     <TableCell>
-                      <Badge variant={getStatusVariant(customer.status)} className="text-xs">
-                        {customer.status}
+                      <Badge variant={getStatusVariant(customer.active)} className="text-xs">
+                        {customer.active ? "Ativo" : "Inativo"}
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <span className="font-medium text-foreground">{customer.value}</span>
+                      <span className="font-medium text-foreground">{/* Value not available */}</span>
                     </TableCell>
                     <TableCell>
-                      <span className="text-sm text-muted-foreground">{customer.lastContact}</span>
+                      <span className="text-sm text-muted-foreground">{/* Last contact not available */}</span>
                     </TableCell>
                     <TableCell>
                       <DropdownMenu>
@@ -300,20 +334,15 @@ export default function CustomersPage() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end">
                           <DropdownMenuLabel>Ações</DropdownMenuLabel>
-                          <DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => openEditDialog(customer)}>
                             <Edit className="h-4 w-4 mr-2" />
                             Editar Cliente
                           </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Phone className="h-4 w-4 mr-2" />
-                            Ligar para Cliente
-                          </DropdownMenuItem>
-                          <DropdownMenuItem>
-                            <Mail className="h-4 w-4 mr-2" />
-                            Enviar Email
-                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
-                          <DropdownMenuItem className="text-destructive">
+                          <DropdownMenuItem
+                            className="text-destructive"
+                            onClick={() => openDeleteDialog(customer.id!)}
+                          >
                             <Trash2 className="h-4 w-4 mr-2" />
                             Excluir Cliente
                           </DropdownMenuItem>
@@ -333,6 +362,65 @@ export default function CustomersPage() {
           </div>
         )}
       </div>
+
+      {/* Edit Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={setIsEditDialogOpen}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Cliente</DialogTitle>
+            <DialogDescription>Atualize as informações do cliente.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-name" className="text-right">
+                Nome
+              </Label>
+              <Input
+                id="edit-name"
+                value={editingCustomer?.name || ""}
+                onChange={(e) => setEditingCustomer({ ...editingCustomer, name: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="edit-companyName" className="text-right">
+                Empresa
+              </Label>
+              <Input
+                id="edit-companyName"
+                value={editingCustomer?.companyName || ""}
+                onChange={(e) => setEditingCustomer({ ...editingCustomer, companyName: e.target.value })}
+                className="col-span-3"
+              />
+            </div>
+            {/* Observation field can be added here if needed */}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" onClick={handleUpdateCustomer}>
+              Salvar Alterações
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. Isso excluirá permanentemente o cliente.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteCustomer}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </SidebarInset>
   )
 }
