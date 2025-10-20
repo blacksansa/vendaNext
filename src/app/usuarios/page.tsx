@@ -1,4 +1,5 @@
 "use client"
+import { useSession } from "next-auth/react";
 import Loading from "./loading";
 import { useEffect, useState } from "react"
 import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup } from "@/lib/api.client"
@@ -55,6 +56,7 @@ interface NewUser {
 }
 
 export default function UsuariosPage() {
+  const { data: session, update } = useSession();
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -174,12 +176,13 @@ export default function UsuariosPage() {
       setIsEditDialogOpen(false)
       setSelectedUser(null)
       setStatus(selectedUser.id!, 'success');
+      window.location.reload();
     } catch (err: any) { 
       console.error("Error updating user:", err);
       setError(err.message)
       setStatus(selectedUser.id!, 'error');
     }
-  }
+  };
 
   const handleResetPassword = async () => {
     if (!selectedUser) return
@@ -204,6 +207,7 @@ export default function UsuariosPage() {
       }
       fetchUsers();
       setStatus(user.id!, 'success');
+      window.location.reload();
     } catch (err: any) {
       setError(err.message);
       setStatus(user.id!, 'error');
