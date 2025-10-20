@@ -65,6 +65,16 @@ export function UsuariosPageClient({
   const [totalUsers, setTotalUsers] = useState(initialTotalUsers);
   const [activeUsers, setActiveUsers] = useState(initialActiveUsers);
   const [adminUsers, setAdminUsers] = useState(initialAdminUsers);
+  const [buttonStatus, setButtonStatus] = useState<{ [key: string]: 'idle' | 'loading' | 'success' | 'error' }>({});
+
+  const setStatus = (userId: string, status: 'idle' | 'loading' | 'success' | 'error') => {
+    setButtonStatus(prev => ({ ...prev, [userId]: status }));
+    if (status === 'success' || status === 'error') {
+      setTimeout(() => {
+        setButtonStatus(prev => ({ ...prev, [userId]: 'idle' }));
+      }, 2000);
+    }
+  };
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false);
@@ -83,57 +93,68 @@ export function UsuariosPageClient({
   };
 
   const handleCreateUser = async () => {
+    setStatus('create', 'loading');
     try {
       await createUser(newUser as any);
       fetchUsers();
       setNewUser({ name: "", email: "", role: "", password: "" });
       setIsCreateDialogOpen(false);
+      setStatus('create', 'success');
     } catch (err: any) {
-      // setError(err.message);
+      setStatus('create', 'error');
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
+    setStatus(userId, 'loading');
     try {
       await deleteUser(userId);
       fetchUsers();
+      setStatus(userId, 'success');
     } catch (err: any) {
-      // setError(err.message);
+      setStatus(userId, 'error');
     }
   };
 
   const handleToggleUserStatus = async (user: User) => {
+    setStatus(user.id!, 'loading');
     try {
       await updateUser(user.id!, { ...user, enabled: !user.enabled });
       fetchUsers();
+      setStatus(user.id!, 'success');
     } catch (err: any) {
-      // setError(err.message);
+      setStatus(user.id!, 'error');
     }
   };
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
+    setStatus(selectedUser.id!, 'loading');
     try {
       await updateUser(selectedUser.id!, selectedUser);
       fetchUsers();
       setIsEditDialogOpen(false);
       setSelectedUser(null);
+      setStatus(selectedUser.id!, 'success');
     } catch (err: any) {
-      // setError(err.message);
+      setStatus(selectedUser.id!, 'error');
     }
   };
 
   const handleResetPassword = async () => {
     if (!selectedUser) return;
+    setStatus(selectedUser.id!, 'loading');
     try {
       await resetPasswordApi(selectedUser.id!);
       setIsResetPasswordDialogOpen(false);
+      setStatus(selectedUser.id!, 'success');
     } catch (err: any) {
-      // setError(err.message);
+      setStatus(selectedUser.id!, 'error');
     }
   };
 
   const handleGroupAssignment = async (user: User, groupId: string, checked: boolean) => {
+    setStatus(user.id!, 'loading');
     try {
       if (checked) {
         await addUserToGroup(groupId, user.id!);
@@ -141,10 +162,24 @@ export function UsuariosPageClient({
         await removeUserFromGroup(groupId, user.id!);
       }
       fetchUsers();
+      setStatus(user.id!, 'success');
     } catch (err: any) {
-      // setError(err.message);
+      setStatus(user.id!, 'error');
     }
   };
+
+const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defaultContent: React.ReactNode) => {
+  switch (status) {
+    case 'loading':
+      return <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>;
+    case 'success':
+      return <CheckCircle className="h-5 w-5 text-green-500" />;
+    case 'error':
+      return <XCircle className="h-5 w-5 text-red-500" />;
+    default:
+      return defaultContent;
+  }
+};
 
   return (
     <div className="flex-1 space-y-4 p-4 pt-6">
@@ -213,7 +248,7 @@ export function UsuariosPageClient({
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateUser}>Criar Usuário</Button>
+                <Button onClick={handleCreateUser}>{getButtonContent(buttonStatus['create'] || 'idle', 'Criar Usuário')}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -364,7 +399,7 @@ export function UsuariosPageClient({
                               Reset Senha
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleToggleUserStatus(user)}>
-                              {user.enabled ? (
+                              {getButtonContent(buttonStatus[user.id!] || 'idle', user.enabled ? (
                                 <>
                                   <Lock className="mr-2 h-4 w-4" />
                                   Desativar
@@ -374,11 +409,10 @@ export function UsuariosPageClient({
                                   <Unlock className="mr-2 h-4 w-4" />
                                   Ativar
                                 </>
-                              )}
+                              ))}
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUser(user.id!)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir
+                              {getButtonContent(buttonStatus[user.id!] || 'idle', <><Trash2 className="mr-2 h-4 w-4" />Excluir</>)}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -454,10 +488,7 @@ export function UsuariosPageClient({
             <Button variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleResetPassword}>
-              <Mail className="mr-2 h-4 w-4" />
-              Enviar Email
-            </Button>
+            <Button onClick={handleResetPassword}>{getButtonContent(buttonStatus[selectedUser!.id!] || 'idle', <><Mail className="mr-2 h-4 w-4" />Enviar Email</>)}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -498,7 +529,7 @@ export function UsuariosPageClient({
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdateUser}>Salvar Alterações</Button>
+            <Button onClick={handleUpdateUser}>{getButtonContent(buttonStatus[selectedUser!.id!] || 'idle', 'Salvar Alterações')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

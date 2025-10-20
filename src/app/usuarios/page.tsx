@@ -69,6 +69,16 @@ export default function UsuariosPage() {
     role: "",
     password: "",
   })
+  const [buttonStatus, setButtonStatus] = useState<{ [key: string]: 'idle' | 'loading' | 'success' | 'error' }>({});
+
+  const setStatus = (userId: string, status: 'idle' | 'loading' | 'success' | 'error') => {
+    setButtonStatus(prev => ({ ...prev, [userId]: status }));
+    if (status === 'success' || status === 'error') {
+      setTimeout(() => {
+        setButtonStatus(prev => ({ ...prev, [userId]: 'idle' }));
+      }, 2000);
+    }
+  };
 
   const [userGroups, setUserGroups] = useState<any[]>([]);
 
@@ -117,57 +127,75 @@ export default function UsuariosPage() {
   }, [])
 
   const handleCreateUser = async () => {
+    setStatus('create', 'loading');
     try {
       await createUser(newUser as any) // O `any` pode ser refinado com um tipo específico
       fetchUsers() // Atualiza a lista de usuários
       setNewUser({ name: "", email: "", role: "", password: "", permissions: [] })
       setIsCreateDialogOpen(false)
+      setStatus('create', 'success');
     } catch (err: any) {
       setError(err.message)
+      setStatus('create', 'error');
     }
   }
 
   const handleDeleteUser = async (userId: string) => {
+    setStatus(userId, 'loading');
     try {
       await deleteUser(userId)
       fetchUsers()
+      setStatus(userId, 'success');
     } catch (err: any) {
       setError(err.message)
+      setStatus(userId, 'error');
     }
   }
 
   const handleToggleUserStatus = async (user: User) => {
+    setStatus(user.id!, 'loading');
     try {
       await updateUser(user.id!, { ...user, status: user.status === "active" ? "inactive" : "active" })
       fetchUsers()
+      setStatus(user.id!, 'success');
     } catch (err: any) {
       setError(err.message)
+      setStatus(user.id!, 'error');
     }
   }
 
   const handleUpdateUser = async () => {
-    if (!selectedUser) return
+    if (!selectedUser) return;
+    console.log("Updating user:", selectedUser);
+    setStatus(selectedUser.id!, 'loading');
     try {
       await updateUser(selectedUser.id!, selectedUser)
       fetchUsers()
       setIsEditDialogOpen(false)
       setSelectedUser(null)
+      setStatus(selectedUser.id!, 'success');
     } catch (err: any) { 
+      console.error("Error updating user:", err);
       setError(err.message)
+      setStatus(selectedUser.id!, 'error');
     }
   }
 
   const handleResetPassword = async () => {
     if (!selectedUser) return
+    setStatus(selectedUser.id!, 'loading');
     try {
       await resetPasswordApi(selectedUser.id!)
       setIsResetPasswordDialogOpen(false)
+      setStatus(selectedUser.id!, 'success');
     } catch (err: any) {
       setError(err.message)
+      setStatus(selectedUser.id!, 'error');
     }
   }
 
   const handleGroupAssignment = async (user: User, groupId: string, checked: boolean) => {
+    setStatus(user.id!, 'loading');
     try {
       if (checked) {
         await addUserToGroup(groupId, user.id!);
@@ -175,8 +203,23 @@ export default function UsuariosPage() {
         await removeUserFromGroup(groupId, user.id!);
       }
       fetchUsers();
+      setStatus(user.id!, 'success');
     } catch (err: any) {
       setError(err.message);
+      setStatus(user.id!, 'error');
+    }
+  };
+
+  const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defaultContent: React.ReactNode) => {
+    switch (status) {
+      case 'loading':
+        return <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-gray-900"></div>;
+      case 'success':
+        return <CheckCircle className="h-5 w-5 text-green-500" />;
+      case 'error':
+        return <XCircle className="h-5 w-5 text-red-500" />;
+      default:
+        return defaultContent;
     }
   };
 
@@ -272,7 +315,7 @@ export default function UsuariosPage() {
                 <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
                   Cancelar
                 </Button>
-                <Button onClick={handleCreateUser}>Criar Usuário</Button>
+                <Button onClick={handleCreateUser} className="w-32">{getButtonContent(buttonStatus['create'] || 'idle', 'Criar Usuário')}</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -433,6 +476,7 @@ export default function UsuariosPage() {
                               Reset Senha
                             </DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleToggleUserStatus(user)}>
+                              {getButtonContent(buttonStatus[user.id!] || 'idle', user.enabled ? (
                                 <>
                                   <Lock className="mr-2 h-4 w-4" />
                                   Desativar
@@ -442,11 +486,10 @@ export default function UsuariosPage() {
                                   <Unlock className="mr-2 h-4 w-4" />
                                   Ativar
                                 </>
-                              )}
+                              ))}
                             </DropdownMenuItem>
                             <DropdownMenuItem className="text-red-600" onClick={() => handleDeleteUser(user.id!)}>
-                              <Trash2 className="mr-2 h-4 w-4" />
-                              Excluir
+                              {getButtonContent(buttonStatus[user.id!] || 'idle', <><Trash2 className="mr-2 h-4 w-4" />Excluir</>)}
                             </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -526,10 +569,7 @@ export default function UsuariosPage() {
             <Button variant="outline" onClick={() => setIsResetPasswordDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleResetPassword}>
-              <Mail className="mr-2 h-4 w-4" />
-              Enviar Email
-            </Button>
+            <Button onClick={handleResetPassword} className="w-32">{getButtonContent(buttonStatus[selectedUser?.id!] || 'idle', <><Mail className="mr-2 h-4 w-4" />Enviar Email</>)}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
@@ -548,7 +588,7 @@ export default function UsuariosPage() {
                   <Label htmlFor="name-edit">Nome Completo</Label>
                   <Input
                     id="name-edit"
-                    value={selectedUser.name}
+                    value={selectedUser?.name || ''}
                     onChange={(e) => setSelectedUser({ ...selectedUser, name: e.target.value })}
                     placeholder="Digite o nome completo"
                   />
@@ -567,8 +607,13 @@ export default function UsuariosPage() {
               <div className="space-y-2">
                 <Label htmlFor="role-edit">Função</Label>
                 <Select
-                  value={selectedUser.role}
-                  onValueChange={(value) => setSelectedUser({ ...selectedUser, role: value })}
+                  value={selectedUser?.groups?.[0]?.name || ''}
+                  onValueChange={(value) => {
+                    const group = userGroups.find(g => g.name === value);
+                    if (group) {
+                      setSelectedUser({ ...selectedUser, groups: [group] });
+                    }
+                  }}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione uma função" />
@@ -591,7 +636,7 @@ export default function UsuariosPage() {
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleUpdateUser}>Salvar Alterações</Button>
+            <Button onClick={handleUpdateUser} className="w-32">{getButtonContent(buttonStatus[selectedUser?.id!] || 'idle', 'Salvar Alterações')}</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -12,6 +12,7 @@ import { ShieldCheck, Save } from 'lucide-react';
 import { getUserGroups, updateUserGroup } from '@/lib/api.client';
 
 const allPermissions = NAVIGATION_ITEMS.map(item => item.requiredRole).filter((value, index, self) => self.indexOf(value) === index);
+console.log("All permissions:", allPermissions);
 
 export function GroupPermissions() {
   const { toast } = useToast();
@@ -52,7 +53,7 @@ export function GroupPermissions() {
 
   const handleUpdateRoles = async () => {
     if (!selectedGroup) return;
-
+    console.log("Updating group:", selectedGroup);
     try {
       await updateUserGroup(selectedGroup.id, selectedGroup);
       toast({
