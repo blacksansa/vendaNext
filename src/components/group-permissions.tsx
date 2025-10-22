@@ -8,24 +8,35 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { NAVIGATION_ITEMS } from '@/lib/permissions';
 import { useToast } from "@/hooks/use-toast";
+import { useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { ShieldCheck, Save } from 'lucide-react';
 import { getUserGroups, updateUserGroup } from '@/lib/api.client';
 
 const allPermissions = NAVIGATION_ITEMS.map(item => item.requiredRole).filter((value, index, self) => self.indexOf(value) === index);
-console.log("All permissions:", allPermissions);
 
 export function GroupPermissions() {
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { update: updateSession } = useSession();
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
 
   useEffect(() => {
     async function fetchGroups() {
+      const cachedGroups = queryClient.getQueryData<any[]>(['userGroups']);
+      if (cachedGroups) {
+        setGroups(cachedGroups);
+        if (cachedGroups.length > 0 && !selectedGroup) {
+          setSelectedGroup(cachedGroups[0]);
+        }
+      }
+
       try {
         const fetchedGroups = await getUserGroups();
-        console.log("Fetched groups:", fetchedGroups);
         setGroups(fetchedGroups);
-        if (fetchedGroups.length > 0) {
+        queryClient.setQueryData(['userGroups'], fetchedGroups);
+        if (fetchedGroups.length > 0 && !selectedGroup) {
           setSelectedGroup(fetchedGroups[0]);
         }
       } catch (error) {
@@ -38,14 +49,15 @@ export function GroupPermissions() {
     }
 
     fetchGroups();
-  }, [toast]);
+  }, [toast, queryClient, selectedGroup]);
 
   const handlePermissionChange = (permission, checked) => {
     if (!selectedGroup) return;
 
+    const currentRoles = selectedGroup.roles || [];
     const updatedRoles = checked
-      ? [...selectedGroup.roles, permission]
-      : selectedGroup.roles.filter(p => p !== permission);
+      ? [...currentRoles, permission]
+      : currentRoles.filter(p => p !== permission);
 
     const updatedGroup = { ...selectedGroup, roles: updatedRoles };
     setSelectedGroup(updatedGroup);
@@ -53,9 +65,10 @@ export function GroupPermissions() {
 
   const handleUpdateRoles = async () => {
     if (!selectedGroup) return;
-    console.log("Updating group:", selectedGroup);
     try {
       await updateUserGroup(selectedGroup.id, selectedGroup);
+      await updateSession(); // Force session update for current user
+      queryClient.invalidateQueries({ queryKey: ['userGroups'] }); // Invalidate cache
       toast({
         title: "Funções atualizadas!",
         description: `As permissões para o grupo ${selectedGroup.name} foram salvas.`,

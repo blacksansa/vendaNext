@@ -70,8 +70,21 @@ export const authOptions: AuthOptions = {
           const decodedToken = jwtDecode<DecodedToken>(account.access_token);
           const clientRoles =
             decodedToken.resource_access?.[process.env.KEYCLOAK_ID!]?.roles;
-          console.log("Client roles extracted from token:", clientRoles);
           token.roles = clientRoles;
+
+          // Determine high-level role from 'job' claim
+          const jobGroup = (decodedToken as any).job?.[0];
+          if (jobGroup === 'Administradores') {
+            token.role = 'admin';
+          } else if (jobGroup === 'Gerentes') {
+            token.role = 'manager';
+          } else if (jobGroup === 'Lideres') {
+            token.role = 'team_leader';
+          } else if (jobGroup === 'Vendedores') {
+            token.role = 'seller';
+          } else {
+            token.role = 'user'; // Default role
+          }
         }
 
         return token;
@@ -91,7 +104,10 @@ export const authOptions: AuthOptions = {
       session.accessToken = token.accessToken;
       session.refreshToken = token.refreshToken;
       session.expiresAt = token.expiresAt;
-      session.roles = token.roles;
+      session.roles = token.roles; // Keep detailed roles for backend
+      if (session.user) {
+        session.user.role = token.role; // Add high-level role for frontend
+      }
       return session;
     },
   },

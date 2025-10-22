@@ -48,6 +48,8 @@ import { GroupPermissions } from "@/components/group-permissions";
 
 
 
+import { useQueryClient } from "@tanstack/react-query";
+
 interface NewUser {
   name: string;
   email: string;
@@ -56,6 +58,7 @@ interface NewUser {
 }
 
 export default function UsuariosPage() {
+  const queryClient = useQueryClient();
   const { data: session, update } = useSession();
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
@@ -86,9 +89,23 @@ export default function UsuariosPage() {
 
   const fetchUsers = async () => {
     setLoading(true);
+
+    // Try to get data from cache first
+    const cachedUsers = queryClient.getQueryData<User[]>(['users']);
+    if (cachedUsers) {
+      setUsers(cachedUsers);
+    }
+
+    const cachedGroups = queryClient.getQueryData<any[]>(['userGroups']);
+    if (cachedGroups) {
+      setUserGroups(cachedGroups);
+    }
+
+    // Fetch fresh data
     try {
       const fetchedUsers = await getUsers();
       setUsers(fetchedUsers);
+      queryClient.setQueryData(['users'], fetchedUsers);
     } catch (err: any) {
       setError(err.message);
     }
@@ -96,44 +113,58 @@ export default function UsuariosPage() {
     try {
       const fetchedGroups = await getUserGroups();
       setUserGroups(fetchedGroups);
+      queryClient.setQueryData(['userGroups'], fetchedGroups);
     } catch (err: any) {
       setError(err.message);
     }
 
-    try {
-      const total = await getUserCount();
-      setTotalUsers(total);
-    } catch (err: any) {
-      setError(err.message);
-    }
-
-    try {
-      const active = await getUserCountByEnabled(true);
-      setActiveUsers(active);
-    } catch (err: any) {
-      setError(err.message);
-    }
-
-    try {
-      const admins = await getUserCountByGroup("Administradores");
-      setAdminUsers(admins);
-    } catch (err: any) {
-      setError(err.message);
-    }
+    // Note: The count queries are not cached in this minimal approach
+    // They will be fetched on each load, but they are lightweight.
 
     setLoading(false);
   };
 
   useEffect(() => {
-    fetchUsers()
-  }, [])
+    const fetchUsersAndGroups = async () => {
+      const cachedUsers = queryClient.getQueryData<User[]>(['users']);
+      const cachedGroups = queryClient.getQueryData<any[]>(['userGroups']);
+
+      if (cachedUsers && cachedGroups) {
+        setUsers(cachedUsers);
+        setUserGroups(cachedGroups);
+        setLoading(false); // We have cached data, so no loading skeleton needed
+      } else {
+        setLoading(true); // No cache, show loading skeleton
+      }
+
+      // Always fetch fresh data in the background
+      try {
+        const fetchedUsers = await getUsers();
+        setUsers(fetchedUsers);
+        queryClient.setQueryData(['users'], fetchedUsers);
+
+        const fetchedGroups = await getUserGroups();
+        setUserGroups(fetchedGroups);
+        queryClient.setQueryData(['userGroups'], fetchedGroups);
+      } catch (err: any) {
+        setError(err.message);
+      } finally {
+        // If we started without cache, we need to stop loading now.
+        if (!cachedUsers || !cachedGroups) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchUsersAndGroups();
+  }, [queryClient]);
 
   const handleCreateUser = async () => {
     setStatus('create', 'loading');
     try {
-      await createUser(newUser as any) // O `any` pode ser refinado com um tipo específico
-      fetchUsers() // Atualiza a lista de usuários
-      setNewUser({ name: "", email: "", role: "", password: "", permissions: [] })
+      await createUser(newUser as any)
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      setNewUser({ name: "", email: "", role: "", password: "" } as NewUser)
       setIsCreateDialogOpen(false)
       setStatus('create', 'success');
     } catch (err: any) {
@@ -146,7 +177,7 @@ export default function UsuariosPage() {
     setStatus(userId, 'loading');
     try {
       await deleteUser(userId)
-      fetchUsers()
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       setStatus(userId, 'success');
     } catch (err: any) {
       setError(err.message)
@@ -157,8 +188,8 @@ export default function UsuariosPage() {
   const handleToggleUserStatus = async (user: User) => {
     setStatus(user.id!, 'loading');
     try {
-      await updateUser(user.id!, { ...user, status: user.status === "active" ? "inactive" : "active" })
-      fetchUsers()
+      await updateUser(user.id!, { ...user, enabled: !user.enabled })
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       setStatus(user.id!, 'success');
     } catch (err: any) {
       setError(err.message)
@@ -172,11 +203,10 @@ export default function UsuariosPage() {
     setStatus(selectedUser.id!, 'loading');
     try {
       await updateUser(selectedUser.id!, selectedUser)
-      fetchUsers()
+      queryClient.invalidateQueries({ queryKey: ['users'] });
       setIsEditDialogOpen(false)
       setSelectedUser(null)
       setStatus(selectedUser.id!, 'success');
-      window.location.reload();
     } catch (err: any) { 
       console.error("Error updating user:", err);
       setError(err.message)
@@ -201,15 +231,15 @@ export default function UsuariosPage() {
     setStatus(user.id!, 'loading');
     try {
       if (checked) {
-        await addUserToGroup(groupId, user.id!);
+        await addUserToGroup(groupId, user.id!); کو
       } else {
         await removeUserFromGroup(groupId, user.id!);
       }
-      fetchUsers();
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['userGroups'] });
       setStatus(user.id!, 'success');
-      window.location.reload();
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message)
       setStatus(user.id!, 'error');
     }
   };
