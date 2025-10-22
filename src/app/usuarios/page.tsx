@@ -2,7 +2,7 @@
 import { useSession } from "next-auth/react";
 import Loading from "./loading";
 import { useEffect, useState } from "react"
-import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup } from "@/lib/api.client"
+import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup, createSeller } from "@/lib/api.client"
 import { User } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -162,16 +162,27 @@ export default function UsuariosPage() {
   const handleCreateUser = async () => {
     setStatus('create', 'loading');
     try {
-      await createUser(newUser as any)
+      const createdUser = await createUser(newUser as any);
+
+      const selectedGroup = userGroups.find(g => g.name === newUser.role);
+      if (selectedGroup && selectedGroup.name === 'Vendedores') {
+        await createSeller({
+          name: createdUser.name || `${createdUser.firstName} ${createdUser.lastName}`,
+          code: `VD-${createdUser.id}`,
+          user: { id: createdUser.id }
+        });
+        queryClient.invalidateQueries({ queryKey: ['sellers'] });
+      }
+
       queryClient.invalidateQueries({ queryKey: ['users'] });
-      setNewUser({ name: "", email: "", role: "", password: "" } as NewUser)
-      setIsCreateDialogOpen(false)
+      setNewUser({ name: "", email: "", role: "", password: "" });
+      setIsCreateDialogOpen(false);
       setStatus('create', 'success');
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
       setStatus('create', 'error');
     }
-  }
+  };
 
   const handleDeleteUser = async (userId: string) => {
     setStatus(userId, 'loading');
@@ -231,7 +242,7 @@ export default function UsuariosPage() {
     setStatus(user.id!, 'loading');
     try {
       if (checked) {
-        await addUserToGroup(groupId, user.id!); کو
+        await addUserToGroup(groupId, user.id!);
       } else {
         await removeUserFromGroup(groupId, user.id!);
       }
@@ -239,7 +250,7 @@ export default function UsuariosPage() {
       queryClient.invalidateQueries({ queryKey: ['userGroups'] });
       setStatus(user.id!, 'success');
     } catch (err: any) {
-      setError(err.message)
+      setError(err.message);
       setStatus(user.id!, 'error');
     }
   };
