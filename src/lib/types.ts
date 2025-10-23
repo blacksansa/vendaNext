@@ -35,6 +35,24 @@ export interface User {
   createdTimestamp: number;
 }
 
+export interface Order {
+    id?: number;
+    code?: string;
+    customerId?: number;
+    customerName?: string;
+    items?: Array<{
+      productId?: number;
+      quantity?: number;
+      price?: number;
+      total?: number;
+    }>;
+    subtotal?: number;
+    tax?: number;
+    total?: number;
+    status?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  }
 export interface Customer extends AbstractCodeNameEntity {
   companyName?: string;
   addresses?: CustomerAddress[];
@@ -244,4 +262,83 @@ export interface AiCustomerCentral extends AbstractFullEntity {
   mainAnalysis?: string;
   financialAnalysis?: string;
   nextPurchaseOrder?: AiPurchaseSuggestion;
+}
+
+export interface Task extends AbstractFullEntity {
+  title: string;
+  description?: string;
+  dueDate?: number; // timestamp
+  done?: boolean;
+  priority?: "LOW" | "MEDIUM" | "HIGH";
+  assignedTo?: User;
+  relatedEntity?: { type: string; id: number | string } | null;
+}
+
+export interface Approval extends AbstractFullEntity {
+  referenceId?: number;
+  referenceType?: string;
+  status?: "PENDING" | "APPROVED" | "REJECTED";
+  requestedBy?: User;
+  approvers?: User[];
+  approvedAt?: number;
+  rejectedAt?: number;
+  reason?: string;
+  metadata?: Record<string, any>;
+}
+
+export interface Invoice extends AbstractFullEntity {
+  invoiceNumber?: string;
+  customer?: Customer;
+  series?: string;
+  document?: string;
+  issuanceDate?: number;
+  dueDate?: number;
+  netAmount?: number;
+  grossAmount?: number;
+  taxAmount?: number;
+  items?: InvoiceItem[];
+  status?: string;
+}
+
+export interface CustomerGroup extends AbstractCodeNameEntity {
+  description?: string;
+  customers?: Customer[];
+}
+
+export interface LossReason extends AbstractCodeNameEntity {
+  description?: string;
+}
+
+export interface PaymentCondition extends AbstractCodeNameEntity {
+  installments?: number;
+  terms?: string;
+}
+
+export interface PaymentType extends AbstractCodeNameEntity {
+  provider?: string;
+  requiresReference?: boolean;
+}
+
+export interface PriceTag extends AbstractCodeNameEntity {
+  multiplier?: number;
+  active?: boolean;
+}
+
+export interface ProductGroup extends AbstractCodeNameEntity {
+  parentId?: number | null;
+  products?: Product[];
+}
+
+export interface ProductTag extends AbstractCodeNameEntity {
+  color?: string;
+  description?: string;
+}
+
+export interface Unit extends AbstractCodeNameEntity {
+  /** Unidade de medida (ex: Quilograma, Metro) */
+  symbol?: string;         // ex: "kg", "m"
+  abbreviation?: string;   // ex: "kg", "m"
+  factor?: number;         // fator de conversão para a unidade base
+  baseUnitId?: number | null;
+  active?: boolean;
 }

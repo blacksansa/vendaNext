@@ -238,19 +238,67 @@ export default function UsuariosPage() {
     }
   }
 
-  const handleGroupAssignment = async (user: User, groupId: string, checked: boolean) => {
-    setStatus(user.id!, 'loading');
+  const handleGroupAssignment = async (user: User, groupId: string | number, checked: boolean | string | undefined) => {
+    const gid = String(groupId);
+    // coerce checked to boolean reliably
+    const isChecked = checked === true || checked === "true" || checked === 1 || checked === "1";
+    console.log("[DEBUG] handleGroupAssignment invoked", { userId: user.id, groupId: gid, rawChecked: checked, isChecked });
+
+    // show session/token if available
     try {
-      if (checked) {
-        await addUserToGroup(groupId, user.id!);
-      } else {
-        await removeUserFromGroup(groupId, user.id!);
-      }
-      queryClient.invalidateQueries({ queryKey: ['users'] });
-      queryClient.invalidateQueries({ queryKey: ['userGroups'] });
+      // @ts-ignore
+      console.log("[DEBUG] session token (client):", (session as any)?.accessToken);
+    } catch (e) {
+      // ignore
+    }
+
+    setStatus(user.id!, 'loading');
+
+    try {
+      // tentativa padrão
+      const result = isChecked
+        ? await addUserToGroup(gid, user.id!)
+        : await removeUserFromGroup(gid, user.id!);
+
+      console.log("[DEBUG] API call result", { result });
+      await queryClient.invalidateQueries({ queryKey: ['users'] });
+      await queryClient.invalidateQueries({ queryKey: ['userGroups'] });
       setStatus(user.id!, 'success');
     } catch (err: any) {
-      setError(err.message);
+      // tentativas de diagnóstico detalhado
+      console.error("[ERROR] handleGroupAssignment caught error", err);
+
+      // se a função de API lança um erro com resposta fetch-like, tenta extrair body
+      try {
+        // @ts-ignore
+        if (err?.response?.json) {
+          // eslint-disable-next-line no-await-in-loop
+          const body = await err.response.json();
+          console.error("[ERROR] response body:", body);
+        }
+      } catch (e) {
+        // ignore
+      }
+
+      // fallback: tente enviar payload alternativo (algumas APIs esperam { groupId, userId })
+      try {
+        console.log("[DEBUG] tentando fallback payload format");
+        if (isChecked) {
+          // @ts-ignore
+          await addUserToGroup({ groupId: gid, userId: user.id! } as any);
+        } else {
+          // @ts-ignore
+          await removeUserFromGroup({ groupId: gid, userId: user.id! } as any);
+        }
+        await queryClient.invalidateQueries({ queryKey: ['users'] });
+        await queryClient.invalidateQueries({ queryKey: ['userGroups'] });
+        setStatus(user.id!, 'success');
+        return;
+      } catch (err2: any) {
+        console.error("[ERROR] fallback also failed", err2);
+      }
+
+      setError(err?.message ?? String(err));
       setStatus(user.id!, 'error');
     }
   };
