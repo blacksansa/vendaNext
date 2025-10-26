@@ -342,3 +342,15 @@ export interface Unit extends AbstractCodeNameEntity {
   baseUnitId?: number | null;
   active?: boolean;
 }
+
+export interface CustomerListItem {
+  id: number;
+  name: string;
+  shortDescription?: string;
+  primaryContactEmail?: string;
+  customerGroupId?: number | null;
+  active?: boolean;
+  outstandingBalance?: number; // saldo em aberto, se disponível
+  city?: string;
+  createdAt?: number; //
+}

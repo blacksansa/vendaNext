@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -49,6 +49,11 @@ import { Progress } from "@/components/ui/progress"
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, BarChart, Bar } from "recharts"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
+// React Query + API
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
+import { getSellers, createSeller, updateSeller, deleteSeller, getTeams } from "@/lib/api.client"
+import { Seller } from "@/lib/types"
+
 interface GrupoVendedores {
   id: string
   nome: string
@@ -77,59 +82,59 @@ interface Vendedor {
   grupoId?: string
 }
 
-const vendedoresIniciais: Vendedor[] = [
-  {
-    id: "1",
-    nome: "João Silva",
-    email: "joao.silva@empresa.com",
-    telefone: "(11) 99999-9999",
-    cargo: "Vendedor Sênior",
-    regiao: "São Paulo",
-    status: "ativo",
-    vendas: 150000,
-    meta: 200000,
-    dataContratacao: "2023-01-15",
-    vendasMesAnterior: 120000,
-    clientesAtivos: 45,
-    ticketMedio: 3333,
-    conversao: 15.5,
-    grupoId: "1",
-  },
-  {
-    id: "2",
-    nome: "Maria Santos",
-    email: "maria.santos@empresa.com",
-    telefone: "(21) 88888-8888",
-    cargo: "Gerente de Vendas",
-    regiao: "Rio de Janeiro",
-    status: "ativo",
-    vendas: 280000,
-    meta: 300000,
-    dataContratacao: "2022-08-20",
-    vendasMesAnterior: 250000,
-    clientesAtivos: 78,
-    ticketMedio: 3590,
-    conversao: 22.3,
-    grupoId: "1",
-  },
-  {
-    id: "3",
-    nome: "Carlos Oliveira",
-    email: "carlos.oliveira@empresa.com",
-    telefone: "(31) 77777-7777",
-    cargo: "Vendedor Pleno",
-    regiao: "Minas Gerais",
-    status: "inativo",
-    vendas: 95000,
-    meta: 150000,
-    dataContratacao: "2023-06-10",
-    vendasMesAnterior: 110000,
-    clientesAtivos: 32,
-    ticketMedio: 2969,
-    conversao: 12.8,
-    grupoId: "2",
-  },
-]
+// const vendedoresIniciais: Vendedor[] = [
+//   {
+//     id: "1",
+//     nome: "João Silva",
+//     email: "joao.silva@empresa.com",
+//     telefone: "(11) 99999-9999",
+//     cargo: "Vendedor Sênior",
+//     regiao: "São Paulo",
+//     status: "ativo",
+//     vendas: 150000,
+//     meta: 200000,
+//     dataContratacao: "2023-01-15",
+//     vendasMesAnterior: 120000,
+//     clientesAtivos: 45,
+//     ticketMedio: 3333,
+//     conversao: 15.5,
+//     grupoId: "1",
+//   },
+//   {
+//     id: "2",
+//     nome: "Maria Santos",
+//     email: "maria.santos@empresa.com",
+//     telefone: "(21) 88888-8888",
+//     cargo: "Gerente de Vendas",
+//     regiao: "Rio de Janeiro",
+//     status: "ativo",
+//     vendas: 280000,
+//     meta: 300000,
+//     dataContratacao: "2022-08-20",
+//     vendasMesAnterior: 250000,
+//     clientesAtivos: 78,
+//     ticketMedio: 3590,
+//     conversao: 22.3,
+//     grupoId: "1",
+//   },
+//   {
+//     id: "3",
+//     nome: "Carlos Oliveira",
+//     email: "carlos.oliveira@empresa.com",
+//     telefone: "(31) 77777-7777",
+//     cargo: "Vendedor Pleno",
+//     regiao: "Minas Gerais",
+//     status: "inativo",
+//     vendas: 95000,
+//     meta: 150000,
+//     dataContratacao: "2023-06-10",
+//     vendasMesAnterior: 110000,
+//     clientesAtivos: 32,
+//     ticketMedio: 2969,
+//     conversao: 12.8,
+//     grupoId: "2",
+//   },
+// ]
 
 const gruposIniciais: GrupoVendedores[] = [
   {
@@ -168,7 +173,64 @@ const dadosRanking = [
 ]
 
 export default function VendedoresPage() {
-  const [vendedores, setVendedores] = useState<Vendedor[]>(vendedoresIniciais)
+  const queryClient = useQueryClient()
+
+  // carregar vendedores do backend
+  const { data: vendedoresRaw = [], isLoading: sellersLoading } = useQuery({
+    queryKey: ["sellers"],
+    queryFn: () => getSellers("", 0, 100),
+  })
+
+  // mapear formato do backend -> Vendedor (ajuste conforme backend real)
+  const mapApiSellerToVendedor = (s: any): Vendedor => {
+    const user = s?.user;
+    // nome: prefer firstName + lastName when user exists
+    const nome =
+      user && (user.firstName || user.lastName)
+        ? `${(user.firstName ?? "").trim()} ${(user.lastName ?? "").trim()}`.trim()
+        : s.name ?? s.nome ?? `Seller ${s.id}`;
+
+    // cargo: prefer the first user.group name when available, fallback to role/cargo
+    const cargo =
+      (user?.groups && user.groups.length > 0 && user.groups[0]?.name) ??
+      s.role ??
+      s.cargo ??
+      "";
+
+    return {
+      id: String(s.id),
+      nome,
+      email: user?.email ?? s.email ?? "",
+      telefone: s.phone ?? s.telefone ?? "",
+      cargo,
+      regiao: s.region ?? s.regiao ?? "",
+      status: s.active === false ? "inativo" : "ativo",
+      vendas: Number(s.salesAmount ?? s.vendas ?? 0),
+      meta: Number(s.quota ?? s.meta ?? 0),
+      dataContratacao: s.hiredAt ? new Date(s.hiredAt).toISOString().split("T")[0] : "",
+      vendasMesAnterior: Number(s.lastMonthSales ?? s.vendasMesAnterior ?? 0),
+      clientesAtivos: Number(s.activeCustomers ?? s.clientesAtivos ?? 0),
+      ticketMedio: Number(s.avgTicket ?? s.ticketMedio ?? 0),
+      conversao: Number(s.conversion ?? s.conversao ?? 0),
+      grupoId: s.groupId ? String(s.groupId) : s.teamId ? String(s.teamId) : undefined,
+    }
+  }
+
+  // Mostrar apenas sellers que têm o campo `user` preenchido
+  const vendedores: Vendedor[] = vendedoresRaw
+    .filter((s: any) => s && s.user) // filtra entradas sem user
+    .map(mapApiSellerToVendedor)
+
+  // log raw payload from backend to inspect structure
+  useEffect(() => {
+    if (!vendedoresRaw) return
+    console.log("DEBUG: sellers raw payload from backend:", vendedoresRaw)
+    try {
+      console.log("DEBUG: sellers raw (stringified):", JSON.stringify(vendedoresRaw, null, 2))
+    } catch (err) {
+      // ignore stringify errors (circular refs)
+    }
+  }, [vendedoresRaw])
   const [grupos, setGrupos] = useState<GrupoVendedores[]>(gruposIniciais)
   const [mostrarFormulario, setMostrarFormulario] = useState(false)
   const [vendedorSelecionado, setVendedorSelecionado] = useState<Vendedor | null>(null)
@@ -193,18 +255,42 @@ export default function VendedoresPage() {
     cor: "blue",
   })
 
+  // alterna status no backend (optimistic update via cache)
+  const updateSellerMutation = useMutation<Seller, Error, { id: number | string; data: any }>({
+    mutationFn: (payload: { id: number | string; data: any }) =>
+      updateSeller(Number(payload.id), payload.data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sellers"] }),
+  })
+
   const alternarStatus = (id: string) => {
-    setVendedores(
-      vendedores.map((v) => (v.id === id ? { ...v, status: v.status === "ativo" ? "inativo" : "ativo" } : v)),
+    const current = vendedores.find((v) => v.id === id)
+    const novo = current?.status === "ativo" ? "inativo" : "ativo"
+    // setQueryData uses object form in v5
+    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+      old.map((v) => (v.id === id ? { ...v, status: novo } : v))
     )
+    updateSellerMutation.mutate({ id, data: { active: novo === "ativo" } })
   }
 
   const atualizarMeta = (id: string, novaMeta: number) => {
-    setVendedores(vendedores.map((v) => (v.id === id ? { ...v, meta: novaMeta } : v)))
+    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+      old.map((v) => (v.id === id ? { ...v, meta: novaMeta } : v))
+    )
+    updateSellerMutation.mutate({ id, data: { quota: novaMeta } })
   }
 
+  const deleteSellerMutation = useMutation<void, Error, number | string>({
+    mutationFn: (id: number | string) => deleteSeller(Number(id)),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["sellers"] }),
+  })
+
   const excluirVendedor = (id: string) => {
-    setVendedores(vendedores.filter((v) => v.id !== id))
+    // getQueryData uses object form
+    const previous = queryClient.getQueryData<Vendedor[]>({ queryKey: ["sellers"] })
+    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) => old.filter((v) => v.id !== id))
+    deleteSellerMutation.mutate(id, {
+      onError: () => queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, previous),
+    })
   }
 
   const criarGrupo = (e: React.FormEvent) => {
@@ -225,7 +311,11 @@ export default function VendedoresPage() {
   }
 
   const adicionarVendedorAoGrupo = (vendedorId: string, grupoId: string) => {
-    setVendedores(vendedores.map((v) => (v.id === vendedorId ? { ...v, grupoId } : v)))
+    // setQueryData uses object form
+    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+      old.map((v) => (v.id === vendedorId ? { ...v, grupoId } : v))
+    )
+    updateSellerMutation.mutate({ id: vendedorId, data: { groupId: grupoId } })
     setGrupos(
       grupos.map((g) =>
         g.id === grupoId
@@ -236,7 +326,10 @@ export default function VendedoresPage() {
   }
 
   const removerVendedorDoGrupo = (vendedorId: string, grupoId: string) => {
-    setVendedores(vendedores.map((v) => (v.id === vendedorId ? { ...v, grupoId: undefined } : v)))
+    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+      old.map((v) => (v.id === vendedorId ? { ...v, grupoId: undefined } : v))
+    )
+    updateSellerMutation.mutate({ id: vendedorId, data: { groupId: null } })
     setGrupos(
       grupos.map((g) =>
         g.id === grupoId ? { ...g, vendedoresIds: g.vendedoresIds.filter((id) => id !== vendedorId) } : g,
@@ -252,36 +345,27 @@ export default function VendedoresPage() {
     return vendedores.find((v) => v.id === administradorId)
   }
 
+  const createSellerMutation = useMutation<Seller, Error, any>({
+    mutationFn: (data: any) => createSeller(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["sellers"] })
+      setMostrarFormulario(false)
+    },
+  })
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
-    const vendedor: Vendedor = {
-      id: Date.now().toString(),
-      nome: novoVendedor.nome,
+    const payload = {
+      name: novoVendedor.nome,
       email: novoVendedor.email,
-      telefone: novoVendedor.telefone,
-      cargo: novoVendedor.cargo,
-      regiao: novoVendedor.regiao,
-      status: "ativo",
-      vendas: 0,
-      meta: Number.parseInt(novoVendedor.meta) || 0,
-      dataContratacao: new Date().toISOString().split("T")[0],
-      vendasMesAnterior: 0,
-      clientesAtivos: 0,
-      ticketMedio: 0,
-      conversao: 0,
-      grupoId: novoVendedor.grupoId || undefined,
+      phone: novoVendedor.telefone,
+      role: novoVendedor.cargo,
+      region: novoVendedor.regiao,
+      quota: Number.parseInt(novoVendedor.meta) || 0,
+      groupId: novoVendedor.grupoId || null,
     }
-
-    setVendedores([...vendedores, vendedor])
-    if (novoVendedor.grupoId) {
-      setGrupos(
-        grupos.map((g) =>
-          g.id === novoVendedor.grupoId ? { ...g, vendedoresIds: [...g.vendedoresIds, vendedor.id] } : g,
-        ),
-      )
-    }
+    createSellerMutation.mutate(payload)
     setNovoVendedor({ nome: "", email: "", telefone: "", cargo: "", regiao: "", meta: "", grupoId: "" })
-    setMostrarFormulario(false)
   }
 
   const formatarMoeda = (valor: number) => {
@@ -551,8 +635,7 @@ export default function VendedoresPage() {
                 </CardContent>
               </Card>
             )}
-
-            <Card>
+              <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <div>
@@ -598,7 +681,11 @@ export default function VendedoresPage() {
                           <TableCell className="font-medium">
                             <div className="flex items-center gap-2">
                               {vendedor.nome}
-                              {isAdmin && <Crown className="h-4 w-4 text-yellow-500" title="Administrador do Grupo" />}
+                              {isAdmin && (
+                                <span title="Administrador do Grupo">
+                                  <Crown className="h-4 w-4 text-yellow-500" />
+                                </span>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>{vendedor.cargo}</TableCell>

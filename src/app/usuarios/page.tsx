@@ -2,7 +2,7 @@
 import { useSession } from "next-auth/react";
 import Loading from "./loading";
 import { useEffect, useState } from "react"
-import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup, createSeller } from "@/lib/api.client"
+import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup, createSeller, getSellers, deleteSeller } from "@/lib/api.client" // { changed code }
 import { User } from "@/lib/types"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -48,7 +48,7 @@ import { GroupPermissions } from "@/components/group-permissions";
 
 
 
-import { useQueryClient } from "@tanstack/react-query";
+import { useQueryClient, useMutation } from "@tanstack/react-query";
 
 interface NewUser {
   name: string;
@@ -66,7 +66,7 @@ export default function UsuariosPage() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [isResetPasswordDialogOpen, setIsResetPasswordDialogOpen] = useState(false)
-  const [selectedUser, setSelectedUser] = useState<User | null>(null)
+  const [selectedUser, setSelectedUser] = useState<(User & { name?: string }) | null>(null)
   const [showPassword, setShowPassword] = useState(false)
   const [newUser, setNewUser] = useState<NewUser>({
     name: "",
@@ -166,10 +166,16 @@ export default function UsuariosPage() {
 
       const selectedGroup = userGroups.find(g => g.name === newUser.role);
       if (selectedGroup && selectedGroup.name === 'Vendedores') {
+        // createdUser may not have a typed `name` property, so cast to any and provide robust fallback
+        const displayName = (
+          (createdUser as any).name ??
+          `${(createdUser as any).firstName ?? ''} ${(createdUser as any).lastName ?? ''}`
+        ).trim() || `User ${createdUser.id}`;
+
         await createSeller({
-          name: createdUser.name || `${createdUser.firstName} ${createdUser.lastName}`,
+          name: displayName,
           code: `VD-${createdUser.id}`,
-          user: { id: createdUser.id }
+          user: ({ id: createdUser.id } as unknown) as User
         });
         queryClient.invalidateQueries({ queryKey: ['sellers'] });
       }
@@ -238,69 +244,104 @@ export default function UsuariosPage() {
     }
   }
 
-  const handleGroupAssignment = async (user: User, groupId: string | number, checked: boolean | string | undefined) => {
-    const gid = String(groupId);
-    // coerce checked to boolean reliably
-    const isChecked = checked === true || checked === "true" || checked === 1 || checked === "1";
-    console.log("[DEBUG] handleGroupAssignment invoked", { userId: user.id, groupId: gid, rawChecked: checked, isChecked });
+  // Optimistic mutation for toggling user-group assignment
+  const toggleGroupMutation = useMutation<void, Error, { userId: string; groupId: string; assign: boolean }, unknown>({
+    mutationFn: async (vars: { userId: string; groupId: string; assign: boolean }) => {
+      const { userId, groupId, assign } = vars;
+      return assign
+        ? await addUserToGroup(groupId, userId)
+        : await removeUserFromGroup(groupId, userId);
+    },
+    // optimistic update
+    onMutate: async (vars: { userId: string; groupId: string; assign: boolean }) => {
+      const { userId, groupId, assign } = vars;
+      await queryClient.cancelQueries({ queryKey: ['users'] });
+      const previousUsers = queryClient.getQueryData<User[]>(['users']);
 
-    // show session/token if available
-    try {
-      // @ts-ignore
-      console.log("[DEBUG] session token (client):", (session as any)?.accessToken);
-    } catch (e) {
-      // ignore
-    }
+      const newUsers = (previousUsers || []).map(u => {
+        if (!u.id || String(u.id) !== String(userId)) return u;
+        const groups = Array.isArray(u.groups) ? [...u.groups] : [];
+        const groupObj = userGroups.find(g => String(g.id) === String(groupId));
+        if (assign) {
+          if (!groups.some(g => String(g.id) === String(groupId))) groups.push(groupObj ?? ({ id: groupId, name: '...' } as any));
+          return { ...u, groups };
+        } else {
+          return { ...u, groups: groups.filter(g => String(g.id) !== String(groupId)) };
+        }
+      });
 
-    setStatus(user.id!, 'loading');
+      // update both React Query cache and local state so UI reflects immediately
+      queryClient.setQueryData<User[] | undefined>(['users'], newUsers);
+      setUsers(newUsers);
 
-    try {
-      // tentativa padrão
-      const result = isChecked
-        ? await addUserToGroup(gid, user.id!)
-        : await removeUserFromGroup(gid, user.id!);
-
-      console.log("[DEBUG] API call result", { result });
+      return { previousUsers };
+    },
+    onError: (_err, _vars, context: any) => {
+      if (context?.previousUsers) {
+        queryClient.setQueryData(['users'], context.previousUsers);
+      }
+      // set error status if desired
+      const userId = (_vars as any)?.userId;
+      if (userId) setStatus(String(userId), 'error');
+    },
+    onSuccess: async (_data, vars: { userId: string; groupId: string; assign: boolean }) => {
+      const { userId, groupId, assign } = vars;
+      // refresh from server
       await queryClient.invalidateQueries({ queryKey: ['users'] });
       await queryClient.invalidateQueries({ queryKey: ['userGroups'] });
-      setStatus(user.id!, 'success');
-    } catch (err: any) {
-      // tentativas de diagnóstico detalhado
-      console.error("[ERROR] handleGroupAssignment caught error", err);
 
-      // se a função de API lança um erro com resposta fetch-like, tenta extrair body
-      try {
-        // @ts-ignore
-        if (err?.response?.json) {
-          // eslint-disable-next-line no-await-in-loop
-          const body = await err.response.json();
-          console.error("[ERROR] response body:", body);
+      // seller sync after successful group change
+      const groupObj = userGroups.find(g => String(g.id) === String(groupId));
+      const isVendedores = groupObj?.name === "Vendedores" || groupObj?.name === "Vendedor" || groupObj?.code === "VENDEDORES";
+      if (isVendedores) {
+        try {
+          const sellers = await getSellers("", 0, 1000).catch(() => [] as any[]);
+          const existing = (sellers || []).find((s: any) =>
+            s?.user?.id === userId ||
+            s?.userId === userId ||
+            String(s?.user?.id) === String(userId) ||
+            String(s?.userId) === String(userId)
+          );
+
+            if (assign) {
+            if (!existing) {
+              // create seller for user
+              const userObj = (queryClient.getQueryData<User[]>(['users']) || []).find(u => String(u.id) === String(userId));
+              const displayName = (
+                (userObj as any)?.name ??
+                `${((userObj as any)?.firstName ?? '')} ${((userObj as any)?.lastName ?? '')}`
+              ).trim() || (userObj as any)?.email || `User ${userId}`;
+
+              await createSeller({
+                name: displayName,
+                code: `VD-${userId}`,
+                user: ({ id: userId } as unknown) as User
+              }).catch((e) => console.error("createSeller failed", e));
+              queryClient.invalidateQueries({ queryKey: ['sellers'] });
+            }
+          } else {
+            if (existing) {
+              await deleteSeller(existing.id ?? existing._id ?? existing.sellerId).catch((e) => console.error("deleteSeller failed", e));
+              queryClient.invalidateQueries({ queryKey: ['sellers'] });
+            }
+          }
+        } catch (errSeller: any) {
+          console.error("[ERROR] seller sync failed in onSuccess", errSeller);
         }
-      } catch (e) {
-        // ignore
       }
-
-      // fallback: tente enviar payload alternativo (algumas APIs esperam { groupId, userId })
-      try {
-        console.log("[DEBUG] tentando fallback payload format");
-        if (isChecked) {
-          // @ts-ignore
-          await addUserToGroup({ groupId: gid, userId: user.id! } as any);
-        } else {
-          // @ts-ignore
-          await removeUserFromGroup({ groupId: gid, userId: user.id! } as any);
-        }
-        await queryClient.invalidateQueries({ queryKey: ['users'] });
-        await queryClient.invalidateQueries({ queryKey: ['userGroups'] });
-        setStatus(user.id!, 'success');
-        return;
-      } catch (err2: any) {
-        console.error("[ERROR] fallback also failed", err2);
-      }
-
-      setError(err?.message ?? String(err));
-      setStatus(user.id!, 'error');
+      setStatus(userId, 'success');
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      queryClient.invalidateQueries({ queryKey: ['userGroups'] });
     }
+  });
+
+  const handleGroupAssignment = (user: User, groupId: string | number, checked: boolean | string | undefined) => {
+    const gid = String(groupId);
+    const isChecked = checked === true || checked === "true" || String(checked) === "1";
+    setStatus(user.id!, 'loading');
+    toggleGroupMutation.mutate({ userId: String(user.id), groupId: gid, assign: isChecked });
   };
 
   const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defaultContent: React.ReactNode) => {
@@ -440,9 +481,9 @@ export default function UsuariosPage() {
                 <CheckCircle className="h-4 w-4 text-green-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.status === "active").length}</div>
+                <div className="text-2xl font-bold">{users.filter((u) => u.enabled).length}</div>
                 <p className="text-xs text-muted-foreground">
-                  {Math.round((users.filter((u) => u.status === "active").length / users.length) * 100)}% do total
+                  {users.length ? Math.round((users.filter((u) => u.enabled).length / users.length) * 100) : 0}% do total
                 </p>
               </CardContent>
             </Card>
@@ -452,7 +493,7 @@ export default function UsuariosPage() {
                 <Shield className="h-4 w-4 text-red-600" />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{users.filter((u) => u.role === "admin").length}</div>
+                <div className="text-2xl font-bold">{users.filter((u) => u.groups?.some((g) => g.name === 'Administradores')).length}</div>
                 <p className="text-xs text-muted-foreground">Acesso total ao sistema</p>
               </CardContent>
             </Card>
@@ -482,19 +523,19 @@ export default function UsuariosPage() {
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
-                            <AvatarFallback>
-                              {user.name
-                                ? user.name
+                            <AvatarImage src={(user as any).avatar || "/placeholder.svg"} />
+                          <AvatarFallback>
+                              {(user as any).name
+                                ? (user as any).name
                                     .split(" ")
-                                    .map((n) => n[0])
+                                    .map((n: string) => n[0])
                                     .join("")
                                     .toUpperCase()
                                 : "NN"}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                                                    <div className="font-medium">{user.name} {user.groups?.some(g => g.name === 'Administradores') && <Shield className="w-4 h-4 inline-block ml-1 text-red-500" />}</div>
+                                                    <div className="font-medium">{(user as any).name} {user.groups?.some(g => g.name === 'Administradores') && <Shield className="w-4 h-4 inline-block ml-1 text-red-500" />}</div>
                             <div className="text-sm text-muted-foreground">{user.email}</div>
                           </div>
                         </div>
