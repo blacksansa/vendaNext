@@ -1,6 +1,7 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -8,8 +9,6 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
 import {
   Dialog,
   DialogContent,
@@ -21,307 +20,88 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, AlertCircle, Trash2, Pencil, UserPlus } from "lucide-react"
+import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, AlertCircle, Trash2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
-import { RoleGuard } from "@/components/role-guard"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import { getTeams, createTeam, getSellers, getUsers } from "@/lib/api.client"
+import { useState } from "react"
+import { useGruposModel } from "./model"
 
 export default function GruposPage() {
   const { user } = useAuth()
+  const model = useGruposModel()
 
-  const [grupos, setGrupos] = useState([
-    {
-      id: 1,
-      nome: "Equipe Alpha",
-      lider: "João Silva",
-      liderUserId: "1", // Ajustado para corresponder ao ID do usuário mockado
-      membros: 8,
-      metaMensal: 150000,
-      vendidoMes: 120000,
-      status: "ativo",
-      descricao: "Equipe focada em grandes contas corporativas",
-      vendedores: [
-        { nome: "Maria Santos", vendas: 25000, status: "ativo" },
-        { nome: "Pedro Costa", vendas: 18000, status: "ativo" },
-        { nome: "Ana Lima", vendas: 22000, status: "ativo" },
-      ],
-    },
-    {
-      id: 2,
-      nome: "Equipe Beta",
-      lider: "Maria Oliveira",
-      liderUserId: "2",
-      membros: 6,
-      metaMensal: 100000,
-      vendidoMes: 95000,
-      status: "ativo",
-      descricao: "Equipe especializada em PMEs",
-      vendedores: [
-        { nome: "Carlos Rocha", vendas: 20000, status: "ativo" },
-        { nome: "Lucia Ferreira", vendas: 15000, status: "ativo" },
-        { nome: "Roberto Silva", vendas: 18000, status: "inativo" },
-      ],
-    },
-  ])
+  // Destructure all from model
+  const {
+    gruposFiltrados,
+    users,
+    sellers,
+    dialogoEditarAberto,
+    setDialogoEditarAberto,
+    dialogoGerenciarAberto,
+    setDialogoGerenciarAberto,
+    dialogoAdicionarMembroAberto,
+    setDialogoAdicionarMembroAberto,
+    dialogoEditarMembroAberto,
+    setDialogoEditarMembroAberto,
+    grupoEditando,
+    setGrupoEditando,
+    grupoSelecionado,
+    setGrupoSelecionado,
+    novoMembro,
+    setNovoMembro,
+    membroEditando,
+    setMembroEditando,
+    criarGrupo,
+    editarGrupo,
+    salvarEdicaoGrupo,
+    gerenciarGrupo,
+    adicionarMembro,
+    editarMembro,
+    salvarEdicaoMembro,
+    removerMembro,
+    calcularPerformance,
+  } = model
 
-  // --- Integração backend /teams (NÃO altera UI) ---
-  const queryClient = useQueryClient()
-
-  // Carrega times (grupos de vendas) do backend
-  const { data: teams = [] } = useQuery({
-    queryKey: ["teams"],
-    queryFn: () => getTeams("", 0, 100),
-  })
-
-  // Carrega vendedores do backend
-  const { data: sellers = [] } = useQuery({
-    queryKey: ["sellers"],
-    queryFn: () => getSellers("", 0, 100),
-  })
-
-  // Carrega usuários para seleção de gerente
-  const { data: users = [] } = useQuery({
-    queryKey: ["users"],
-    queryFn: () => getUsers("", 0, 100),
-  })
-
-  // Mutação para criar grupo (team) no backend
-  const createTeamMutation = useMutation({
-    mutationFn: (payload: { name: string; description?: string; managerId?: string; sellerIds?: string[] }) =>
-      createTeam(payload),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["teams"] }),
-  })
-
-  // Função para criar grupo de vendas (NÃO altera UI)
-  const criarGrupoBackend = (dados: { name: string; description?: string; managerId?: string; sellerIds?: string[] }) => {
-    createTeamMutation.mutate(dados)
-  }
-
-  // --- NOVO: sincronizar cards com backend ---
-  const gruposSincronizados = teams.map((team: any) => {
-    // Busca gerente pelo id
-    const gerente = users.find((u: any) => String(u.id) === String(team.managerId));
-    // Busca vendedores do grupo
-    const vendedoresGrupo = (team.sellerIds || [])
-      .map((sid: string) => {
-        const s = sellers.find((seller: any) => String(seller.id) === String(sid));
-        return s
-          ? {
-              nome:
-                s.user && (s.user.firstName || s.user.lastName)
-                  ? `${s.user.firstName ?? ""} ${s.user.lastName ?? ""}`.trim()
-                  : s.name ?? s.email ?? s.id,
-              vendas: s.salesAmount ?? 0,
-              status: s.active === false ? "inativo" : "ativo",
-            }
-          : null;
-      })
-      .filter(Boolean);
-
-    return {
-      id: team.id,
-      nome: team.name,
-      lider: gerente?.name || gerente?.email || team.managerId || "",
-      liderUserId: team.managerId,
-      membros: vendedoresGrupo.length,
-      metaMensal: team.quota ?? 0,
-      vendidoMes: vendedoresGrupo.reduce((acc, v) => acc + (v?.vendas ?? 0), 0),
-      status: team.active === false ? "inativo" : "ativo",
-      descricao: team.description ?? "",
-      vendedores: vendedoresGrupo,
-    };
-  });
-
-  const [gruposFiltrados, setGruposFiltrados] = useState<any[]>([])
-  const [podeGerenciarTodos, setPodeGerenciarTodos] = useState(false)
+  // Local UI state for new grupo
   const [novoGrupo, setNovoGrupo] = useState({
     nome: "",
     lider: "",
+    liderUserId: "",
     descricao: "",
     metaMensal: "",
   })
-  const [grupoSelecionado, setGrupoSelecionado] = useState(null)
-  const [dialogoEditarAberto, setDialogoEditarAberto] = useState(false)
-  const [dialogoGerenciarAberto, setDialogoGerenciarAberto] = useState(false)
-  const [grupoEditando, setGrupoEditando] = useState(null)
 
-  const [novoMembro, setNovoMembro] = useState({ nome: "", email: "", telefone: "" })
-  const [membroEditando, setMembroEditando] = useState(null)
-  const [dialogoAdicionarMembroAberto, setDialogoAdicionarMembroAberto] = useState(false)
-  const [dialogoEditarMembroAberto, setDialogoEditarMembroAberto] = useState(false)
+  const podeGerenciarTodos = user?.role === "admin" || user?.role === "manager"
 
-  // Estado para dialog de atribuição de líder
-  const [dialogoAtribuirLiderAberto, setDialogoAtribuirLiderAberto] = useState(false)
-  const [grupoParaAtribuirLider, setGrupoParaAtribuirLider] = useState<any>(null)
-  const [novoLiderId, setNovoLiderId] = useState("")
-
-  useEffect(() => {
-    setGruposFiltrados(gruposSincronizados)
-    setPodeGerenciarTodos(true)
-  }, [user, teams, sellers, users])
-
-  const criarGrupo = () => {
-    if (user?.role !== "admin") {
-      alert("Apenas administradores podem criar novos grupos")
-      return
-    }
-
-    const grupo = {
-      id: grupos.length + 1,
-      nome: novoGrupo.nome,
-      lider: novoGrupo.lider,
-      liderUserId: "", // Seria definido baseado na seleção
-      membros: 0,
-      metaMensal: Number.parseInt(novoGrupo.metaMensal),
-      vendidoMes: 0,
-      status: "ativo",
-      descricao: novoGrupo.descricao,
-      vendedores: [],
-    }
-    setGrupos([...grupos, grupo])
-    setNovoGrupo({ nome: "", lider: "", descricao: "", metaMensal: "" })
-  }
-
-  const calcularPerformance = (vendido, meta) => {
-    return ((vendido / meta) * 100).toFixed(1)
-  }
-
-  const editarGrupo = (grupo) => {
-    setGrupoEditando({
-      id: grupo.id,
-      nome: grupo.nome,
-      lider: grupo.lider,
-      descricao: grupo.descricao,
-      metaMensal: grupo.metaMensal.toString(),
-    })
-    setDialogoEditarAberto(true)
-  }
-
-  const salvarEdicaoGrupo = () => {
-    const gruposAtualizados = grupos.map((grupo) =>
-      grupo.id === grupoEditando.id
-        ? {
-            ...grupo,
-            nome: grupoEditando.nome,
-            lider: grupoEditando.lider,
-            descricao: grupoEditando.descricao,
-            metaMensal: Number.parseInt(grupoEditando.metaMensal),
-          }
-        : grupo,
+  if (!user || (user.role !== "admin" && user.role !== "manager" && user.role !== "team_leader")) {
+    return (
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <h1 className="text-lg font-semibold">Grupos</h1>
+          </div>
+        </header>
+        <div className="flex-1 space-y-4 p-4 pt-6">
+          <div className="flex items-center justify-center min-h-[400px]">
+            <Card className="w-full max-w-md">
+              <CardHeader className="text-center">
+                <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
+                <CardTitle>Acesso Restrito</CardTitle>
+                <CardDescription>
+                  Você não tem permissão para acessar o gerenciamento de grupos. Entre em contato com seu líder ou
+                  administrador.
+                </CardDescription>
+              </CardHeader>
+            </Card>
+          </div>
+        </div>
+      </SidebarInset>
     )
-    setGrupos(gruposAtualizados)
-    setDialogoEditarAberto(false)
-    setGrupoEditando(null)
-  }
-
-  const gerenciarGrupo = (grupo) => {
-    setGrupoSelecionado(grupo)
-    setDialogoGerenciarAberto(true)
-  }
-
-  const adicionarMembro = () => {
-    if (!novoMembro.nome || !novoMembro.email) {
-      alert("Nome e email são obrigatórios")
-      return
-    }
-
-    const gruposAtualizados = grupos.map((grupo) =>
-      grupo.id === grupoSelecionado.id
-        ? {
-            ...grupo,
-            vendedores: [
-              ...grupo.vendedores,
-              {
-                nome: novoMembro.nome,
-                email: novoMembro.email,
-                telefone: novoMembro.telefone,
-                vendas: 0,
-                status: "ativo",
-              },
-            ],
-            membros: grupo.membros + 1,
-          }
-        : grupo,
-    )
-
-    setGrupos(gruposAtualizados)
-    setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id))
-    setNovoMembro({ nome: "", email: "", telefone: "" })
-    setDialogoAdicionarMembroAberto(false)
-  }
-
-  const editarMembro = (vendedor, index) => {
-    setMembroEditando({ ...vendedor, index })
-    setDialogoEditarMembroAberto(true)
-  }
-
-  const salvarEdicaoMembro = () => {
-    const gruposAtualizados = grupos.map((grupo) =>
-      grupo.id === grupoSelecionado.id
-        ? {
-            ...grupo,
-            vendedores: grupo.vendedores.map((v, i) =>
-              i === membroEditando.index
-                ? {
-                    ...v,
-                    nome: membroEditando.nome,
-                    status: membroEditando.status,
-                  }
-                : v,
-            ),
-          }
-        : grupo,
-    )
-
-    setGrupos(gruposAtualizados)
-    setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id))
-    setMembroEditando(null)
-    setDialogoEditarMembroAberto(false)
-  }
-
-  const removerMembro = (index) => {
-    if (confirm("Tem certeza que deseja remover este membro do grupo?")) {
-      const gruposAtualizados = grupos.map((grupo) =>
-        grupo.id === grupoSelecionado.id
-          ? {
-              ...grupo,
-              vendedores: grupo.vendedores.filter((_, i) => i !== index),
-              membros: grupo.membros - 1,
-            }
-          : grupo,
-      )
-
-      setGrupos(gruposAtualizados)
-      setGrupoSelecionado(gruposAtualizados.find((g) => g.id === grupoSelecionado.id))
-    }
-  }
-
-  // Mutação para atualizar líder do grupo (backend)
-  const updateTeamMutation = useMutation({
-    mutationFn: ({ id, data }: { id: number | string; data: any }) => getTeams.updateTeam(id, data),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["teams"] }),
-  })
-
-  // Função para abrir dialog de atribuição de líder
-  const abrirDialogAtribuirLider = (grupo: any) => {
-    setGrupoParaAtribuirLider(grupo)
-    setNovoLiderId(grupo.liderUserId || "")
-    setDialogoAtribuirLiderAberto(true)
-  }
-
-  // Função para salvar novo líder
-  const salvarNovoLider = () => {
-    if (!grupoParaAtribuirLider) return
-    updateTeamMutation.mutate({ id: grupoParaAtribuirLider.id, data: { managerId: novoLiderId } })
-    setDialogoAtribuirLiderAberto(false)
-    setGrupoParaAtribuirLider(null)
-    setNovoLiderId("")
   }
 
   return (
     <SidebarInset>
-      {/* ...existing header... */}
       <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
         <div className="flex items-center gap-2 px-4">
           <SidebarTrigger className="-ml-1" />
@@ -332,14 +112,8 @@ export default function GruposPage() {
               {user.role.toUpperCase()}
             </Badge>
           )}
-          {/* Botão de criação de grupo sempre visível para admin */}
-          <Button className="ml-4" onClick={() => setDialogoEditarAberto(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Novo Grupo
-          </Button>
         </div>
       </header>
-      {/* ...existing code... */}
 
       <div className="flex-1 space-y-4 p-4 pt-6">
         <div className="flex items-center justify-between space-y-2">
@@ -353,6 +127,94 @@ export default function GruposPage() {
                 : `Gerencie seu grupo: ${gruposFiltrados[0]?.nome || "Nenhum grupo atribuído"}`}
             </p>
           </div>
+          {user?.role === "admin" && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Novo Grupo
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Criar Novo Grupo</DialogTitle>
+                  <DialogDescription>Configure um novo grupo de vendas com líder e meta mensal.</DialogDescription>
+                </DialogHeader>
+                <div className="grid gap-4 py-4">
+                  <div className="grid gap-2">
+                    <Label htmlFor="nome">Nome do Grupo</Label>
+                    <Input
+                      id="nome"
+                      value={novoGrupo.nome}
+                      onChange={(e) => setNovoGrupo({ ...novoGrupo, nome: e.target.value })}
+                      placeholder="Ex: Equipe Alpha"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="lider">Líder do Grupo</Label>
+                    <Select
+                      onValueChange={(value) => {
+                        const selected = users.find((u: any) => String(u.id) === String(value))
+                        const nome = selected
+                          ? (selected.firstName || selected.lastName
+                              ? `${selected.firstName ?? ""} ${selected.lastName ?? ""}`.trim()
+                              : selected.name ?? selected.email)
+                          : ""
+                        setNovoGrupo({ ...novoGrupo, liderUserId: value, lider: nome })
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione um líder" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {users
+                          .filter(
+                            (u: any) =>
+                              u.role === "manager" ||
+                              u.role === "gerente" ||
+                              (Array.isArray(u.groups) && u.groups.some((g: any) => /gerente|manager/i.test(g?.name))),
+                          )
+                          .map((u: any) => (
+                            <SelectItem key={u.id} value={String(u.id)}>
+                              {(u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.name ?? u.email}
+                            </SelectItem>
+                          ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="meta">Meta Mensal (R$)</Label>
+                    <Input
+                      id="meta"
+                      type="number"
+                      value={novoGrupo.metaMensal}
+                      onChange={(e) => setNovoGrupo({ ...novoGrupo, metaMensal: e.target.value })}
+                      placeholder="150000"
+                    />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="descricao">Descrição</Label>
+                    <Textarea
+                      id="descricao"
+                      value={novoGrupo.descricao}
+                      onChange={(e) => setNovoGrupo({ ...novoGrupo, descricao: e.target.value })}
+                      placeholder="Descreva o foco e especialidade do grupo"
+                    />
+                  </div>
+                </div>
+                <DialogFooter>
+                  <Button
+                    onClick={() => {
+                      criarGrupo(novoGrupo)
+                      setNovoGrupo({ nome: "", lider: "", liderUserId: "", descricao: "", metaMensal: "" })
+                    }}
+                  >
+                    Criar Grupo
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
 
         {!podeGerenciarTodos && gruposFiltrados.length === 0 && (
@@ -429,7 +291,7 @@ export default function GruposPage() {
                     {calcularPerformance(
                       gruposFiltrados.reduce((acc, grupo) => acc + grupo.vendidoMes, 0),
                       gruposFiltrados.reduce((acc, grupo) => acc + grupo.metaMensal, 0),
-                    )}
+                    ).toFixed(1)}
                     %
                   </div>
                   <p className="text-xs text-muted-foreground">Da meta mensal</p>
@@ -460,16 +322,6 @@ export default function GruposPage() {
                     <div className="flex items-center gap-2">
                       <Crown className="h-4 w-4 text-yellow-500" />
                       <span className="text-sm font-medium">Líder: {grupo.lider}</span>
-                      {/* Botão para atribuir líder */}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="ml-2"
-                        title="Atribuir novo líder"
-                        onClick={() => abrirDialogAtribuirLider(grupo)}
-                      >
-                        <UserPlus className="h-4 w-4" />
-                      </Button>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4 text-sm">
@@ -479,7 +331,7 @@ export default function GruposPage() {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Performance</p>
-                        <p className="font-medium">{calcularPerformance(grupo.vendidoMes, grupo.metaMensal)}%</p>
+                        <p className="font-medium">{calcularPerformance(grupo.vendidoMes, grupo.metaMensal).toFixed(1)}%</p>
                       </div>
                     </div>
 
@@ -499,16 +351,18 @@ export default function GruposPage() {
                     </div>
 
                     <div className="flex gap-2">
-                      <>
-                        <Button variant="outline" size="sm" onClick={() => editarGrupo(grupo)}>
-                          <Edit className="h-4 w-4 mr-1" />
-                          Editar
-                        </Button>
-                        <Button variant="outline" size="sm" onClick={() => gerenciarGrupo(grupo)}>
-                          <Settings className="h-4 w-4 mr-1" />
-                          Gerenciar
-                        </Button>
-                      </>
+                      {(grupo.liderUserId === user?.id || user?.role === "admin" || user?.role === "manager") && (
+                        <>
+                          <Button variant="outline" size="sm" onClick={() => editarGrupo(grupo)}>
+                            <Edit className="h-4 w-4 mr-1" />
+                            Editar
+                          </Button>
+                          <Button variant="outline" size="sm" onClick={() => gerenciarGrupo(grupo)}>
+                            <Settings className="h-4 w-4 mr-1" />
+                            Gerenciar
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -556,14 +410,14 @@ export default function GruposPage() {
                       <div>
                         <h4 className="font-medium mb-2">Vendedores do Grupo</h4>
                         <div className="space-y-2">
-                          {grupo.vendedores.map((vendedor, index) => (
+                          {grupo.vendedores.map((vendedor: any, index: number) => (
                             <div key={index} className="flex items-center justify-between p-2 border rounded">
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-8 w-8">
                                   <AvatarFallback>
-                                    {vendedor.nome
+                                    {String(vendedor.nome ?? "")
                                       .split(" ")
-                                      .map((n) => n[0])
+                                      .map((n) => (n ? n[0] : ""))
                                       .join("")}
                                   </AvatarFallback>
                                 </Avatar>
@@ -624,7 +478,7 @@ export default function GruposPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-lg">
-                              {calcularPerformance(grupo.vendidoMes, grupo.metaMensal)}%
+                              {calcularPerformance(grupo.vendidoMes, grupo.metaMensal).toFixed(1)}%
                             </p>
                             <p className="text-sm text-muted-foreground">
                               R$ {grupo.vendidoMes.toLocaleString()} / R$ {grupo.metaMensal.toLocaleString()}
@@ -639,6 +493,7 @@ export default function GruposPage() {
           </TabsContent>
         </Tabs>
 
+        {/* Dialog: Editar Grupo */}
         <Dialog open={dialogoEditarAberto} onOpenChange={setDialogoEditarAberto}>
           <DialogContent>
             <DialogHeader>
@@ -657,11 +512,36 @@ export default function GruposPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-lider">Líder do Grupo</Label>
-                  <Input
-                    id="edit-lider"
-                    value={grupoEditando.lider}
-                    onChange={(e) => setGrupoEditando({ ...grupoEditando, lider: e.target.value })}
-                  />
+                  <Select
+                    value={String(grupoEditando.liderUserId ?? "")}
+                    onValueChange={(value) => {
+                      const selected = users.find((u: any) => String(u.id) === String(value))
+                      const nome = selected
+                        ? (selected.firstName || selected.lastName
+                            ? `${selected.firstName ?? ""} ${selected.lastName ?? ""}`.trim()
+                            : selected.name ?? selected.email)
+                        : ""
+                      setGrupoEditando({ ...grupoEditando, liderUserId: value, lider: nome })
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {users
+                        .filter(
+                          (u: any) =>
+                            u.role === "manager" ||
+                            u.role === "gerente" ||
+                            (Array.isArray(u.groups) && u.groups.some((g: any) => /gerente|manager/i.test(g?.name))),
+                        )
+                        .map((u: any) => (
+                          <SelectItem key={u.id} value={String(u.id)}>
+                            {(u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.name ?? u.email}
+                          </SelectItem>
+                        ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-meta">Meta Mensal (R$)</Label>
@@ -691,6 +571,7 @@ export default function GruposPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Dialog: Gerenciar Grupo */}
         <Dialog open={dialogoGerenciarAberto} onOpenChange={setDialogoGerenciarAberto}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
@@ -714,14 +595,14 @@ export default function GruposPage() {
                     </Button>
                   </div>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {grupoSelecionado.vendedores.map((vendedor, index) => (
+                    {grupoSelecionado.vendedores.map((vendedor: any, index: number) => (
                       <div key={index} className="flex items-center justify-between p-3 border rounded">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
                             <AvatarFallback>
-                              {vendedor.nome
+                              {String(vendedor.nome ?? "")
                                 .split(" ")
-                                .map((n) => n[0])
+                                .map((n) => (n ? n[0] : ""))
                                 .join("")}
                             </AvatarFallback>
                           </Avatar>
@@ -756,7 +637,7 @@ export default function GruposPage() {
                       <Label>Performance Atual</Label>
                       <div className="p-3 bg-muted rounded">
                         <p className="text-2xl font-bold">
-                          {calcularPerformance(grupoSelecionado.vendidoMes, grupoSelecionado.metaMensal)}%
+                          {calcularPerformance(grupoSelecionado.vendidoMes, grupoSelecionado.metaMensal).toFixed(1)}%
                         </p>
                         <p className="text-sm text-muted-foreground">
                           R$ {grupoSelecionado.vendidoMes.toLocaleString()} de R${" "}
@@ -784,7 +665,7 @@ export default function GruposPage() {
                     </div>
                     <div className="grid gap-2">
                       <Label>Descrição do Grupo</Label>
-                      <Textarea value={grupoSelecionado.descricao} placeholder="Descrição e foco do grupo" />
+                      <Textarea value={grupoSelecionado.descricao} placeholder="Descrição e foco do grupo" onChange={() => {}} />
                     </div>
                   </div>
                 </TabsContent>
@@ -799,6 +680,7 @@ export default function GruposPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Dialog: Adicionar Membro */}
         <Dialog open={dialogoAdicionarMembroAberto} onOpenChange={setDialogoAdicionarMembroAberto}>
           <DialogContent>
             <DialogHeader>
@@ -844,6 +726,7 @@ export default function GruposPage() {
           </DialogContent>
         </Dialog>
 
+        {/* Dialog: Editar Membro */}
         <Dialog open={dialogoEditarMembroAberto} onOpenChange={setDialogoEditarMembroAberto}>
           <DialogContent>
             <DialogHeader>
@@ -883,42 +766,6 @@ export default function GruposPage() {
                 Cancelar
               </Button>
               <Button onClick={salvarEdicaoMembro}>Salvar Alterações</Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* Dialog para atribuição de líder */}
-        <Dialog open={dialogoAtribuirLiderAberto} onOpenChange={setDialogoAtribuirLiderAberto}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Atribuir Líder ao Grupo</DialogTitle>
-              <DialogDescription>
-                Selecione o novo líder para o grupo <b>{grupoParaAtribuirLider?.nome}</b>.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="grid gap-4 py-4">
-              <Label htmlFor="novo-lider">Novo Líder</Label>
-              <Select
-                value={novoLiderId}
-                onValueChange={setNovoLiderId}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecione um líder" />
-                </SelectTrigger>
-                <SelectContent>
-                  {users.map((u: any) => (
-                    <SelectItem key={u.id} value={u.id}>
-                      {u.name || u.email}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogoAtribuirLiderAberto(false)}>
-                Cancelar
-              </Button>
-              <Button onClick={salvarNovoLider}>Salvar</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

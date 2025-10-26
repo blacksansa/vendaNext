@@ -357,3 +357,12 @@ export const deleteUnit = (id: number): Promise<void> => unitApi.delete(id);
 // Utilities / special endpoints not present anteriormente
 export const resetPassword = (userId: string): Promise<void> =>
   fetchData<void>(`/user/${userId}/reset-password`, { method: "POST" });
+
+// Helpers para filtros do backend (role / manager)
+export const getUsersByRole = (role: string, term: string = "", page: number = 0, size: number = 20): Promise<User[]> =>
+  fetchData<User[]>(`/user`, { params: { role, t: term, page, size } });
+
+export const getTeamById = (id: number): Promise<Team> => teamApi.getById(id);
+
+export const getTeamsByManager = (managerId: string, term: string = "", page: number = 0, size: number = 20): Promise<Team[]> =>
+  fetchData<Team[]>(`/team`, { params: { managerId, t: term, page, size } });
