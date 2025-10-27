@@ -1,7 +1,6 @@
 "use client"
 
-import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
-import { Separator } from "@/components/ui/separator"
+import { useState, useEffect } from "react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -9,6 +8,8 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
+import { Separator } from "@/components/ui/separator"
 import {
   Dialog,
   DialogContent,
@@ -20,84 +21,115 @@ import {
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, AlertCircle, Trash2 } from "lucide-react"
+import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, Trash2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
-import { useState } from "react"
-import { useGruposModel } from "./model"
+import { useGruposModel } from "@/models/grupo.model"
 
 export default function GruposPage() {
   const { user } = useAuth()
-  const model = useGruposModel()
 
-  // Destructure all from model
-  const {
-    gruposFiltrados,
-    users,
-    sellers,
-    dialogoEditarAberto,
-    setDialogoEditarAberto,
-    dialogoGerenciarAberto,
-    setDialogoGerenciarAberto,
-    dialogoAdicionarMembroAberto,
-    setDialogoAdicionarMembroAberto,
-    dialogoEditarMembroAberto,
-    setDialogoEditarMembroAberto,
-    grupoEditando,
-    setGrupoEditando,
-    grupoSelecionado,
-    setGrupoSelecionado,
-    novoMembro,
-    setNovoMembro,
-    membroEditando,
-    setMembroEditando,
-    criarGrupo,
-    editarGrupo,
-    salvarEdicaoGrupo,
-    gerenciarGrupo,
-    adicionarMembro,
-    editarMembro,
-    salvarEdicaoMembro,
-    removerMembro,
-    calcularPerformance,
-  } = model
+  // -> Presentation-only: UI state (dialogs, form values)
+  const [dialogoEditarAberto, setDialogoEditarAberto] = useState(false)
+  const [dialogoGerenciarAberto, setDialogoGerenciarAberto] = useState(false)
+  const [dialogoAdicionarMembroAberto, setDialogoAdicionarMembroAberto] = useState(false)
+  const [dialogoEditarMembroAberto, setDialogoEditarMembroAberto] = useState(false)
 
-  // Local UI state for new grupo
   const [novoGrupo, setNovoGrupo] = useState({
     nome: "",
     lider: "",
-    liderUserId: "",
     descricao: "",
     metaMensal: "",
   })
 
-  const podeGerenciarTodos = user?.role === "admin" || user?.role === "manager"
+  const [novoMembro, setNovoMembro] = useState({ nome: "", email: "", telefone: "" })
+  const [membroEditandoLocal, setMembroEditandoLocal] = useState<any | null>(null)
+  const [vendedorSelecionado, setVendedorSelecionado] = useState("")
 
-  if (!user || (user.role !== "admin" && user.role !== "manager" && user.role !== "team_leader")) {
-    return (
-      <SidebarInset>
-        <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-[[data-collapsible=icon]]/sidebar-wrapper:h-12">
-          <div className="flex items-center gap-2 px-4">
-            <SidebarTrigger className="-ml-1" />
-            <Separator orientation="vertical" className="mr-2 h-4" />
-            <h1 className="text-lg font-semibold">Grupos</h1>
-          </div>
-        </header>
-        <div className="flex-1 space-y-4 p-4 pt-6">
-          <div className="flex items-center justify-center min-h-[400px]">
-            <Card className="w-full max-w-md">
-              <CardHeader className="text-center">
-                <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
-                <CardTitle>Acesso Restrito</CardTitle>
-                <CardDescription>
-                  Você não tem permissão para acessar o gerenciamento de grupos. Entre em contato com seu líder ou
-                  administrador.
-                </CardDescription>
-              </CardHeader>
-            </Card>
-          </div>
-        </div>
-      </SidebarInset>
-    )
+  // -> Model (single source of truth)
+  const {
+    gruposFiltrados = [],
+    isLoading,
+    error,
+    editando,
+    selecionado,
+    setEditando,
+    setSelecionado,
+    criarGrupo,
+    atualizarGrupo,
+    deletarGrupo,
+    adicionarVendedor,
+    removerVendedor,
+    calcularPerformance,
+  } = useGruposModel()
+
+  // Tudo visível, independente de role
+  const podeGerenciarTodos = true
+
+  useEffect(() => {
+    if (editando) setDialogoEditarAberto(true)
+  }, [editando])
+
+  // --- Handlers delegating to model (UI remains presentation-only) ---
+  const handleCriarGrupo = async () => {
+    await criarGrupo({
+      nome: novoGrupo.nome,
+      descricao: novoGrupo.descricao,
+      metaMensal: Number(novoGrupo.metaMensal || 0),
+      liderUserId: novoGrupo.lider || null,
+    })
+    setNovoGrupo({ nome: "", lider: "", descricao: "", metaMensal: "" })
+    setDialogoEditarAberto(false)
+  }
+
+  const handleSalvarEdicaoGrupo = async () => {
+    if (!editando) return
+    await atualizarGrupo(editando.id, {
+      nome: editando.nome,
+      descricao: editando.descricao,
+      metaMensal: Number(editando.metaMensal ?? editando.metaMensal),
+      liderUserId: editando.liderUserId ?? editando.lider ?? null,
+      status: editando.status,
+    } as any)
+    setEditando(null)
+    setDialogoEditarAberto(false)
+  }
+
+  const handleGerenciarGrupo = (grupo: any) => {
+    setSelecionado(grupo)
+    setDialogoGerenciarAberto(true)
+  }
+
+  const handleAdicionarMembro = async () => {
+    if (!selecionado) return
+    const sellerId = vendedorSelecionado || novoMembro.email || vendedorSelecionado
+    if (!sellerId) {
+      alert("Selecione ou preencha um vendedor")
+      return
+    }
+    await adicionarVendedor(selecionado.id, sellerId)
+    setNovoMembro({ nome: "", email: "", telefone: "" })
+    setVendedorSelecionado("")
+    setDialogoAdicionarMembroAberto(false)
+  }
+
+  const handleRemoverMembro = async (index: number) => {
+    if (!selecionado) return
+    const vendedor = selecionado.vendedores?.[index]
+    if (!vendedor) return
+    if (confirm("Tem certeza que deseja remover este membro do grupo?")) {
+      await removerVendedor(selecionado.id, vendedor.id ?? vendedor.email ?? vendedor.nome)
+    }
+  }
+
+  const handleEditarMembro = (vendedor: any, index: number) => {
+    setMembroEditandoLocal({ ...vendedor, index })
+    setDialogoEditarMembroAberto(true)
+  }
+
+  const handleSalvarEdicaoMembro = async () => {
+    if (!membroEditandoLocal || !selecionado) return
+    setMembroEditandoLocal(null)
+    setDialogoEditarMembroAberto(false)
   }
 
   return (
@@ -107,11 +139,6 @@ export default function GruposPage() {
           <SidebarTrigger className="-ml-1" />
           <Separator orientation="vertical" className="mr-2 h-4" />
           <h1 className="text-lg font-semibold">{podeGerenciarTodos ? "Gerenciamento de Grupos" : "Meu Grupo"}</h1>
-          {user && (
-            <Badge variant="outline" className="ml-auto">
-              {user.role.toUpperCase()}
-            </Badge>
-          )}
         </div>
       </header>
 
@@ -127,108 +154,67 @@ export default function GruposPage() {
                 : `Gerencie seu grupo: ${gruposFiltrados[0]?.nome || "Nenhum grupo atribuído"}`}
             </p>
           </div>
-          {user?.role === "admin" && (
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Novo Grupo
-                </Button>
-              </DialogTrigger>
-              <DialogContent>
-                <DialogHeader>
-                  <DialogTitle>Criar Novo Grupo</DialogTitle>
-                  <DialogDescription>Configure um novo grupo de vendas com líder e meta mensal.</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="nome">Nome do Grupo</Label>
-                    <Input
-                      id="nome"
-                      value={novoGrupo.nome}
-                      onChange={(e) => setNovoGrupo({ ...novoGrupo, nome: e.target.value })}
-                      placeholder="Ex: Equipe Alpha"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="lider">Líder do Grupo</Label>
-                    <Select
-                      onValueChange={(value) => {
-                        const selected = users.find((u: any) => String(u.id) === String(value))
-                        const nome = selected
-                          ? (selected.firstName || selected.lastName
-                              ? `${selected.firstName ?? ""} ${selected.lastName ?? ""}`.trim()
-                              : selected.name ?? selected.email)
-                          : ""
-                        setNovoGrupo({ ...novoGrupo, liderUserId: value, lider: nome })
-                      }}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um líder" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {users
-                          .filter(
-                            (u: any) =>
-                              u.role === "manager" ||
-                              u.role === "gerente" ||
-                              (Array.isArray(u.groups) && u.groups.some((g: any) => /gerente|manager/i.test(g?.name))),
-                          )
-                          .map((u: any) => (
-                            <SelectItem key={u.id} value={String(u.id)}>
-                              {(u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.name ?? u.email}
-                            </SelectItem>
-                          ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="meta">Meta Mensal (R$)</Label>
-                    <Input
-                      id="meta"
-                      type="number"
-                      value={novoGrupo.metaMensal}
-                      onChange={(e) => setNovoGrupo({ ...novoGrupo, metaMensal: e.target.value })}
-                      placeholder="150000"
-                    />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="descricao">Descrição</Label>
-                    <Textarea
-                      id="descricao"
-                      value={novoGrupo.descricao}
-                      onChange={(e) => setNovoGrupo({ ...novoGrupo, descricao: e.target.value })}
-                      placeholder="Descreva o foco e especialidade do grupo"
-                    />
-                  </div>
+          <Dialog open={dialogoEditarAberto} onOpenChange={setDialogoEditarAberto}>
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="mr-2 h-4 w-4" />
+                Novo Grupo
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Criar Novo Grupo</DialogTitle>
+                <DialogDescription>Configure um novo grupo de vendas com líder e meta mensal.</DialogDescription>
+              </DialogHeader>
+              <div className="grid gap-4 py-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="nome">Nome do Grupo</Label>
+                  <Input
+                    id="nome"
+                    value={novoGrupo.nome}
+                    onChange={(e) => setNovoGrupo({ ...novoGrupo, nome: e.target.value })}
+                    placeholder="Ex: Equipe Alpha"
+                  />
                 </div>
-                <DialogFooter>
-                  <Button
-                    onClick={() => {
-                      criarGrupo(novoGrupo)
-                      setNovoGrupo({ nome: "", lider: "", liderUserId: "", descricao: "", metaMensal: "" })
-                    }}
-                  >
-                    Criar Grupo
-                  </Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          )}
+                <div className="grid gap-2">
+                  <Label htmlFor="lider">Líder do Grupo</Label>
+                  <Select onValueChange={(value) => setNovoGrupo({ ...novoGrupo, lider: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione um líder" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">João Silva</SelectItem>
+                      <SelectItem value="2">Maria Oliveira</SelectItem>
+                      <SelectItem value="3">Carlos Santos</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="meta">Meta Mensal (R$)</Label>
+                  <Input
+                    id="meta"
+                    type="number"
+                    value={novoGrupo.metaMensal}
+                    onChange={(e) => setNovoGrupo({ ...novoGrupo, metaMensal: e.target.value })}
+                    placeholder="150000"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="descricao">Descrição</Label>
+                  <Textarea
+                    id="descricao"
+                    value={novoGrupo.descricao}
+                    onChange={(e) => setNovoGrupo({ ...novoGrupo, descricao: e.target.value })}
+                    placeholder="Descreva o foco e especialidade do grupo"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button onClick={handleCriarGrupo}>Criar Grupo</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </div>
-
-        {!podeGerenciarTodos && gruposFiltrados.length === 0 && (
-          <Card>
-            <CardHeader className="text-center">
-              <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
-              <CardTitle>Nenhum Grupo Atribuído</CardTitle>
-              <CardDescription>
-                Você ainda não foi designado como líder de nenhum grupo. Entre em contato com o administrador para ser
-                atribuído a um grupo.
-              </CardDescription>
-            </CardHeader>
-          </Card>
-        )}
 
         <Tabs defaultValue="visao-geral" className="space-y-4">
           <TabsList>
@@ -260,7 +246,7 @@ export default function GruposPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    {gruposFiltrados.reduce((acc, grupo) => acc + grupo.membros, 0)}
+                    {gruposFiltrados.reduce((acc, grupo) => acc + (grupo.membros || 0), 0)}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {podeGerenciarTodos ? `Distribuídos em ${gruposFiltrados.length} grupos` : "Em seu grupo"}
@@ -274,7 +260,7 @@ export default function GruposPage() {
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">
-                    R$ {gruposFiltrados.reduce((acc, grupo) => acc + grupo.metaMensal, 0).toLocaleString()}
+                    R$ {gruposFiltrados.reduce((acc, grupo) => acc + (grupo.metaMensal || 0), 0).toLocaleString()}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {podeGerenciarTodos ? "Meta mensal combinada" : "Meta do seu grupo"}
@@ -289,9 +275,9 @@ export default function GruposPage() {
                 <CardContent>
                   <div className="text-2xl font-bold">
                     {calcularPerformance(
-                      gruposFiltrados.reduce((acc, grupo) => acc + grupo.vendidoMes, 0),
-                      gruposFiltrados.reduce((acc, grupo) => acc + grupo.metaMensal, 0),
-                    ).toFixed(1)}
+                      gruposFiltrados.reduce((acc, grupo) => acc + (grupo.vendidoMes || 0), 0),
+                      gruposFiltrados.reduce((acc, grupo) => acc + (grupo.metaMensal || 0), 0),
+                    )}
                     %
                   </div>
                   <p className="text-xs text-muted-foreground">Da meta mensal</p>
@@ -331,14 +317,14 @@ export default function GruposPage() {
                       </div>
                       <div>
                         <p className="text-muted-foreground">Performance</p>
-                        <p className="font-medium">{calcularPerformance(grupo.vendidoMes, grupo.metaMensal).toFixed(1)}%</p>
+                        <p className="font-medium">{calcularPerformance(grupo.vendidoMes, grupo.metaMensal)}%</p>
                       </div>
                     </div>
 
                     <div className="space-y-2">
                       <div className="flex justify-between text-sm">
-                        <span>Vendido: R$ {grupo.vendidoMes.toLocaleString()}</span>
-                        <span>Meta: R$ {grupo.metaMensal.toLocaleString()}</span>
+                        <span>Vendido: R$ {grupo.vendidoMes?.toLocaleString()}</span>
+                        <span>Meta: R$ {grupo.metaMensal?.toLocaleString()}</span>
                       </div>
                       <div className="w-full bg-secondary rounded-full h-2">
                         <div
@@ -351,18 +337,21 @@ export default function GruposPage() {
                     </div>
 
                     <div className="flex gap-2">
-                      {(grupo.liderUserId === user?.id || user?.role === "admin" || user?.role === "manager") && (
-                        <>
-                          <Button variant="outline" size="sm" onClick={() => editarGrupo(grupo)}>
-                            <Edit className="h-4 w-4 mr-1" />
-                            Editar
-                          </Button>
-                          <Button variant="outline" size="sm" onClick={() => gerenciarGrupo(grupo)}>
-                            <Settings className="h-4 w-4 mr-1" />
-                            Gerenciar
-                          </Button>
-                        </>
-                      )}
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditando(grupo)
+                          setDialogoEditarAberto(true)
+                        }}
+                      >
+                        <Edit className="h-4 w-4 mr-1" />
+                        Editar
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => handleGerenciarGrupo(grupo)}>
+                        <Settings className="h-4 w-4 mr-1" />
+                        Gerenciar
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
@@ -399,25 +388,25 @@ export default function GruposPage() {
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Meta Mensal</p>
-                          <p className="font-medium">R$ {grupo.metaMensal.toLocaleString()}</p>
+                          <p className="font-medium">R$ {grupo.metaMensal?.toLocaleString()}</p>
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Vendido</p>
-                          <p className="font-medium">R$ {grupo.vendidoMes.toLocaleString()}</p>
+                          <p className="font-medium">R$ {grupo.vendidoMes?.toLocaleString()}</p>
                         </div>
                       </div>
 
                       <div>
                         <h4 className="font-medium mb-2">Vendedores do Grupo</h4>
                         <div className="space-y-2">
-                          {grupo.vendedores.map((vendedor: any, index: number) => (
+                          {grupo.vendedores?.map((vendedor: any, index: number) => (
                             <div key={index} className="flex items-center justify-between p-2 border rounded">
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-8 w-8">
                                   <AvatarFallback>
-                                    {String(vendedor.nome ?? "")
+                                    {vendedor.nome
                                       .split(" ")
-                                      .map((n) => (n ? n[0] : ""))
+                                      .map((n: string) => n[0])
                                       .join("")}
                                   </AvatarFallback>
                                 </Avatar>
@@ -426,7 +415,7 @@ export default function GruposPage() {
                                   {vendedor.status}
                                 </Badge>
                               </div>
-                              <div className="text-sm">R$ {vendedor.vendas.toLocaleString()}</div>
+                              <div className="text-sm">R$ {vendedor.vendas?.toLocaleString()}</div>
                             </div>
                           ))}
                         </div>
@@ -452,6 +441,7 @@ export default function GruposPage() {
                 <CardContent>
                   <div className="space-y-4">
                     {gruposFiltrados
+                      .slice()
                       .sort(
                         (a, b) =>
                           calcularPerformance(b.vendidoMes, b.metaMensal) -
@@ -478,10 +468,10 @@ export default function GruposPage() {
                           </div>
                           <div className="text-right">
                             <p className="font-bold text-lg">
-                              {calcularPerformance(grupo.vendidoMes, grupo.metaMensal).toFixed(1)}%
+                              {calcularPerformance(grupo.vendidoMes, grupo.metaMensal)}%
                             </p>
                             <p className="text-sm text-muted-foreground">
-                              R$ {grupo.vendidoMes.toLocaleString()} / R$ {grupo.metaMensal.toLocaleString()}
+                              R$ {grupo.vendidoMes?.toLocaleString()} / R$ {grupo.metaMensal?.toLocaleString()}
                             </p>
                           </div>
                         </div>
@@ -493,92 +483,67 @@ export default function GruposPage() {
           </TabsContent>
         </Tabs>
 
-        {/* Dialog: Editar Grupo */}
+        {/* Edit Group Dialog */}
         <Dialog open={dialogoEditarAberto} onOpenChange={setDialogoEditarAberto}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Editar Grupo</DialogTitle>
               <DialogDescription>Modifique as informações do grupo selecionado.</DialogDescription>
             </DialogHeader>
-            {grupoEditando && (
+            {editando && (
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-nome">Nome do Grupo</Label>
                   <Input
                     id="edit-nome"
-                    value={grupoEditando.nome}
-                    onChange={(e) => setGrupoEditando({ ...grupoEditando, nome: e.target.value })}
+                    value={editando.nome}
+                    onChange={(e) => setEditando({ ...editando, nome: e.target.value })}
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-lider">Líder do Grupo</Label>
-                  <Select
-                    value={String(grupoEditando.liderUserId ?? "")}
-                    onValueChange={(value) => {
-                      const selected = users.find((u: any) => String(u.id) === String(value))
-                      const nome = selected
-                        ? (selected.firstName || selected.lastName
-                            ? `${selected.firstName ?? ""} ${selected.lastName ?? ""}`.trim()
-                            : selected.name ?? selected.email)
-                        : ""
-                      setGrupoEditando({ ...grupoEditando, liderUserId: value, lider: nome })
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {users
-                        .filter(
-                          (u: any) =>
-                            u.role === "manager" ||
-                            u.role === "gerente" ||
-                            (Array.isArray(u.groups) && u.groups.some((g: any) => /gerente|manager/i.test(g?.name))),
-                        )
-                        .map((u: any) => (
-                          <SelectItem key={u.id} value={String(u.id)}>
-                            {(u.firstName || u.lastName) ? `${u.firstName ?? ""} ${u.lastName ?? ""}`.trim() : u.name ?? u.email}
-                          </SelectItem>
-                        ))}
-                    </SelectContent>
-                  </Select>
+                  <Input
+                    id="edit-lider"
+                    value={editando.lider}
+                    onChange={(e) => setEditando({ ...editando, lider: e.target.value })}
+                  />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-meta">Meta Mensal (R$)</Label>
                   <Input
                     id="edit-meta"
                     type="number"
-                    value={grupoEditando.metaMensal}
-                    onChange={(e) => setGrupoEditando({ ...grupoEditando, metaMensal: e.target.value })}
+                    value={String(editando.metaMensal ?? "")}
+                    onChange={(e) => setEditando({ ...editando, metaMensal: Number(e.target.value) })}
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-descricao">Descrição</Label>
                   <Textarea
                     id="edit-descricao"
-                    value={grupoEditando.descricao}
-                    onChange={(e) => setGrupoEditando({ ...grupoEditando, descricao: e.target.value })}
+                    value={editando.descricao}
+                    onChange={(e) => setEditando({ ...editando, descricao: e.target.value })}
                   />
                 </div>
               </div>
             )}
             <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogoEditarAberto(false)}>
+              <Button variant="outline" onClick={() => { setEditando(null); setDialogoEditarAberto(false) }}>
                 Cancelar
               </Button>
-              <Button onClick={salvarEdicaoGrupo}>Salvar Alterações</Button>
+              <Button onClick={handleSalvarEdicaoGrupo}>Salvar Alterações</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Dialog: Gerenciar Grupo */}
+        {/* Gerenciar Group Dialog */}
         <Dialog open={dialogoGerenciarAberto} onOpenChange={setDialogoGerenciarAberto}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Gerenciar Grupo: {grupoSelecionado?.nome}</DialogTitle>
+              <DialogTitle>Gerenciar Grupo: {selecionado?.nome}</DialogTitle>
               <DialogDescription>Gerencie membros, metas e configurações do grupo.</DialogDescription>
             </DialogHeader>
-            {grupoSelecionado && (
+            {selecionado && (
               <Tabs defaultValue="membros" className="w-full">
                 <TabsList className="grid w-full grid-cols-3">
                   <TabsTrigger value="membros">Membros</TabsTrigger>
@@ -595,30 +560,30 @@ export default function GruposPage() {
                     </Button>
                   </div>
                   <div className="space-y-2 max-h-60 overflow-y-auto">
-                    {grupoSelecionado.vendedores.map((vendedor: any, index: number) => (
+                    {selecionado.vendedores?.map((vendedor: any, index: number) => (
                       <div key={index} className="flex items-center justify-between p-3 border rounded">
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
                             <AvatarFallback>
-                              {String(vendedor.nome ?? "")
+                              {vendedor.nome
                                 .split(" ")
-                                .map((n) => (n ? n[0] : ""))
+                                .map((n: string) => n[0])
                                 .join("")}
                             </AvatarFallback>
                           </Avatar>
                           <div>
                             <p className="font-medium">{vendedor.nome}</p>
-                            <p className="text-sm text-muted-foreground">R$ {vendedor.vendas.toLocaleString()}</p>
+                            <p className="text-sm text-muted-foreground">R$ {vendedor.vendas?.toLocaleString()}</p>
                           </div>
                         </div>
                         <div className="flex items-center gap-2">
                           <Badge variant={vendedor.status === "ativo" ? "default" : "secondary"}>
                             {vendedor.status}
                           </Badge>
-                          <Button variant="outline" size="sm" onClick={() => editarMembro(vendedor, index)}>
+                          <Button variant="outline" size="sm" onClick={() => handleEditarMembro(vendedor, index)}>
                             <Edit className="h-4 w-4" />
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => removerMembro(index)}>
+                          <Button variant="outline" size="sm" onClick={() => handleRemoverMembro(index)}>
                             <Trash2 className="h-4 w-4" />
                           </Button>
                         </div>
@@ -631,17 +596,16 @@ export default function GruposPage() {
                   <div className="grid gap-4">
                     <div className="grid gap-2">
                       <Label>Meta Mensal Atual</Label>
-                      <Input type="number" value={grupoSelecionado.metaMensal} placeholder="Meta em R$" />
+                      <Input type="number" value={selecionado.metaMensal} placeholder="Meta em R$" readOnly />
                     </div>
                     <div className="grid gap-2">
                       <Label>Performance Atual</Label>
                       <div className="p-3 bg-muted rounded">
                         <p className="text-2xl font-bold">
-                          {calcularPerformance(grupoSelecionado.vendidoMes, grupoSelecionado.metaMensal).toFixed(1)}%
+                          {calcularPerformance(selecionado.vendidoMes, selecionado.metaMensal)}%
                         </p>
                         <p className="text-sm text-muted-foreground">
-                          R$ {grupoSelecionado.vendidoMes.toLocaleString()} de R${" "}
-                          {grupoSelecionado.metaMensal.toLocaleString()}
+                          R$ {selecionado.vendidoMes?.toLocaleString()} de R$ {selecionado.metaMensal?.toLocaleString()}
                         </p>
                       </div>
                     </div>
@@ -652,7 +616,7 @@ export default function GruposPage() {
                   <div className="grid gap-4">
                     <div className="grid gap-2">
                       <Label>Status do Grupo</Label>
-                      <Select defaultValue={grupoSelecionado.status}>
+                      <Select defaultValue={selecionado.status} onValueChange={(v) => setSelecionado({ ...selecionado, status: v })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>
@@ -665,7 +629,7 @@ export default function GruposPage() {
                     </div>
                     <div className="grid gap-2">
                       <Label>Descrição do Grupo</Label>
-                      <Textarea value={grupoSelecionado.descricao} placeholder="Descrição e foco do grupo" onChange={() => {}} />
+                      <Textarea value={selecionado.descricao} placeholder="Descrição e foco do grupo" onChange={(e) => setSelecionado({ ...selecionado, descricao: e.target.value })} />
                     </div>
                   </div>
                 </TabsContent>
@@ -675,17 +639,20 @@ export default function GruposPage() {
               <Button variant="outline" onClick={() => setDialogoGerenciarAberto(false)}>
                 Fechar
               </Button>
-              <Button>Salvar Alterações</Button>
+              <Button onClick={async () => {
+                if (selecionado) await atualizarGrupo(selecionado.id, selecionado)
+                setDialogoGerenciarAberto(false)
+              }}>Salvar Alterações</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Dialog: Adicionar Membro */}
+        {/* Adicionar Membro Dialog */}
         <Dialog open={dialogoAdicionarMembroAberto} onOpenChange={setDialogoAdicionarMembroAberto}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Adicionar Novo Membro</DialogTitle>
-              <DialogDescription>Adicione um novo vendedor ao grupo {grupoSelecionado?.nome}.</DialogDescription>
+              <DialogDescription>Adicione um novo vendedor ao grupo {selecionado?.nome}.</DialogDescription>
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
@@ -721,33 +688,33 @@ export default function GruposPage() {
               <Button variant="outline" onClick={() => setDialogoAdicionarMembroAberto(false)}>
                 Cancelar
               </Button>
-              <Button onClick={adicionarMembro}>Adicionar Membro</Button>
+              <Button onClick={handleAdicionarMembro}>Adicionar Membro</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
 
-        {/* Dialog: Editar Membro */}
+        {/* Edit Member Dialog */}
         <Dialog open={dialogoEditarMembroAberto} onOpenChange={setDialogoEditarMembroAberto}>
           <DialogContent>
             <DialogHeader>
               <DialogTitle>Editar Membro</DialogTitle>
               <DialogDescription>Modifique as informações do vendedor selecionado.</DialogDescription>
             </DialogHeader>
-            {membroEditando && (
+            {membroEditandoLocal && (
               <div className="grid gap-4 py-4">
                 <div className="grid gap-2">
                   <Label htmlFor="edit-membro-nome">Nome Completo</Label>
                   <Input
                     id="edit-membro-nome"
-                    value={membroEditando.nome}
-                    onChange={(e) => setMembroEditando({ ...membroEditando, nome: e.target.value })}
+                    value={membroEditandoLocal.nome}
+                    onChange={(e) => setMembroEditandoLocal({ ...membroEditandoLocal, nome: e.target.value })}
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-membro-status">Status</Label>
                   <Select
-                    value={membroEditando.status}
-                    onValueChange={(value) => setMembroEditando({ ...membroEditando, status: value })}
+                    value={membroEditandoLocal.status}
+                    onValueChange={(value) => setMembroEditandoLocal({ ...membroEditandoLocal, status: value })}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -765,11 +732,12 @@ export default function GruposPage() {
               <Button variant="outline" onClick={() => setDialogoEditarMembroAberto(false)}>
                 Cancelar
               </Button>
-              <Button onClick={salvarEdicaoMembro}>Salvar Alterações</Button>
+              <Button onClick={handleSalvarEdicaoMembro}>Salvar Alterações</Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>
       </div>
     </SidebarInset>
-  )
+
+    )
 }
