@@ -148,6 +148,13 @@ class GrupoModel {
       .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
   }
 
+  // Normaliza ids string-numérico
+  private normalizeId<T extends string | number | null | undefined>(v: T) {
+    if (v === null || typeof v === "undefined") return null
+    if (typeof v === "string" && /^\d+$/.test(v)) return Number(v)
+    return v as any
+  }
+
   // Extrai ids de sellers do objeto bruto do time
   private getTeamSellerIds(raw: any): any[] {
     if (!raw) return []
@@ -343,27 +350,82 @@ class GrupoModel {
       const atual = this.state.grupos.find((g) => String(g.id) === String(id))
       const raw = atual?.raw || {}
       const currentSellerIds = this.getTeamSellerIds(raw)
+      const managerIdNorm = this.normalizeId(updates.liderUserId)
+
+      const prevCard = atual
+        ? {
+            id: atual.id,
+            nome: atual.nome,
+            liderUserId: atual.liderUserId,
+            lider: atual.lider,
+            membros: atual.membros,
+            metaMensal: atual.metaMensal,
+            status: atual.status,
+          }
+        : undefined
+
+      // Fallback para manter valores atuais quando o campo não foi alterado
       const body: any = {
-        name: updates.nome,
-        description: updates.descricao,
-        quota: Number(updates.metaMensal || 0),
-        managerId: updates.liderUserId ?? null,
-        active: updates.status === "ativo",
-        // backends exigem estes campos mesmo em PUT
+        id: Number(id),
+        name: typeof updates.nome !== "undefined" ? updates.nome : raw.name,
+        description: typeof updates.descricao !== "undefined" ? updates.descricao : raw.description,
+        quota:
+          typeof updates.metaMensal !== "undefined"
+            ? Number(updates.metaMensal || 0)
+            : Number(raw.quota ?? 0),
+        managerId:
+          typeof updates.liderUserId !== "undefined"
+            ? managerIdNorm
+            : this.normalizeId(raw.managerId) ?? null,
+        active:
+          typeof updates.status !== "undefined" ? updates.status === "ativo" : Boolean(raw.active),
+        // Campos exigidos pelo backend
         code: raw.code ?? this.slugify(atual?.nome),
-        sellers: currentSellerIds,
-        sellerIds: currentSellerIds,
+        sellers: Array.isArray(currentSellerIds) ? currentSellerIds : [],
+        sellerIds: Array.isArray(currentSellerIds) ? currentSellerIds : [],
       }
 
-      await updateTeam(Number(id), body)
-      console.debug("[GrupoModel] atualizarGrupo: API OK", body)
+      console.debug("[GrupoModel] atualizarGrupo REQUEST", { id, body, cardBefore: prevCard })
 
-      const grupos = this.state.grupos.map((g) =>
-        g.id === id ? { ...g, ...updates, raw: { ...g.raw, ...body } } : g
-      )
+      const res = await updateTeam(Number(id), body)
+      console.debug("[GrupoModel] atualizarGrupo: API OK", { id, res })
+
+      const grupos = this.state.grupos.map((g) => {
+        if (String(g.id) !== String(id)) return g
+        const merged = { ...g, ...updates, raw: { ...g.raw, ...body } }
+        // se mudou o líder, atualiza nome exibido
+        if (typeof updates.liderUserId !== "undefined") {
+          const novoNome =
+            (this.state.gerentes || []).find((u) => String(u.id) === String(managerIdNorm))?.nome ??
+            merged.lider
+          merged.lider = novoNome
+          merged.liderUserId = managerIdNorm
+        }
+        // manter consistência de nome/descrição/meta/ativo caso não tenham sido alterados
+        if (typeof updates.nome === "undefined") merged.nome = raw.name ?? merged.nome
+        if (typeof updates.descricao === "undefined") merged.descricao = raw.description ?? merged.descricao
+        if (typeof updates.metaMensal === "undefined") merged.metaMensal = Number(raw.quota ?? merged.metaMensal)
+        if (typeof updates.status === "undefined")
+          merged.status = raw.active === false ? "inativo" : "ativo"
+        return merged
+      })
       this.setState({ grupos })
 
-      const grupoAtualizado = grupos.find((g) => g.id === id)
+      const after = grupos.find((g) => String(g.id) === String(id))
+      console.debug("[GrupoModel] atualizarGrupo UPDATED", {
+        id,
+        cardAfter: {
+          id: after?.id,
+          nome: after?.nome,
+          liderUserId: after?.liderUserId,
+          lider: after?.lider,
+          membros: after?.membros,
+          metaMensal: after?.metaMensal,
+          status: after?.status,
+        },
+      })
+
+      const grupoAtualizado = grupos.find((g) => String(g.id) === String(id))
       if (grupoAtualizado) {
         grupoEventListener.emit("update", grupoAtualizado)
       }
@@ -387,11 +449,17 @@ class GrupoModel {
 
       const currentSellerIds = this.getTeamSellerIds(grupo.raw)
       const updatedSellerIds = Array.from(new Set([...(currentSellerIds || []), vendedorIdNorm]))
-      await updateTeam(Number(grupoId), {
-        code: grupo.raw?.code ?? this.slugify(grupo.nome),
-        sellers: updatedSellerIds,
-        sellerIds: updatedSellerIds,
-      })
+     const addBody = {
+       code: grupo.raw?.code ?? this.slugify(grupo.nome),
+       sellers: updatedSellerIds,
+       sellerIds: updatedSellerIds,
+     }
+     console.debug("[GrupoModel] adicionarVendedor REQUEST", {
+       grupoId,
+       body: addBody,
+       card: { id: grupo.id, nome: grupo.nome, membros: grupo.membros },
+     })
+     await updateTeam(Number(grupoId), addBody)
 
       await this.fetchGrupos()
 
@@ -418,11 +486,17 @@ class GrupoModel {
       const updatedSellerIds = (currentSellerIds || []).filter(
         (id: any) => String(id) !== String(vendedorId)
       )
-      await updateTeam(Number(grupoId), {
-        code: grupo.raw?.code ?? this.slugify(grupo.nome),
-        sellers: updatedSellerIds,
-        sellerIds: updatedSellerIds,
-      })
+     const remBody = {
+       code: grupo.raw?.code ?? this.slugify(grupo.nome),
+       sellers: updatedSellerIds,
+       sellerIds: updatedSellerIds,
+     }
+     console.debug("[GrupoModel] removerVendedor REQUEST", {
+       grupoId,
+       body: remBody,
+       card: { id: grupo.id, nome: grupo.nome, membros: grupo.membros },
+     })
+     await updateTeam(Number(grupoId), remBody)
 
       const grupos = this.state.grupos.map((g) => {
         if (g.id === grupoId) {
@@ -477,7 +551,7 @@ class GrupoModel {
       nome: g.nome,
       descricao: g.descricao,
       metaMensal: g.metaMensal,
-      liderUserId: g.liderUserId,
+      liderUserId: this.normalizeId(g.liderUserId),
       status: g.status,
     })
     this.toast?.({ title: "Alterações salvas", variant: "default" })
