@@ -24,7 +24,7 @@ export interface Grupo {
   id: string | number
   nome: string
   lider: string
-  liderUserId: string | null
+  liderUserId: string | number | null
   membros: number
   metaMensal: number
   vendidoMes: number
@@ -122,11 +122,8 @@ class GrupoModel {
   // ADICIONE estes dois métodos
   setEditando(grupo: Grupo | null) {
     console.debug("[GrupoModel] setEditando chamada:", grupo?.id ?? null)
-    // manter referência consistente (por id) quando possível
-    const ref = grupo
-      ? this.state.grupos.find((g) => String(g.id) === String(grupo.id)) ?? grupo
-      : null
-    this.setState({ editando: ref })
+    // manter o objeto recebido para permitir edição controlada
+    this.setState({ editando: grupo })
   }
 
   setSelecionado(grupo: Grupo | null) {
@@ -135,6 +132,28 @@ class GrupoModel {
       ? this.state.grupos.find((g) => String(g.id) === String(grupo.id)) ?? grupo
       : null
     this.setState({ selecionado: ref })
+  }
+
+  // Atualiza campos do objeto em edição (para onChange dos inputs)
+  updateEditando(patch: Partial<Grupo>) {
+    if (!this.state.editando) return
+    const merged = { ...this.state.editando, ...patch }
+    this.setState({ editando: merged })
+  }
+  
+  // Slug simples para code
+  private slugify(input?: string): string {
+    return (input ?? "")
+      .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "")
+  }
+
+  // Extrai ids de sellers do objeto bruto do time
+  private getTeamSellerIds(raw: any): any[] {
+    if (!raw) return []
+    if (Array.isArray(raw.sellerIds)) return raw.sellerIds
+    if (Array.isArray(raw.sellers)) return raw.sellers
+    return []
   }
 
   // --- DATA FETCHING ---
@@ -183,7 +202,9 @@ class GrupoModel {
 
       // IDs de sellers já usados em algum team
       const usedSellerIds = new Set(
-        (teams || []).flatMap((t: any) => (t.sellerIds || []).map((id: any) => String(id))),
+        (teams || []).flatMap((t: any) =>
+          (this.getTeamSellerIds(t) || []).map((id: any) => String(id)),
+        ),
       )
 
       // Derivar vendedores disponíveis a partir de sellers NÃO usados em nenhum team
@@ -237,7 +258,8 @@ class GrupoModel {
     console.debug("[GrupoModel] transformTeamsToGrupos: iniciando", (teams || []).length)
     const result = (teams || []).map((team: any, idx: number) => {
       const gerente = users.find((u) => String(u.id) === String(team.managerId))
-      const vendedoresGrupo = (team.sellerIds || [])
+      const teamSellerIds = this.getTeamSellerIds(team)
+      const vendedoresGrupo = (teamSellerIds || [])
         .map((sid: any) => {
           const s = sellers.find((sl) => String(sl.id) === String(sid))
           if (!s) {
@@ -296,6 +318,8 @@ class GrupoModel {
         quota: Number(novoGrupo.metaMensal || 0),
         managerId: novoGrupo.liderUserId ?? null,
         active: true,
+        code: this.slugify(novoGrupo.nome),
+        sellers: [] as Array<number | string>,
       }
 
       const resultado = await createTeam(body)
@@ -316,20 +340,26 @@ class GrupoModel {
   async atualizarGrupo(id: string | number, updates: Partial<Grupo>) {
     console.debug("[GrupoModel] atualizarGrupo: id/updates", id, updates)
     try {
-      const body = {
+      const atual = this.state.grupos.find((g) => String(g.id) === String(id))
+      const raw = atual?.raw || {}
+      const currentSellerIds = this.getTeamSellerIds(raw)
+      const body: any = {
         name: updates.nome,
         description: updates.descricao,
         quota: Number(updates.metaMensal || 0),
         managerId: updates.liderUserId ?? null,
         active: updates.status === "ativo",
+        // backends exigem estes campos mesmo em PUT
+        code: raw.code ?? this.slugify(atual?.nome),
+        sellers: currentSellerIds,
+        sellerIds: currentSellerIds,
       }
 
-      updateTeam(id as number, body)
-        .then((res) => console.debug("[GrupoModel] atualizarGrupo: API OK", res))
-        .catch((error) => console.error("[GrupoModel] atualizarGrupo: API ERRO", error))
+      await updateTeam(Number(id), body)
+      console.debug("[GrupoModel] atualizarGrupo: API OK", body)
 
       const grupos = this.state.grupos.map((g) =>
-        g.id === id ? { ...g, ...updates } : g
+        g.id === id ? { ...g, ...updates, raw: { ...g.raw, ...body } } : g
       )
       this.setState({ grupos })
 
@@ -346,39 +376,22 @@ class GrupoModel {
     }
   }
 
-  async deletarGrupo(id: string | number) {
-    console.debug("[GrupoModel] deletarGrupo: id", id)
-    try {
-      // otimista: remover local e limpar seleção
-      const grupos = this.state.grupos.filter((g) => String(g.id) !== String(id))
-      this.setState({ grupos, selecionado: null, editando: null })
-
-      await deleteTeam(id as number)
-      console.debug("[GrupoModel] deletarGrupo: API OK")
-
-      this.toast?.({ title: "Grupo deletado com sucesso", variant: "default" })
-      await this.fetchGrupos()
-    } catch (error: any) {
-      console.error("[GrupoModel] deletarGrupo: ERRO", error)
-      this.toast?.({ title: "Erro ao deletar grupo", variant: "destructive" })
-      // tentar restaurar estado consistente
-      await this.fetchGrupos().catch(() => {})
-      throw error
-    }
-  }
-
   async adicionarVendedor(grupoId: string | number, vendedorId: string | number) {
     console.debug("[GrupoModel] adicionarVendedor: grupoId/vendedorId", grupoId, vendedorId)
     try {
       const grupo = this.state.grupos.find((g) => String(g.id) === String(grupoId))
       if (!grupo) throw new Error("Grupo não encontrado")
 
-      // normalizar id numérico se possível
       const vendedorIdNorm =
         typeof vendedorId === "string" && /^\d+$/.test(vendedorId) ? Number(vendedorId) : vendedorId
 
-      const updatedSellerIds = [...(grupo.raw.sellerIds || []), vendedorIdNorm]
-      await updateTeam(grupoId as number, { sellerIds: updatedSellerIds })
+      const currentSellerIds = this.getTeamSellerIds(grupo.raw)
+      const updatedSellerIds = Array.from(new Set([...(currentSellerIds || []), vendedorIdNorm]))
+      await updateTeam(Number(grupoId), {
+        code: grupo.raw?.code ?? this.slugify(grupo.nome),
+        sellers: updatedSellerIds,
+        sellerIds: updatedSellerIds,
+      })
 
       await this.fetchGrupos()
 
@@ -398,13 +411,18 @@ class GrupoModel {
   async removerVendedor(grupoId: string | number, vendedorId: string | number) {
     console.debug("[GrupoModel] removerVendedor: grupoId/vendedorId", grupoId, vendedorId)
     try {
-      const grupo = this.state.grupos.find((g) => g.id === grupoId)
+      const grupo = this.state.grupos.find((g) => String(g.id) === String(grupoId))
       if (!grupo) throw new Error("Grupo não encontrado")
 
-      const updatedSellerIds = (grupo.raw.sellerIds || []).filter(
+      const currentSellerIds = this.getTeamSellerIds(grupo.raw)
+      const updatedSellerIds = (currentSellerIds || []).filter(
         (id: any) => String(id) !== String(vendedorId)
       )
-      await updateTeam(grupoId as number, { sellerIds: updatedSellerIds })
+      await updateTeam(Number(grupoId), {
+        code: grupo.raw?.code ?? this.slugify(grupo.nome),
+        sellers: updatedSellerIds,
+        sellerIds: updatedSellerIds,
+      })
 
       const grupos = this.state.grupos.map((g) => {
         if (g.id === grupoId) {
@@ -412,6 +430,7 @@ class GrupoModel {
             ...g,
             vendedores: g.vendedores.filter((v) => String(v.id) !== String(vendedorId)),
             membros: Math.max(0, (g.membros ?? 0) - 1),
+            raw: { ...g.raw, sellers: updatedSellerIds, sellerIds: updatedSellerIds },
           }
         }
         return g
@@ -431,6 +450,40 @@ class GrupoModel {
     }
   }
 
+  async deletarGrupo(id: string | number) {
+    console.debug("[GrupoModel] deletarGrupo:", id)
+    try {
+      await deleteTeam(Number(id))
+      const grupos = this.state.grupos.filter((g) => String(g.id) !== String(id))
+      let { selecionado, editando } = this.state
+      if (selecionado && String(selecionado.id) === String(id)) selecionado = null
+      if (editando && String(editando.id) === String(id)) editando = null
+      this.setState({ grupos, selecionado, editando })
+      grupoEventListener.emit?.("delete", { id })
+      this.toast?.({ title: "Grupo deletado", variant: "default" })
+    } catch (error: any) {
+      console.error("[GrupoModel] deletarGrupo: ERRO", error)
+      this.toast?.({ title: "Erro ao deletar grupo", variant: "destructive" })
+      throw error
+    }
+  }
+
+  // Salvar o grupo atualmente em edição
+  async salvarEdicaoAtual() {
+    const g = this.state.editando
+    if (!g) throw new Error("Nenhum grupo em edição")
+    console.debug("[GrupoModel] salvarEdicaoAtual:", g.id)
+    const atualizado = await this.atualizarGrupo(g.id, {
+      nome: g.nome,
+      descricao: g.descricao,
+      metaMensal: g.metaMensal,
+      liderUserId: g.liderUserId,
+      status: g.status,
+    })
+    this.toast?.({ title: "Alterações salvas", variant: "default" })
+    return atualizado
+  }
+
   // --- UTILITIES ---
   calcularPerformance(vendido: number, meta: number): number {
     const v = Number(vendido ?? 0)
@@ -441,7 +494,7 @@ class GrupoModel {
   }
 
   getGrupoById(id: string | number): Grupo | undefined {
-    return this.state.grupos.find((g) => g.id === id)
+    return this.state.grupos.find((g) => String(g.id) === String(id))
   }
 
   /**
@@ -484,8 +537,8 @@ export function useGruposModel() {
 
   // Fetch on mount (com log adicional)
   useEffect(() => {
-    // garante carregar dados no mount
-    if (!grupoModel?.state?.grupos?.length) {
+    const has = grupoModel.getState().grupos.length
+    if (!has) {
       console.debug("[useGruposModel] mount -> fetchGrupos()")
       grupoModel.fetchGrupos().catch((e) => console.error("fetchGrupos error", e))
     }
@@ -496,7 +549,7 @@ export function useGruposModel() {
     ...state,
     gruposFiltrados: state.grupos,
     gerentes: state.gerentes || [],
-    vendedoresDisponiveis: state.vendedoresDisponiveis || [], // <- EXPOSTO COM DEFAULT
+    vendedoresDisponiveis: state.vendedoresDisponiveis || [],
 
     // Actions
     criarGrupo: grupoModel.criarGrupo.bind(grupoModel),
@@ -506,6 +559,8 @@ export function useGruposModel() {
     removerVendedor: grupoModel.removerVendedor.bind(grupoModel),
     setEditando: grupoModel.setEditando.bind(grupoModel),
     setSelecionado: grupoModel.setSelecionado.bind(grupoModel),
+    updateEditando: grupoModel.updateEditando.bind(grupoModel),
+    salvarEdicaoAtual: grupoModel.salvarEdicaoAtual.bind(grupoModel),
     calcularPerformance: grupoModel.calcularPerformance.bind(grupoModel),
     getGrupoById: grupoModel.getGrupoById.bind(grupoModel),
   }
