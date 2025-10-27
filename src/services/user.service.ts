@@ -1,43 +1,37 @@
-import { apiClient } from "@/lib/api.client"
+import Api, { fetchData } from "@/lib/api"
 
-export async function fetchUsers(search: string = "", skip: number = 0, take: number = 100) {
-  try {
-    const response = await apiClient.get("/users", {
-      params: { search, skip, take },
-    })
-    return response.data || []
-  } catch (error) {
-    console.error("Erro ao buscar usuários:", error)
-    throw error
-  }
+export interface UserDTO {
+  id: number | string
+  name?: string
+  firstName?: string
+  lastName?: string
+  email?: string
+  role?: string
+  groups?: Array<{ id?: number | string; name?: string; slug?: string; role?: string }>
+  userGroups?: Array<{ id?: number | string; name?: string; slug?: string; role?: string }>
+  userGroup?: Array<{ id?: number | string; name?: string; slug?: string; role?: string }>
 }
 
-export async function fetchUserById(id: string | number) {
-  try {
-    const response = await apiClient.get(`/users/${id}`)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao buscar usuário ${id}:`, error)
-    throw error
-  }
-}
+const userApi = new Api<UserDTO, string | number>("/user")
 
-export async function updateUser(id: string | number, data: any) {
-  try {
-    const response = await apiClient.patch(`/users/${id}`, data)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao atualizar usuário ${id}:`, error)
-    throw error
-  }
-}
+export const getUsers = (term = "", page = 0, size = 100): Promise<UserDTO[]> =>
+  userApi.list(page, size, term)
 
-export async function deleteUser(id: string | number) {
-  try {
-    const response = await apiClient.delete(`/users/${id}`)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao deletar usuário ${id}:`, error)
-    throw error
-  }
-}
+export const getUserById = (id: string | number): Promise<UserDTO> =>
+  userApi.getById(id)
+
+export const createUser = (data: Partial<UserDTO>): Promise<UserDTO> =>
+  userApi.saveOrUpdate(data)
+
+export const updateUser = (id: string | number, data: Partial<UserDTO>): Promise<UserDTO> =>
+  userApi.saveOrUpdate({ ...data, id })
+
+export const deleteUser = (id: string | number): Promise<void> =>
+  userApi.delete(id)
+
+// Utilitários opcionais
+export const getUsersByGroup = (group: string, term = "", page = 0, size = 100): Promise<UserDTO[]> =>
+  fetchData<UserDTO[]>("/user", { params: { group, t: term, page, size } })
+
+export const getManagers = (term = "", page = 0, size = 100): Promise<UserDTO[]> =>
+  fetchData<UserDTO[]>("/user", { params: { role: "manager", t: term, page, size } })

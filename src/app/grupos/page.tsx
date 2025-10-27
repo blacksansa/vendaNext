@@ -47,11 +47,9 @@ export default function GruposPage() {
 
   // -> Model (single source of truth)
   const {
-    gruposFiltrados = [],
-    isLoading,
-    error,
-    editando,
+    gruposFiltrados,
     selecionado,
+    editando,
     setEditando,
     setSelecionado,
     criarGrupo,
@@ -60,6 +58,8 @@ export default function GruposPage() {
     adicionarVendedor,
     removerVendedor,
     calcularPerformance,
+    gerentes, // <- vem do model
+    vendedoresDisponiveis, // <- ADICIONADO: vem do model (apenas vendedores livres)
   } = useGruposModel()
 
   // Tudo visível, independente de role
@@ -101,13 +101,11 @@ export default function GruposPage() {
 
   const handleAdicionarMembro = async () => {
     if (!selecionado) return
-    const sellerId = vendedorSelecionado || novoMembro.email || vendedorSelecionado
-    if (!sellerId) {
-      alert("Selecione ou preencha um vendedor")
+    if (!vendedorSelecionado) {
+      alert("Selecione um vendedor")
       return
     }
-    await adicionarVendedor(selecionado.id, sellerId)
-    setNovoMembro({ nome: "", email: "", telefone: "" })
+    await adicionarVendedor(selecionado.id, vendedorSelecionado)
     setVendedorSelecionado("")
     setDialogoAdicionarMembroAberto(false)
   }
@@ -502,11 +500,32 @@ export default function GruposPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-lider">Líder do Grupo</Label>
-                  <Input
-                    id="edit-lider"
-                    value={editando.lider}
-                    onChange={(e) => setEditando({ ...editando, lider: e.target.value })}
-                  />
+                  {gerentes.length > 0 ? (
+                    <Select
+                      value={editando.liderUserId ? String(editando.liderUserId) : ""}
+                      onValueChange={(value) => {
+                        const selected = gerentes.find((g) => String(g.id) === value)
+                        setEditando({
+                          ...editando,
+                          liderUserId: isNaN(Number(value)) ? value : Number(value),
+                          lider: selected?.nome ?? "",
+                        })
+                      }}
+                    >
+                      <SelectTrigger id="edit-lider">
+                        <SelectValue placeholder="Selecione um gerente" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {gerentes.map((g) => (
+                          <SelectItem key={String(g.id)} value={String(g.id)}>
+                            {g.nome}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <div className="text-sm text-muted-foreground">Carregando gerentes...</div>
+                  )}
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-meta">Meta Mensal (R$)</Label>
@@ -656,39 +675,36 @@ export default function GruposPage() {
             </DialogHeader>
             <div className="grid gap-4 py-4">
               <div className="grid gap-2">
-                <Label htmlFor="membro-nome">Nome Completo</Label>
-                <Input
-                  id="membro-nome"
-                  value={novoMembro.nome}
-                  onChange={(e) => setNovoMembro({ ...novoMembro, nome: e.target.value })}
-                  placeholder="Ex: Carlos Silva"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="membro-email">Email</Label>
-                <Input
-                  id="membro-email"
-                  type="email"
-                  value={novoMembro.email}
-                  onChange={(e) => setNovoMembro({ ...novoMembro, email: e.target.value })}
-                  placeholder="carlos@empresa.com"
-                />
-              </div>
-              <div className="grid gap-2">
-                <Label htmlFor="membro-telefone">Telefone (Opcional)</Label>
-                <Input
-                  id="membro-telefone"
-                  value={novoMembro.telefone}
-                  onChange={(e) => setNovoMembro({ ...novoMembro, telefone: e.target.value })}
-                  placeholder="(11) 99999-9999"
-                />
+                <Label htmlFor="membro-select">Vendedor disponível</Label>
+                {Array.isArray(vendedoresDisponiveis) && vendedoresDisponiveis.length > 0 ? (
+                  <Select value={vendedorSelecionado} onValueChange={setVendedorSelecionado}>
+                    <SelectTrigger id="membro-select">
+                      <SelectValue placeholder="Selecione um vendedor (não vinculado a nenhum grupo)" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {vendedoresDisponiveis.map((v) => (
+                        <SelectItem key={String(v.id)} value={String(v.id)}>
+                          {v.nome}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="text-sm text-muted-foreground">
+                    {Array.isArray(vendedoresDisponiveis)
+                      ? "Nenhum vendedor disponível — todos já estão em um grupo."
+                      : "Carregando vendedores..."}
+                  </div>
+                )}
               </div>
             </div>
             <DialogFooter>
               <Button variant="outline" onClick={() => setDialogoAdicionarMembroAberto(false)}>
                 Cancelar
               </Button>
-              <Button onClick={handleAdicionarMembro}>Adicionar Membro</Button>
+              <Button onClick={handleAdicionarMembro} disabled={!vendedorSelecionado}>
+                Adicionar Membro
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

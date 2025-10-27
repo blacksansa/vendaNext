@@ -8,9 +8,9 @@ import {
   createTeam,
   updateTeam,
   deleteTeam,
-  getUsers,
-  getSellers,
-} from "@/lib/api.client"
+} from "@/services/team.service"
+import { getUsers } from "@/services/user.service"
+import { getSellers } from "@/services/seller.service"
 import { grupoEventListener } from "./listeners/grupo.listener"
 
 export interface VendedorGrupo {
@@ -41,6 +41,8 @@ export interface GrupoState {
   editando: Grupo | null
   selecionado: Grupo | null
   syncPending: number
+  gerentes?: { id: string | number; nome: string }[]           // opcional já existente
+  vendedoresDisponiveis?: { id: string | number; nome: string }[] // <- ADICIONADO
 }
 
 class GrupoModel {
@@ -51,6 +53,8 @@ class GrupoModel {
     editando: null,
     selecionado: null,
     syncPending: 0,
+    gerentes: [],
+    vendedoresDisponiveis: [], // <- ADICIONADO
   }
 
   private listeners: Set<(state: GrupoState) => void> = new Set()
@@ -134,6 +138,33 @@ class GrupoModel {
   }
 
   // --- DATA FETCHING ---
+  private isVendedor(user: any): boolean {
+    try {
+      const groups = (user.groups || user.userGroups || user.userGroup || []) as any[]
+      const names = Array.isArray(groups)
+        ? groups.map((g: any) => (g?.name || g?.title || g?.slug || g?.role || "").toString().toLowerCase())
+        : []
+      const role = (user.role || user.userRole || user.type || "").toString().toLowerCase()
+      return names.some((n) => n.includes("vendedor") || n.includes("seller")) || role === "seller" || role === "vendedor"
+    } catch {
+      return false
+    }
+  }
+
+  // quem é gerente
+  private isGerente(user: any): boolean {
+    try {
+      const groups = (user.groups || user.userGroups || user.userGroup || []) as any[]
+      const names = Array.isArray(groups)
+        ? groups.map((g: any) => (g?.name || g?.title || g?.slug || g?.role || "").toString().toLowerCase())
+        : []
+      const role = (user.role || user.userRole || user.type || "").toString().toLowerCase()
+      return names.some((n) => n.includes("gerente") || n.includes("manager")) || role === "manager" || role === "gerente"
+    } catch {
+      return false
+    }
+  }
+
   async fetchGrupos() {
     console.debug("[GrupoModel] fetchGrupos: INICIANDO")
     this.setState({ isLoading: true, error: null })
@@ -141,36 +172,65 @@ class GrupoModel {
       const teams = await getTeams("", 0, 100)
       const users = await getUsers("", 0, 100)
       const sellers = await getSellers("", 0, 100)
-      console.debug("[GrupoModel] fetchGrupos: dados recebidos", {
+
+      const grupos = this.transformTeamsToGrupos(teams, users, sellers)
+
+      // Derivar gerentes a partir dos users
+      const gerentes = (users || [])
+        .filter((u: any) => this.isGerente(u))
+        .map((u: any) => ({ id: u.id, nome: this.getUserName(u) }))
+        .sort((a, b) => a.nome.localeCompare(b.nome))
+
+      // IDs de sellers já usados em algum team
+      const usedSellerIds = new Set(
+        (teams || []).flatMap((t: any) => (t.sellerIds || []).map((id: any) => String(id))),
+      )
+
+      // Derivar vendedores disponíveis a partir de sellers NÃO usados em nenhum team
+      const vendedoresDisponiveis = (sellers || [])
+        .filter((s: any) => !usedSellerIds.has(String(s.id)))
+        .map((s: any) => ({ id: s.id, nome: this.getSellerName(s) }))
+        .sort((a, b) => a.nome.localeCompare(b.nome))
+
+      console.debug("[GrupoModel] fetchGrupos:", {
         teams: (teams || []).length,
         users: (users || []).length,
         sellers: (sellers || []).length,
-        sampleTeam: teams?.[0],
+        usedSellerIds: usedSellerIds.size,
+        grupos: grupos.length,
+        gerentes: gerentes.length,
+        vendedoresDisponiveis: vendedoresDisponiveis.length,
       })
 
-      const grupos = this.transformTeamsToGrupos(teams, users, sellers)
-      console.debug("[GrupoModel] fetchGrupos: grupos transformados", {
-        total: grupos.length,
-        ids: grupos.map((g) => g.id),
-      })
-
-      // realinhar referências de editando/selecionado após refetch
+      // realinhar referências
       const prevEdit = this.state.editando
       const prevSel = this.state.selecionado
-      const editando =
-        prevEdit ? grupos.find((g) => String(g.id) === String(prevEdit.id)) ?? null : null
-      const selecionado =
-        prevSel ? grupos.find((g) => String(g.id) === String(prevSel.id)) ?? null : null
+      const editando = prevEdit ? grupos.find((g) => String(g.id) === String(prevEdit.id)) ?? null : null
+      const selecionado = prevSel ? grupos.find((g) => String(g.id) === String(prevSel.id)) ?? null : null
 
-      this.setState({ grupos, isLoading: false, editando, selecionado })
-      console.debug("[GrupoModel] fetchGrupos: FINALIZADO")
+      this.setState({
+        grupos,
+        gerentes,
+        vendedoresDisponiveis,
+        isLoading: false,
+        editando,
+        selecionado,
+      })
       return grupos
     } catch (error: any) {
       console.error("[GrupoModel] fetchGrupos: ERRO", error)
       this.setState({ error: error?.message ?? String(error), isLoading: false })
-      this.toast?.({ title: "Erro ao carregar grupos", variant: "destructive" })
       throw error
     }
+  }
+
+  private getUserName(u: any) {
+    return (
+      u?.name ||
+      [u?.firstName, u?.lastName].filter(Boolean).join(" ") ||
+      u?.email ||
+      `Usuário ${u?.id}`
+    )
   }
 
   private transformTeamsToGrupos(teams: any[], users: any[], sellers: any[]): Grupo[] {
@@ -217,13 +277,6 @@ class GrupoModel {
     })
     console.debug("[GrupoModel] transformTeamsToGrupos: concluído", result.length)
     return result
-  }
-
-  private getUserName(user: any): string {
-    if (user.firstName || user.lastName) {
-      return `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim()
-    }
-    return user.name ?? user.email ?? String(user.id)
   }
 
   private getSellerName(seller: any): string {
@@ -317,17 +370,21 @@ class GrupoModel {
   async adicionarVendedor(grupoId: string | number, vendedorId: string | number) {
     console.debug("[GrupoModel] adicionarVendedor: grupoId/vendedorId", grupoId, vendedorId)
     try {
-      const grupo = this.state.grupos.find((g) => g.id === grupoId)
+      const grupo = this.state.grupos.find((g) => String(g.id) === String(grupoId))
       if (!grupo) throw new Error("Grupo não encontrado")
 
-      const updatedSellerIds = [...(grupo.raw.sellerIds || []), vendedorId]
+      // normalizar id numérico se possível
+      const vendedorIdNorm =
+        typeof vendedorId === "string" && /^\d+$/.test(vendedorId) ? Number(vendedorId) : vendedorId
+
+      const updatedSellerIds = [...(grupo.raw.sellerIds || []), vendedorIdNorm]
       await updateTeam(grupoId as number, { sellerIds: updatedSellerIds })
 
       await this.fetchGrupos()
 
-      const grupoAtualizado = this.state.grupos.find((g) => g.id === grupoId)
+      const grupoAtualizado = this.state.grupos.find((g) => String(g.id) === String(grupoId))
       if (grupoAtualizado) {
-        grupoEventListener.emit("addSeller", grupoAtualizado, { vendedorId })
+        grupoEventListener.emit("addSeller", grupoAtualizado, { vendedorId: vendedorIdNorm })
       }
 
       this.toast?.({ title: "Vendedor adicionado ao grupo", variant: "default" })
@@ -427,14 +484,19 @@ export function useGruposModel() {
 
   // Fetch on mount (com log adicional)
   useEffect(() => {
-    console.debug("[useGruposModel] mount: iniciando fetchGrupos()")
-    grupoModel.fetchGrupos()
+    // garante carregar dados no mount
+    if (!grupoModel?.state?.grupos?.length) {
+      console.debug("[useGruposModel] mount -> fetchGrupos()")
+      grupoModel.fetchGrupos().catch((e) => console.error("fetchGrupos error", e))
+    }
   }, [])
 
   return {
     // State
     ...state,
     gruposFiltrados: state.grupos,
+    gerentes: state.gerentes || [],
+    vendedoresDisponiveis: state.vendedoresDisponiveis || [], // <- EXPOSTO COM DEFAULT
 
     // Actions
     criarGrupo: grupoModel.criarGrupo.bind(grupoModel),
@@ -446,10 +508,5 @@ export function useGruposModel() {
     setSelecionado: grupoModel.setSelecionado.bind(grupoModel),
     calcularPerformance: grupoModel.calcularPerformance.bind(grupoModel),
     getGrupoById: grupoModel.getGrupoById.bind(grupoModel),
-    forceSync: grupoModel.forceSync.bind(grupoModel),
-
-    eventListener: grupoEventListener,
-    model: grupoModel,
   }
 }
-

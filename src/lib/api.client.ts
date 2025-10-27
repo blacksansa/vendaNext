@@ -366,3 +366,13 @@ export const getTeamById = (id: number): Promise<Team> => teamApi.getById(id);
 
 export const getTeamsByManager = (managerId: string, term: string = "", page: number = 0, size: number = 20): Promise<Team[]> =>
   fetchData<Team[]>(`/team`, { params: { managerId, t: term, page, size } });
+
+// Services exports
+export * from "@/services/team.service"
+export * from "@/services/user.service"
+export * from "@/services/user-group.service"
+export * from "@/services/seller.service"
+export * from "@/services/customer.service"
+export * from "@/services/pipeline.service"
+export * from "@/services/task-order-approval-invoice.service"
+export * from "@/services/catalog.service"

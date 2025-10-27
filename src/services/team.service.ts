@@ -1,53 +1,28 @@
-import { apiClient } from "@/lib/api.client"
+import Api from "@/lib/api"
 
-export async function fetchTeams(search: string = "", skip: number = 0, take: number = 100) {
-  try {
-    const response = await apiClient.get("/teams", {
-      params: { search, skip, take },
-    })
-    return response.data || []
-  } catch (error) {
-    console.error("Erro ao buscar grupos:", error)
-    throw error
-  }
+export interface TeamDTO {
+  id?: number
+  name?: string
+  description?: string
+  quota?: number
+  managerId?: number | string | null
+  active?: boolean
+  sellerIds?: Array<number | string>
 }
 
-export async function fetchTeamById(id: string | number) {
-  try {
-    const response = await apiClient.get(`/teams/${id}`)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao buscar grupo ${id}:`, error)
-    throw error
-  }
-}
+const teamApi = new Api<TeamDTO, number>("/team")
 
-export async function createTeamService(data: any) {
-  try {
-    const response = await apiClient.post("/teams", data)
-    return response.data
-  } catch (error) {
-    console.error("Erro ao criar grupo:", error)
-    throw error
-  }
-}
+export const getTeams = (term = "", page = 0, size = 100): Promise<TeamDTO[]> =>
+  teamApi.list(page, size, term)
 
-export async function updateTeamService(id: string | number, data: any) {
-  try {
-    const response = await apiClient.patch(`/teams/${id}`, data)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao atualizar grupo ${id}:`, error)
-    throw error
-  }
-}
+export const getTeamById = (id: number): Promise<TeamDTO> =>
+  teamApi.getById(id)
 
-export async function deleteTeamService(id: string | number) {
-  try {
-    const response = await apiClient.delete(`/teams/${id}`)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao deletar grupo ${id}:`, error)
-    throw error
-  }
-}
+export const createTeam = (data: Partial<TeamDTO>): Promise<TeamDTO> =>
+  teamApi.saveOrUpdate(data)
+
+export const updateTeam = (id: number, data: Partial<TeamDTO>): Promise<TeamDTO> =>
+  teamApi.saveOrUpdate({ ...data, id })
+
+export const deleteTeam = (id: number): Promise<void> =>
+  teamApi.delete(id)

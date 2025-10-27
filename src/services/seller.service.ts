@@ -1,43 +1,26 @@
-import { apiClient } from "@/lib/api.client"
+import Api from "@/lib/api"
 
-export async function fetchSellers(search: string = "", skip: number = 0, take: number = 100) {
-  try {
-    const response = await apiClient.get("/sellers", {
-      params: { search, skip, take },
-    })
-    return response.data || []
-  } catch (error) {
-    console.error("Erro ao buscar vendedores:", error)
-    throw error
-  }
+export interface SellerDTO {
+  id: number | string
+  name?: string
+  salesAmount?: number
+  active?: boolean
+  email?: string
 }
 
-export async function fetchSellerById(id: string | number) {
-  try {
-    const response = await apiClient.get(`/sellers/${id}`)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao buscar vendedor ${id}:`, error)
-    throw error
-  }
-}
+const sellerApi = new Api<SellerDTO, number | string>("/seller")
 
-export async function updateSeller(id: string | number, data: any) {
-  try {
-    const response = await apiClient.patch(`/sellers/${id}`, data)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao atualizar vendedor ${id}:`, error)
-    throw error
-  }
-}
+export const getSellers = (term = "", page = 0, size = 100): Promise<SellerDTO[]> =>
+  sellerApi.list(page, size, term)
 
-export async function deleteSeller(id: string | number) {
-  try {
-    const response = await apiClient.delete(`/sellers/${id}`)
-    return response.data
-  } catch (error) {
-    console.error(`Erro ao deletar vendedor ${id}:`, error)
-    throw error
-  }
-}
+export const getSellerById = (id: number | string): Promise<SellerDTO> =>
+  sellerApi.getById(id)
+
+export const createSeller = (data: Partial<SellerDTO>): Promise<SellerDTO> =>
+  sellerApi.saveOrUpdate(data)
+
+export const updateSeller = (id: number | string, data: Partial<SellerDTO>): Promise<SellerDTO> =>
+  sellerApi.saveOrUpdate({ ...data, id })
+
+export const deleteSeller = (id: number | string): Promise<void> =>
+  sellerApi.delete(id)
