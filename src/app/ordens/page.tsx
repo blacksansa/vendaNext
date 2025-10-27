@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -19,6 +19,22 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Eye, Edit, Copy, X, Plus, Search, Filter, ShoppingCart, Trash2 } from "lucide-react"
+
+// Perfil atual (troque por seu hook de auth e groups quando disponível)
+type UserRole = "admin" | "manager" | "seller"
+interface CurrentUser {
+  id: string
+  name: string
+  role: UserRole
+}
+
+// Helpers de permissão/status
+const canApprove = (u: CurrentUser) => u.role === "admin" || u.role === "manager"
+const canCancel = (u: CurrentUser, order: Order) =>
+  u.role === "admin" || u.role === "manager" || (u.role === "seller" && order.status === "em_aberto" && order.seller === u.name)
+const canInvoice = (order: Order) => order.status === "aprovada"
+const nextOrderId = (list: Order[]) => String((Math.max(0, ...list.map(o => Number(o.id))) || 0) + 1)
+const nextOrderNumber = (list: Order[]) => `ORD-${new Date().getFullYear()}-${String(list.length + 1).padStart(3, "0")}`
 
 type OrderStatus = "em_aberto" | "aprovada" | "faturada" | "cancelada"
 
@@ -99,7 +115,117 @@ const mockOrders: Order[] = [
 ]
 
 export default function OrdensPage() {
-  const [orders, setOrders] = useState<Order[]>(mockOrders)
+  // Mock de usuário atual (substitua por seu hook de auth)
+  const [currentUser] = useState<CurrentUser>(() => {
+    const saved = globalThis?.localStorage?.getItem("currentUser")
+    if (saved) return JSON.parse(saved) as CurrentUser
+    const def: CurrentUser = { id: "u-1", name: "João Silva", role: "seller" }
+    try { localStorage.setItem("currentUser", JSON.stringify(def)) } catch {}
+    return def
+  })
+
+  // Carregar/persistir ordens em localStorage
+  const [orders, setOrders] = useState<Order[]>(() => {
+    try {
+      const raw = localStorage.getItem("orders")
+      if (raw) return JSON.parse(raw) as Order[]
+    } catch {}
+    return mockOrders
+  })
+  const persistOrders = (list: Order[]) => {
+    setOrders(list)
+    try { localStorage.setItem("orders", JSON.stringify(list)) } catch {}
+  }
+
+  // Backend helpers (fallback para localhost durante desenvolvimento)
+  const apiBase =
+    typeof window !== "undefined"
+      ? (window as any).BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
+      : (process.env.NEXT_PUBLIC_API_URL || "")
+
+  async function fetchOrdersFromBackend() {
+    console.debug("[OrdensPage] fetchOrdersFromBackend ->", `${apiBase}/api/order`)
+    try {
+      const res = await fetch(`${apiBase}/api/order`, { method: "GET" })
+      console.debug("[OrdensPage] fetchOrdersFromBackend status:", res.status)
+      if (!res.ok) {
+        const text = await res.text().catch(() => "")
+        console.warn("[OrdensPage] fetchOrdersFromBackend non-ok body:", text)
+        throw new Error(`status ${res.status}`)
+      }
+      const data = await res.json()
+      console.debug("[OrdensPage] fetchOrdersFromBackend data:", Array.isArray(data) ? `array(${data.length})` : data)
+
+      // map backend DTO to local Order shape (assume minimal fields)
+      const mapped: Order[] = (data || []).map((o: any, idx: number) => ({
+        id: String(o.id ?? o.code ?? idx + 1),
+        orderNumber: o.code ?? `ORD-${String(o.id ?? idx + 1)}`,
+        customer: o.customer ?? o.client ?? "—",
+        date: o.createdAt ? new Date(o.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
+        totalValue: Number(o.total ?? o.totalValue ?? 0),
+        status: (o.status ?? "em_aberto") as OrderStatus,
+        seller: o.sellerName ?? o.seller ?? currentUser.name,
+        products: (o.items || []).map((it: any, i: number) => ({
+          id: String(it.productId ?? i + 1),
+          name: it.description ?? it.name ?? `Item ${i + 1}`,
+          quantity: Number(it.quantity ?? it.qty ?? 1),
+          price: Number(it.unitPrice ?? it.price ?? 0),
+          subtotal: Number(it.total ?? (it.quantity ?? 1) * (it.unitPrice ?? it.price ?? 0)),
+        })),
+        history: (o.history || []).map((h: any, i: number) => ({
+          id: String(i + 1),
+          action: h.action ?? h.status ?? "",
+          user: h.user ?? h.by ?? "",
+          date: h.date ?? h.createdAt ?? "",
+          description: h.description ?? "",
+        })),
+        notes: o.notes ?? "",
+      }))
+      // substitui os mock/local apenas se a chamada funcionou
+      persistOrders(mapped)
+      console.debug("[OrdensPage] fetchOrdersFromBackend -> persisted mapped orders")
+      return mapped
+    } catch (e) {
+      console.warn("[OrdensPage] fetchOrdersFromBackend failed:", e)
+      return null
+    }
+  }
+
+  async function createOrderBackend(payload: any) {
+    try {
+      const res = await fetch(`${apiBase}/api/order`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      return await res.json()
+    } catch (e) {
+      console.warn("[OrdensPage] createOrderBackend failed:", e)
+      return null
+    }
+  }
+
+  async function updateOrderBackend(id: string | number, payload: any) {
+    try {
+      const res = await fetch(`${apiBase}/api/order/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      if (!res.ok) throw new Error(`status ${res.status}`)
+      return await res.json()
+    } catch (e) {
+      console.warn("[OrdensPage] updateOrderBackend failed:", e)
+      return null
+    }
+  }
+
+  // carregar do backend no mount (se disponível)
+  useEffect(() => {
+    fetchOrdersFromBackend().catch(() => {})
+  }, [])
+
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isNewOrderOpen, setIsNewOrderOpen] = useState(false)
@@ -113,7 +239,7 @@ export default function OrdensPage() {
   // Nova ordem
   const [newOrder, setNewOrder] = useState({
     customer: "",
-    seller: "João Silva",
+    seller: currentUser.name, // vendedor logado
     notes: "",
     products: [] as OrderProduct[],
   })
@@ -144,10 +270,10 @@ export default function OrdensPage() {
   }
 
   const handleDuplicateOrder = (order: Order) => {
-    const newOrderNumber = `ORD-2024-${String(orders.length + 1).padStart(3, "0")}`
+    const newOrderNumber = nextOrderNumber(orders)
     const duplicatedOrder: Order = {
       ...order,
-      id: String(orders.length + 1),
+      id: nextOrderId(orders),
       orderNumber: newOrderNumber,
       date: new Date().toISOString().split("T")[0],
       status: "em_aberto",
@@ -161,13 +287,13 @@ export default function OrdensPage() {
         },
       ],
     }
-    setOrders([...orders, duplicatedOrder])
+    persistOrders([...orders, duplicatedOrder])
   }
 
   const handleCancelOrder = (orderId: string) => {
-    setOrders(
+    persistOrders(
       orders.map((order) =>
-        order.id === orderId
+        order.id === orderId && canCancel(currentUser, order)
           ? {
               ...order,
               status: "cancelada" as OrderStatus,
@@ -176,7 +302,7 @@ export default function OrdensPage() {
                 {
                   id: String(order.history.length + 1),
                   action: "Cancelada",
-                  user: "Sistema",
+                  user: currentUser.name,
                   date: new Date().toLocaleString(),
                   description: "Ordem cancelada",
                 },
@@ -188,33 +314,77 @@ export default function OrdensPage() {
   }
 
   const handleChangeStatus = (orderId: string, newStatus: OrderStatus) => {
-    setOrders(
-      orders.map((order) =>
-        order.id === orderId
-          ? {
-              ...order,
-              status: newStatus,
-              history: [
-                ...order.history,
-                {
-                  id: String(order.history.length + 1),
-                  action: `Status alterado para ${statusConfig[newStatus].label}`,
-                  user: "Sistema",
-                  date: new Date().toLocaleString(),
-                  description: `Status alterado de ${statusConfig[order.status].label} para ${statusConfig[newStatus].label}`,
-                },
-              ],
-            }
-          : order,
-      ),
-    )
-    if (selectedOrder?.id === orderId) {
-      const updatedOrder = orders.find((o) => o.id === orderId)
-      if (updatedOrder) {
-        setSelectedOrder({ ...updatedOrder, status: newStatus })
+    // update backend first, fallback to local update if backend fails
+    (async () => {
+      const order = orders.find((o) => o.id === orderId)
+      if (!order) return
+      const can = (() => {
+        if (newStatus === "aprovada") return canApprove(currentUser)
+        if (newStatus === "faturada") return canInvoice(order)
+        if (newStatus === "cancelada") return canCancel(currentUser, order)
+        return true
+      })()
+      if (!can) return
+
+      const payload = {
+        status: newStatus,
+        approverId: newStatus === "aprovada" ? currentUser.id : undefined,
+        approvedAt: newStatus === "aprovada" ? new Date().toISOString() : undefined,
       }
-    }
-  }
+      const res = await updateOrderBackend(orderId, payload)
+      if (res) {
+        // map backend result if needed; here update local list using newStatus
+        persistOrders(
+          orders.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  status: newStatus,
+                  history: [
+                    ...o.history,
+                    {
+                      id: String(o.history.length + 1),
+                      action: `Status alterado para ${statusConfig[newStatus].label}`,
+                      user: currentUser.name,
+                      date: new Date().toLocaleString(),
+                      description: `Status alterado de ${statusConfig[o.status].label} para ${statusConfig[newStatus].label}`,
+                    },
+                  ],
+                }
+              : o,
+          ),
+        )
+      } else {
+        // fallback local
+        persistOrders(
+          orders.map((o) =>
+            o.id === orderId
+              ? {
+                  ...o,
+                  status: newStatus,
+                  history: [
+                    ...o.history,
+                    {
+                      id: String(o.history.length + 1),
+                      action: `Status alterado para ${statusConfig[newStatus].label}`,
+                      user: currentUser.name,
+                      date: new Date().toLocaleString(),
+                      description: `Status alterado de ${statusConfig[o.status].label} para ${statusConfig[newStatus].label}`,
+                    },
+                  ],
+                }
+              : o,
+          ),
+        )
+      }
+    })().catch(console.error)
+   if (selectedOrder?.id === orderId) {
+     const updatedOrder = orders.find((o) => o.id === orderId)
+     if (updatedOrder) {
+       setSelectedOrder({ ...updatedOrder, status: newStatus })
+     }
+   }
+ }
 
   const handleAddProduct = () => {
     if (newProduct.name && newProduct.quantity > 0 && newProduct.price > 0) {
@@ -243,32 +413,81 @@ export default function OrdensPage() {
   const handleCreateOrder = () => {
     if (newOrder.customer && newOrder.products.length > 0) {
       const totalValue = newOrder.products.reduce((sum, p) => sum + p.subtotal, 0)
-      const orderNumber = `ORD-2024-${String(orders.length + 1).padStart(3, "0")}`
+      const orderNumber = nextOrderNumber(orders)
+
+      // Admin aprova automaticamente
+      const autoApprove = currentUser.role === "admin"
+      const baseHistory: OrderHistory[] = [
+        {
+          id: "1",
+          action: "Criada",
+          user: newOrder.seller,
+          date: new Date().toLocaleString(),
+          description: autoApprove ? "Criada e aprovada automaticamente (admin)" : "Ordem criada e enviada para aprovação",
+        },
+      ]
+      const history = autoApprove
+        ? [
+            ...baseHistory,
+            {
+              id: "2",
+              action: "Aprovada",
+              user: currentUser.name,
+              date: new Date().toLocaleString(),
+              description: "Aprovação automática por ser administrador",
+            },
+          ]
+        : baseHistory
 
       const order: Order = {
-        id: String(orders.length + 1),
+        id: nextOrderId(orders),
         orderNumber,
         customer: newOrder.customer,
         date: new Date().toISOString().split("T")[0],
         totalValue,
-        status: "em_aberto",
+        status: autoApprove ? "aprovada" : "em_aberto",
         seller: newOrder.seller,
         products: newOrder.products,
-        history: [
-          {
-            id: "1",
-            action: "Criada",
-            user: newOrder.seller,
-            date: new Date().toLocaleString(),
-            description: "Ordem criada",
-          },
-        ],
+        history,
         notes: newOrder.notes,
       }
 
-      setOrders([...orders, order])
+      // try create on backend, fallback to local
+      ;(async () => {
+        const payload = {
+          code: order.orderNumber,
+          sellerName: order.seller,
+          customer: order.customer,
+          total: order.totalValue,
+          status: order.status,
+          items: order.products.map((p) => ({
+            productId: p.id,
+            description: p.name,
+            quantity: p.quantity,
+            unitPrice: p.price,
+            total: p.subtotal,
+          })),
+          notes: order.notes,
+        }
+        const res = await createOrderBackend(payload)
+        if (res) {
+          // prefer backend id/code if returned
+          const created: Order = {
+            ...order,
+            id: String(res.id ?? res.code ?? order.id),
+            orderNumber: res.code ?? order.orderNumber,
+          }
+          persistOrders([...orders, created])
+        } else {
+          persistOrders([...orders, order])
+        }
+      })().catch((e) => {
+        console.error(e)
+        persistOrders([...orders, order])
+      })
+
       setIsNewOrderOpen(false)
-      setNewOrder({ customer: "", seller: "João Silva", notes: "", products: [] })
+      setNewOrder({ customer: "", seller: currentUser.name, notes: "", products: [] })
     }
   }
 
@@ -277,7 +496,9 @@ export default function OrdensPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Ordens de Venda</h1>
-          <p className="text-muted-foreground">Gerencie suas ordens de venda</p>
+          <p className="text-muted-foreground">
+            Gerencie suas ordens de venda • Usuário: {currentUser.name} ({currentUser.role})
+          </p>
         </div>
         <Button onClick={() => setIsNewOrderOpen(true)} size="lg">
           <Plus className="mr-2 h-4 w-4" />
@@ -390,7 +611,7 @@ export default function OrdensPage() {
                         size="icon"
                         onClick={() => handleCancelOrder(order.id)}
                         title="Cancelar"
-                        disabled={order.status === "cancelada"}
+                        disabled={order.status === "cancelada" || !canCancel(currentUser, order)}
                       >
                         <X className="h-4 w-4" />
                       </Button>
@@ -458,7 +679,7 @@ export default function OrdensPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value="em_aberto">Em Aberto</SelectItem>
-                            <SelectItem value="aprovada">Aprovada</SelectItem>
+                            <SelectItem value="aprovada" disabled={!canApprove(currentUser)}>Aprovada</SelectItem>
                             <SelectItem value="faturada">Faturada</SelectItem>
                             <SelectItem value="cancelada">Cancelada</SelectItem>
                           </SelectContent>
