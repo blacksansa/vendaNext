@@ -8,6 +8,8 @@ export interface TeamDTO {
   managerId?: number | string | null
   active?: boolean
   sellerIds?: Array<number | string>
+  code?: string
+  sellers?: Array<number | string>
 }
 
 const teamApi = new Api<TeamDTO, number>("/team")
