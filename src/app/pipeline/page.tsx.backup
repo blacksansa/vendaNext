@@ -44,14 +44,10 @@ import {
 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { ConditionalRender } from "@/components/conditional-render"
-import { getOpportunities, updateOpportunity, createOpportunity } from "@/services/opportunity.service"
+import { getOpportunities } from "@/services/opportunity.service"
 import { getTeams } from "@/services/team.service"
 import { getSellers } from "@/services/seller.service"
-import { listCustomers } from "@/services/customer.service"
 import { useToast } from "@/hooks/use-toast"
-import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCorners, PointerSensor, useSensor, useSensors, DragOverlay } from "@dnd-kit/core"
-import { useSortable } from "@dnd-kit/sortable"
-import { CSS } from "@dnd-kit/utilities"
 
 const pipelineStages = [
   {
@@ -88,34 +84,6 @@ const pipelineStages = [
   },
 ]
 
-// Componente de Card arrastável
-function DraggableCard({ deal, stage, children, onClick }: any) {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
-    id: deal.id.toString(),
-  })
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  }
-
-  return (
-    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
-      <Card
-        className="cursor-move hover:shadow-md transition-shadow border-l-4"
-        style={{
-          borderLeftColor:
-            deal.priority === "alta" ? "#ef4444" : deal.priority === "media" ? "#f59e0b" : "#10b981",
-        }}
-        onClick={onClick}
-      >
-        {children}
-      </Card>
-    </div>
-  )
-}
-
 export default function PipelinePage() {
   const { user: authUser, loading: authLoading } = useAuth()
   const { toast } = useToast()
@@ -128,23 +96,6 @@ export default function PipelinePage() {
   const [filterPriority, setFilterPriority] = useState<string>("all")
   const [loading, setLoading] = useState(true)
   const [opportunities, setOpportunities] = useState<any[]>([])
-  const [activeId, setActiveId] = useState<string | null>(null)
-  const [customers, setCustomers] = useState<any[]>([])
-  const [creatingOpportunity, setCreatingOpportunity] = useState(false)
-  
-  // Form states
-  const [newOppData, setNewOppData] = useState({
-    customerName: "",
-    customerEmail: "",
-    customerPhone: "",
-    companyName: "",
-    value: 0,
-    notes: "",
-    priority: "media",
-    origem: "",
-  })
-  
-  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
   
   // Obter user de várias fontes
   const [user, setUser] = useState<any>(null)
@@ -176,17 +127,7 @@ export default function PipelinePage() {
     }
     
     loadOpportunities()
-    loadCustomers()
   }, [userId, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function loadCustomers() {
-    try {
-      const allCustomers = await listCustomers(0, 100, "")
-      setCustomers(allCustomers)
-    } catch (error) {
-      console.error("[pipeline] erro ao carregar customers", error)
-    }
-  }
 
   async function loadOpportunities() {
     if (!userId) {
@@ -329,93 +270,6 @@ export default function PipelinePage() {
     // Aqui você implementaria a lógica real
   }
 
-  function handleDragStart(event: DragStartEvent) {
-    setActiveId(event.active.id.toString())
-  }
-
-  async function handleDragEnd(event: DragEndEvent) {
-    const { active, over } = event
-    setActiveId(null)
-
-    if (!over) return
-
-    const dealId = parseInt(active.id.toString())
-    const newStageId = parseInt(over.id.toString())
-
-    // Atualizar localmente
-    setOpportunities((prev) =>
-      prev.map((opp) => (opp.id === dealId ? { ...opp, stage: { ...opp.stage, id: newStageId } } : opp))
-    )
-
-    // Atualizar no backend
-    try {
-      const opportunity = opportunities.find((o) => o.id === dealId)
-      if (opportunity?.raw) {
-        await updateOpportunity(dealId, { ...opportunity.raw, stage: { id: newStageId } })
-        toast({ title: "Sucesso", description: "Oportunidade movida" })
-      }
-    } catch (error: any) {
-      toast({ title: "Erro", description: error?.message, variant: "destructive" })
-      loadOpportunities() // Recarregar em caso de erro
-    }
-  }
-
-  async function handleCreateOpportunity() {
-    if (!newOppData.customerName) {
-      toast({ title: "Erro", description: "Nome do cliente é obrigatório", variant: "destructive" })
-      return
-    }
-
-    setCreatingOpportunity(true)
-    try {
-      // Buscar ou criar customer
-      let customer = customers.find((c) => 
-        c.name?.toLowerCase() === newOppData.customerName.toLowerCase()
-      )
-
-      if (!customer) {
-        // Criar customer novo
-        customer = {
-          name: newOppData.customerName,
-          tradingName: newOppData.companyName || newOppData.customerName,
-          email: newOppData.customerEmail,
-          phone: newOppData.customerPhone,
-        }
-      }
-
-      // Criar oportunidade
-      const newOpp = await createOpportunity({
-        customer,
-        status: "OPEN",
-        stage: { id: 1 }, // Primeira etapa
-        contactDate: Date.now(),
-        items: [],
-        description: newOppData.notes,
-      })
-
-      toast({ title: "Sucesso!", description: "Oportunidade criada com sucesso" })
-      
-      // Limpar formulário
-      setNewOppData({
-        customerName: "",
-        customerEmail: "",
-        customerPhone: "",
-        companyName: "",
-        value: 0,
-        notes: "",
-        priority: "media",
-        origem: "",
-      })
-      
-      setIsNewDealOpen(false)
-      loadOpportunities() // Recarregar lista
-    } catch (error: any) {
-      toast({ title: "Erro", description: error?.message || "Erro ao criar oportunidade", variant: "destructive" })
-    } finally {
-      setCreatingOpportunity(false)
-    }
-  }
-
   return (
     <div className="flex-1 space-y-6 p-6">
       <div className="flex items-start justify-between">
@@ -431,12 +285,12 @@ export default function PipelinePage() {
               Atualizar
             </Button>
           )}
-          {userId && (
+          <ConditionalRender requiredPermissions={[{ module: "pipeline", action: "create" }]}>
             <Button onClick={() => setIsNewDealOpen(true)} disabled={loading || !userId}>
               <Plus className="mr-2 h-4 w-4" />
               Novo Lead
             </Button>
-          )}
+          </ConditionalRender>
         </div>
       </div>
       
@@ -574,16 +428,9 @@ export default function PipelinePage() {
         </TabsList>
 
         <TabsContent value="kanban" className="space-y-4">
-          <DndContext
-            sensors={sensors}
-            collisionDetection={closestCorners}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-          >
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
             {pipelineStages.map((stage) => (
-              <div key={stage.id} id={stage.id.toString()} className="space-y-2">
-              <Card className="min-h-[600px]">
+              <Card key={stage.id} className="min-h-[600px]">
                 <CardHeader className="pb-3">
                   <div className="flex items-center justify-between">
                     <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -599,13 +446,12 @@ export default function PipelinePage() {
                 </CardHeader>
                 <CardContent className="space-y-3">
                   {getDealsByStage(stage.id).map((deal) => (
-                    <DraggableCard
+                    <Card
                       key={deal.id}
-                      deal={deal}
-                      stage={stage}
-                      onClick={() => {
-                        setSelectedDeal(deal)
-                        setIsDetailOpen(true)
+                      className="cursor-pointer hover:shadow-md transition-shadow border-l-4"
+                      style={{
+                        borderLeftColor:
+                          deal.priority === "alta" ? "#ef4444" : deal.priority === "media" ? "#f59e0b" : "#10b981",
                       }}
                     >
                       <CardContent className="p-4">
@@ -836,23 +682,12 @@ export default function PipelinePage() {
                           </div>
                         </div>
                       </CardContent>
-                    </DraggableCard>
+                    </Card>
                   ))}
                 </CardContent>
               </Card>
-              </div>
             ))}
           </div>
-          <DragOverlay>
-            {activeId ? (
-              <Card className="cursor-grabbing opacity-80 rotate-2">
-                <CardContent className="p-4">
-                  <div className="font-semibold">Movendo...</div>
-                </CardContent>
-              </Card>
-            ) : null}
-          </DragOverlay>
-          </DndContext>
         </TabsContent>
 
         <TabsContent value="list" className="space-y-4">
@@ -1016,55 +851,34 @@ export default function PipelinePage() {
       <Dialog open={isNewDealOpen} onOpenChange={setIsNewDealOpen}>
         <DialogContent className="max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Nova Oportunidade</DialogTitle>
-            <DialogDescription>Adicione uma nova oportunidade ao pipeline</DialogDescription>
+            <DialogTitle>Novo Lead</DialogTitle>
+            <DialogDescription>Adicione um novo lead ao pipeline</DialogDescription>
           </DialogHeader>
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="client-name">Nome do Cliente *</Label>
-                <Input 
-                  id="client-name" 
-                  placeholder="João Silva" 
-                  value={newOppData.customerName}
-                  onChange={(e) => setNewOppData({ ...newOppData, customerName: e.target.value })}
-                />
+                <Label htmlFor="client-name">Nome do Lead</Label>
+                <Input id="client-name" placeholder="João Silva" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="company">Empresa</Label>
-                <Input 
-                  id="company" 
-                  placeholder="Empresa ABC" 
-                  value={newOppData.companyName}
-                  onChange={(e) => setNewOppData({ ...newOppData, companyName: e.target.value })}
-                />
+                <Input id="company" placeholder="Empresa ABC" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input 
-                  id="email" 
-                  type="email" 
-                  placeholder="joao@empresa.com" 
-                  value={newOppData.customerEmail}
-                  onChange={(e) => setNewOppData({ ...newOppData, customerEmail: e.target.value })}
-                />
+                <Input id="email" type="email" placeholder="joao@empresa.com" />
               </div>
               <div className="space-y-2">
                 <Label htmlFor="phone">Telefone</Label>
-                <Input 
-                  id="phone" 
-                  placeholder="(11) 99999-9999" 
-                  value={newOppData.customerPhone}
-                  onChange={(e) => setNewOppData({ ...newOppData, customerPhone: e.target.value })}
-                />
+                <Input id="phone" placeholder="(11) 99999-9999" />
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="origem">Origem</Label>
-                <Select value={newOppData.origem} onValueChange={(value) => setNewOppData({ ...newOppData, origem: value })}>
+                <Select>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a origem" />
                   </SelectTrigger>
@@ -1079,7 +893,7 @@ export default function PipelinePage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="priority">Prioridade</Label>
-                <Select value={newOppData.priority} onValueChange={(value) => setNewOppData({ ...newOppData, priority: value })}>
+                <Select>
                   <SelectTrigger>
                     <SelectValue placeholder="Selecione a prioridade" />
                   </SelectTrigger>
@@ -1093,21 +907,14 @@ export default function PipelinePage() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="notes">Observações</Label>
-              <Textarea 
-                id="notes" 
-                placeholder="Notas sobre o lead..." 
-                value={newOppData.notes}
-                onChange={(e) => setNewOppData({ ...newOppData, notes: e.target.value })}
-              />
+              <Textarea id="notes" placeholder="Notas sobre o lead..." />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsNewDealOpen(false)} disabled={creatingOpportunity}>
+            <Button variant="outline" onClick={() => setIsNewDealOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateOpportunity} disabled={creatingOpportunity}>
-              {creatingOpportunity ? "Criando..." : "Criar Oportunidade"}
-            </Button>
+            <Button onClick={() => setIsNewDealOpen(false)}>Criar Lead</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
