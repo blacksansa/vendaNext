@@ -8,7 +8,7 @@ export const NAVIGATION_ITEMS = [
   { title: "Análises", url: "/analytics", icon: "BarChart3", requiredRole: "manageAnalytics" },
   { title: "Tarefas", url: "/tarefas", icon: "Kanban", requiredRole: "manageTasks" },
   { title: "Minhas Tarefas", url: "/minhas-tarefas", icon: "ListTodo", requiredRole: "manageTasks" },
-  { title: "Ordens", url: "/ordens", icon: "ShoppingCart", requiredRole: "manageOrders" },
+  { title: "Invoices", url: "/invoice", icon: "ShoppingCart", requiredRole: "manageOrders" },
   { title: "Aprovações", url: "/aprovacoes", icon: "CheckSquare", requiredRole: "manageApprovals" },
   { title: "Cadastros", url: "/cadastros", icon: "FolderOpen", requiredRole: "manageRegistrations" },
   { title: "Relatórios", url: "/relatorios", icon: "FileText", requiredRole: "manageReports" },
