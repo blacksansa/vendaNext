@@ -39,8 +39,8 @@ export interface InvoiceDTO {
   items?: InvoiceItemDTO[]
   notes?: string
   history?: InvoiceHistoryDTO[]
-  approverId?: number | null
-  approverIds?: number[] // se backend suportar múltiplos
+  approverId?: string | null // managerId do grupo ou admin
+  approverIds?: string[] // múltiplos aprovadores (se suportado)
   approvedAt?: string | null
   teamId?: number | null
   externalReference?: string | null
@@ -79,7 +79,7 @@ export const updateInvoice = (id: number | string, payload: Partial<InvoiceDTO>)
  * Preferred approach: update status/approver via saveOrUpdate.
  * If you have a dedicated approve endpoint (/invoice/{id}/approve) you can call it instead.
  */
-export const approveInvoice = async (id: number | string, approverId?: number) => {
+export const approveInvoice = async (id: number | string, approverId?: string) => {
   // Try to mark approved via update payload (backend should accept status + approverId)
   const payload: Partial<InvoiceDTO> = {
     status: "ISSUED", // ajustar conforme valor real do backend (ex.: "APPROVED"/"FATURADA")

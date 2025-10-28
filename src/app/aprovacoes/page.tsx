@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
@@ -19,6 +19,9 @@ import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Eye, CheckCircle, XCircle, Search, AlertCircle, Clock } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
+import { useAuth } from "@/hooks/use-auth"
+import invoiceModel, { type InvoiceUI } from "@/models/invoice.model"
+import { useToast } from "@/hooks/use-toast"
 
 type OrderStatus = "em_aberto" | "aprovada" | "faturada" | "cancelada" | "rejeitada"
 
@@ -108,16 +111,193 @@ const mockPendingOrders: Order[] = [
 ]
 
 export default function AprovacoesPage() {
-  const [orders, setOrders] = useState<Order[]>(mockPendingOrders)
+  const { user: authUser, loading: authLoading, isAuthenticated } = useAuth()
+  const { toast } = useToast()
+  
+  // Tentar obter user de várias fontes
+  const [user, setUser] = useState<any>(null)
+  
+  useEffect(() => {
+    // 1. Tentar do useAuth
+    if (authUser) {
+      setUser(authUser)
+      return
+    }
+    
+    // 2. Tentar do localStorage (fallback)
+    try {
+      const storedUser = localStorage.getItem('user') || localStorage.getItem('currentUser')
+      if (storedUser) {
+        const parsed = JSON.parse(storedUser)
+        console.log("[aprovacoes] user obtido do localStorage:", parsed)
+        setUser(parsed)
+        return
+      }
+    } catch (e) {
+      console.warn("[aprovacoes] erro ao ler localStorage", e)
+    }
+    
+    // 3. Tentar do sessionStorage
+    try {
+      const sessionUser = sessionStorage.getItem('user')
+      if (sessionUser) {
+        const parsed = JSON.parse(sessionUser)
+        console.log("[aprovacoes] user obtido do sessionStorage:", parsed)
+        setUser(parsed)
+        return
+      }
+    } catch (e) {
+      console.warn("[aprovacoes] erro ao ler sessionStorage", e)
+    }
+  }, [authUser])
+  
+  // Obter userId de diferentes formatos possíveis
+  const userId = user?.id || user?.sub || user?.userId || user?.email || null
+  
+  console.log("[aprovacoes] auth state:", { 
+    userId, 
+    authLoading, 
+    isAuthenticated,
+    hasAuthUser: !!authUser,
+    hasUser: !!user,
+    userKeys: user ? Object.keys(user) : [],
+  })
+  
+  const [orders, setOrders] = useState<Order[]>([])
+  const [loading, setLoading] = useState(false)
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [isApproveDialogOpen, setIsApproveDialogOpen] = useState(false)
   const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
   const [approvalNotes, setApprovalNotes] = useState("")
   const [rejectionReason, setRejectionReason] = useState("")
+  const [processing, setProcessing] = useState(false)
 
   // Filtros
   const [searchTerm, setSearchTerm] = useState("")
+
+  // Carregar invoices pendentes de aprovação
+  useEffect(() => {
+    // Só tenta carregar se auth terminou de carregar
+    if (authLoading) {
+      console.log("[aprovacoes] aguardando autenticação...")
+      return
+    }
+    
+    if (!userId) {
+      console.warn("[aprovacoes] userId não disponível, user:", user)
+      setLoading(false)
+      setOrders([])
+      return
+    }
+    
+    console.log("[aprovacoes] user detectado, carregando invoices para userId:", userId)
+    loadPendingInvoices()
+  }, [userId, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function loadPendingInvoices() {
+    const currentUserId = user?.id || user?.sub || user?.userId || user?.email
+    
+    if (!currentUserId) {
+      console.warn("[aprovacoes] userId não disponível em loadPendingInvoices, user:", user)
+      setLoading(false)
+      return
+    }
+    
+    setLoading(true)
+    
+    // Timeout de segurança
+    const timeoutId = setTimeout(() => {
+      console.warn("[aprovacoes] timeout ao carregar invoices")
+      setLoading(false)
+      setOrders([]) // Mostrar lista vazia em vez de infinito
+      toast({
+        title: "Tempo esgotado",
+        description: "A requisição demorou muito. Clique em 'Atualizar' para tentar novamente.",
+        variant: "destructive",
+      })
+    }, 10000) // 10 segundos
+    
+    try {
+      console.log("[aprovacoes] carregando invoices pendentes para userId:", currentUserId)
+      
+      // Buscar todas as invoices
+      const allInvoices = await invoiceModel.list(0, 100)
+      
+      clearTimeout(timeoutId) // Limpar timeout se sucesso
+      
+      console.log("[aprovacoes] total de invoices retornadas", allInvoices?.length ?? 0)
+      
+      if (!Array.isArray(allInvoices)) {
+        console.warn("[aprovacoes] invoices não é array", allInvoices)
+        setOrders([])
+        setLoading(false)
+        return
+      }
+      
+      // Filtrar apenas as que estão pendentes e o user atual é o aprovador
+      const pendingForUser = allInvoices.filter((inv) => {
+        const isPending = inv.status === "em_aberto"
+        const isApprover = inv.approverIds?.includes(String(currentUserId))
+        console.log("[aprovacoes] invoice", inv.id, {isPending, isApprover, approverIds: inv.approverIds, status: inv.status})
+        return isPending && isApprover
+      })
+      
+      console.log("[aprovacoes] encontradas", pendingForUser.length, "invoices pendentes")
+      
+      // Mapear para o formato Order
+      const mappedOrders: Order[] = pendingForUser.map((inv) => {
+        const createdDate = inv.date ? new Date(inv.date) : new Date()
+        const daysWaiting = Math.floor((Date.now() - createdDate.getTime()) / (1000 * 60 * 60 * 24))
+        
+        return {
+          id: String(inv.id),
+          orderNumber: inv.code ?? `INV-${inv.id}`,
+          customer: inv.customer ?? "Cliente não informado",
+          date: inv.date ?? new Date().toISOString(),
+          totalValue: inv.total ?? 0,
+          status: inv.status as OrderStatus,
+          seller: inv.seller ?? "Vendedor não informado",
+          products: inv.items.map((item) => ({
+            id: String(item.id),
+            name: item.description ?? "Produto",
+            quantity: item.quantity,
+            price: item.unitPrice,
+            subtotal: item.total,
+          })),
+          history: inv.history.map((h) => ({
+            id: String(h.id),
+            action: h.action ?? "",
+            user: h.user ?? "",
+            date: h.date ?? "",
+            description: h.description ?? "",
+          })),
+          notes: inv.notes,
+          daysWaiting,
+        }
+      })
+      
+      setOrders(mappedOrders)
+      console.log("[aprovacoes] mapeadas", mappedOrders.length, "ordens")
+    } catch (error: any) {
+      console.error("[aprovacoes] ERRO DETALHADO ao carregar invoices", {
+        error,
+        message: error?.message,
+        response: error?.response,
+        status: error?.response?.status,
+      })
+      clearTimeout(timeoutId)
+      setOrders([]) // Limpar em caso de erro
+      toast({
+        title: "Erro ao carregar aprovações",
+        description: error?.message ?? "Não foi possível carregar as aprovações pendentes. Verifique o console para mais detalhes.",
+        variant: "destructive",
+      })
+    } finally {
+      clearTimeout(timeoutId)
+      setLoading(false)
+    }
+  }
 
   const filteredOrders = orders.filter((order) => {
     const matchesSearch =
@@ -146,61 +326,82 @@ export default function AprovacoesPage() {
     setIsRejectDialogOpen(true)
   }
 
-  const handleApproveOrder = () => {
-    if (selectedOrder) {
-      setOrders(
-        orders.map((order) =>
-          order.id === selectedOrder.id
-            ? {
-                ...order,
-                status: "aprovada" as OrderStatus,
-                history: [
-                  ...order.history,
-                  {
-                    id: String(order.history.length + 1),
-                    action: "Aprovada",
-                    user: "Gerente",
-                    date: new Date().toLocaleString(),
-                    description: approvalNotes || "Ordem aprovada",
-                  },
-                ],
-              }
-            : order,
-        ),
-      )
+  const handleApproveOrder = async () => {
+    const currentUserId = user?.id || user?.sub || user?.userId || user?.email
+    if (!selectedOrder || !currentUserId) return
+    
+    setProcessing(true)
+    try {
+      console.log("[aprovacoes] aprovando invoice", selectedOrder.id)
+      
+      // Aprovar via model
+      await invoiceModel.approve(selectedOrder.id, String(currentUserId))
+      
+      toast({
+        title: "Ordem aprovada",
+        description: `Ordem ${selectedOrder.orderNumber} foi aprovada com sucesso`,
+      })
+      
+      // Recarregar lista
+      await loadPendingInvoices()
+      
       setIsApproveDialogOpen(false)
       setIsDetailOpen(false)
       setApprovalNotes("")
       setSelectedOrder(null)
+    } catch (error) {
+      console.error("[aprovacoes] erro ao aprovar", error)
+      toast({
+        title: "Erro ao aprovar",
+        description: "Não foi possível aprovar a ordem",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessing(false)
     }
   }
 
-  const handleRejectOrder = () => {
-    if (selectedOrder && rejectionReason) {
-      setOrders(
-        orders.map((order) =>
-          order.id === selectedOrder.id
-            ? {
-                ...order,
-                status: "rejeitada" as OrderStatus,
-                history: [
-                  ...order.history,
-                  {
-                    id: String(order.history.length + 1),
-                    action: "Rejeitada",
-                    user: "Gerente",
-                    date: new Date().toLocaleString(),
-                    description: `Ordem rejeitada: ${rejectionReason}`,
-                  },
-                ],
-              }
-            : order,
-        ),
-      )
+  const handleRejectOrder = async () => {
+    if (!selectedOrder || !rejectionReason) {
+      toast({
+        title: "Motivo obrigatório",
+        description: "Informe o motivo da rejeição",
+        variant: "destructive",
+      })
+      return
+    }
+    
+    setProcessing(true)
+    try {
+      console.log("[aprovacoes] rejeitando invoice", selectedOrder.id)
+      
+      // Atualizar status para cancelada/rejeitada
+      await invoiceModel.update(selectedOrder.id, {
+        status: "cancelada",
+        notes: `${selectedOrder.notes ?? ""}\n\nREJEITADA: ${rejectionReason}`.trim(),
+      })
+      
+      toast({
+        title: "Ordem rejeitada",
+        description: `Ordem ${selectedOrder.orderNumber} foi rejeitada`,
+      })
+      
+      // Recarregar lista
+      await loadPendingInvoices()
+      
       setIsRejectDialogOpen(false)
       setIsDetailOpen(false)
       setRejectionReason("")
       setSelectedOrder(null)
+    } catch (error) {
+      console.error("[aprovacoes] erro ao rejeitar", error)
+      toast({
+        title: "Erro ao rejeitar",
+        description: "Não foi possível rejeitar a ordem",
+        variant: "destructive",
+      })
+    } finally {
+      setProcessing(false)
     }
   }
 
@@ -209,12 +410,35 @@ export default function AprovacoesPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Aprovação de Ordens</h1>
-          <p className="text-muted-foreground">Aprove ou rejeite ordens de venda pendentes</p>
+          <p className="text-muted-foreground">
+            {authLoading 
+              ? "Verificando autenticação..." 
+              : loading 
+              ? "Carregando..." 
+              : userId
+              ? `${pendingCount} ${pendingCount === 1 ? "ordem pendente" : "ordens pendentes"} de aprovação`
+              : "Faça login para visualizar as aprovações pendentes"
+            }
+          </p>
         </div>
+        <Button onClick={loadPendingInvoices} disabled={loading || authLoading || !userId} variant="outline">
+          {loading ? "Carregando..." : "Atualizar"}
+        </Button>
       </div>
 
+      {!authLoading && !loading && !userId && (
+        <Alert>
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>Autenticação necessária</AlertTitle>
+          <AlertDescription>
+            Você precisa estar logado como gerente ou administrador para visualizar e aprovar ordens de venda.
+            Por favor, faça login no sistema.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Alertas */}
-      {urgentCount > 0 && (
+      {!loading && urgentCount > 0 && (
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>Atenção!</AlertTitle>
@@ -289,58 +513,64 @@ export default function AprovacoesPage() {
           <CardDescription>Revise e aprove ou rejeite as ordens de venda</CardDescription>
         </CardHeader>
         <CardContent className="p-0">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Nº da Ordem</TableHead>
-                <TableHead>Cliente</TableHead>
-                <TableHead>Vendedor</TableHead>
-                <TableHead>Data</TableHead>
-                <TableHead>Dias Aguardando</TableHead>
-                <TableHead>Valor Total</TableHead>
-                <TableHead className="text-right">Ações</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {filteredOrders.length === 0 ? (
+          {loading ? (
+            <div className="flex items-center justify-center py-8">
+              <p className="text-muted-foreground">Carregando aprovações pendentes...</p>
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
-                    Nenhuma ordem pendente de aprovação
-                  </TableCell>
+                  <TableHead>Nº da Ordem</TableHead>
+                  <TableHead>Cliente</TableHead>
+                  <TableHead>Vendedor</TableHead>
+                  <TableHead>Data</TableHead>
+                  <TableHead>Dias Aguardando</TableHead>
+                  <TableHead>Valor Total</TableHead>
+                  <TableHead className="text-right">Ações</TableHead>
                 </TableRow>
-              ) : (
-                filteredOrders.map((order) => (
-                  <TableRow key={order.id} className={order.daysWaiting >= 3 ? "bg-destructive/5" : ""}>
-                    <TableCell className="font-medium">{order.orderNumber}</TableCell>
-                    <TableCell>{order.customer}</TableCell>
-                    <TableCell>{order.seller}</TableCell>
-                    <TableCell>{new Date(order.date).toLocaleDateString("pt-BR")}</TableCell>
-                    <TableCell>
-                      <Badge variant={order.daysWaiting >= 3 ? "destructive" : "secondary"}>
-                        {order.daysWaiting} {order.daysWaiting === 1 ? "dia" : "dias"}
-                      </Badge>
+              </TableHeader>
+              <TableBody>
+                {filteredOrders.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
+                      {searchTerm ? "Nenhuma ordem encontrada com os critérios de busca" : "Nenhuma ordem pendente de aprovação"}
                     </TableCell>
-                    <TableCell className="font-medium">
-                      {new Intl.NumberFormat("pt-BR", {
-                        style: "currency",
-                        currency: "BRL",
-                      }).format(order.totalValue)}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end gap-2">
-                        <Button variant="ghost" size="icon" onClick={() => handleViewOrder(order)} title="Visualizar">
-                          <Eye className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="default"
-                          size="sm"
-                          onClick={() => handleApproveClick(order)}
-                          className="bg-green-600 hover:bg-green-700"
+                  </TableRow>
+                ) : (
+                  filteredOrders.map((order) => (
+                    <TableRow key={order.id} className={order.daysWaiting >= 3 ? "bg-destructive/5" : ""}>
+                      <TableCell className="font-medium">{order.orderNumber}</TableCell>
+                      <TableCell>{order.customer}</TableCell>
+                      <TableCell>{order.seller}</TableCell>
+                      <TableCell>{new Date(order.date).toLocaleDateString("pt-BR")}</TableCell>
+                      <TableCell>
+                        <Badge variant={order.daysWaiting >= 3 ? "destructive" : "secondary"}>
+                          {order.daysWaiting} {order.daysWaiting === 1 ? "dia" : "dias"}
+                        </Badge>
+                      </TableCell>
+                      <TableCell className="font-medium">
+                        {new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(order.totalValue)}
+                      </TableCell>
+                      <TableCell className="text-right">
+                        <div className="flex justify-end gap-2">
+                          <Button variant="ghost" size="icon" onClick={() => handleViewOrder(order)} title="Visualizar">
+                            <Eye className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="default"
+                            size="sm"
+                            onClick={() => handleApproveClick(order)}
+                            disabled={processing}
+                            className="bg-green-600 hover:bg-green-700"
                         >
                           <CheckCircle className="mr-1 h-4 w-4" />
                           Aprovar
                         </Button>
-                        <Button variant="destructive" size="sm" onClick={() => handleRejectClick(order)}>
+                        <Button variant="destructive" size="sm" onClick={() => handleRejectClick(order)} disabled={processing}>
                           <XCircle className="mr-1 h-4 w-4" />
                           Rejeitar
                         </Button>
@@ -351,6 +581,7 @@ export default function AprovacoesPage() {
               )}
             </TableBody>
           </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -483,11 +714,17 @@ export default function AprovacoesPage() {
                   <Button
                     className="flex-1 bg-green-600 hover:bg-green-700"
                     onClick={() => handleApproveClick(selectedOrder)}
+                    disabled={processing}
                   >
                     <CheckCircle className="mr-2 h-4 w-4" />
                     Aprovar Ordem
                   </Button>
-                  <Button variant="destructive" className="flex-1" onClick={() => handleRejectClick(selectedOrder)}>
+                  <Button 
+                    variant="destructive" 
+                    className="flex-1" 
+                    onClick={() => handleRejectClick(selectedOrder)}
+                    disabled={processing}
+                  >
                     <XCircle className="mr-2 h-4 w-4" />
                     Rejeitar Ordem
                   </Button>
@@ -521,12 +758,16 @@ export default function AprovacoesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsApproveDialogOpen(false)} disabled={processing}>
               Cancelar
             </Button>
-            <Button className="bg-green-600 hover:bg-green-700" onClick={handleApproveOrder}>
+            <Button 
+              className="bg-green-600 hover:bg-green-700" 
+              onClick={handleApproveOrder}
+              disabled={processing}
+            >
               <CheckCircle className="mr-2 h-4 w-4" />
-              Confirmar Aprovação
+              {processing ? "Aprovando..." : "Confirmar Aprovação"}
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -556,12 +797,16 @@ export default function AprovacoesPage() {
           </div>
 
           <DialogFooter>
-            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>
+            <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)} disabled={processing}>
               Cancelar
             </Button>
-            <Button variant="destructive" onClick={handleRejectOrder} disabled={!rejectionReason}>
+            <Button 
+              variant="destructive" 
+              onClick={handleRejectOrder} 
+              disabled={!rejectionReason || processing}
+            >
               <XCircle className="mr-2 h-4 w-4" />
-              Confirmar Rejeição
+              {processing ? "Rejeitando..." : "Confirmar Rejeição"}
             </Button>
           </DialogFooter>
         </DialogContent>

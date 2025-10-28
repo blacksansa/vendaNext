@@ -44,7 +44,7 @@ export interface InvoiceUI {
   items: InvoiceItemUI[]
   notes?: string
   history: InvoiceHistoryUI[]
-  approverIds?: number[] | null
+  approverIds?: string[] | null // manager IDs (strings)
   raw?: InvoiceDTO
 }
 
@@ -91,7 +91,7 @@ export class InvoiceModel {
       items,
       notes: inv.notes ?? undefined,
       history,
-      approverIds: Array.isArray(inv.approverIds) ? inv.approverIds : inv.approverId ? [Number(inv.approverId)] : undefined,
+      approverIds: Array.isArray(inv.approverIds) ? inv.approverIds : inv.approverId ? [String(inv.approverId)] : undefined,
       raw: inv,
     }
   }
@@ -172,7 +172,7 @@ export class InvoiceModel {
     return updateInvoice(Number(id), payload)
   }
 
-  async approve(id: string | number, approverId?: number) {
+  async approve(id: string | number, approverId?: string) {
     // try dedicated approve endpoint first
     try {
       return await approveInvoice(Number(id), approverId)

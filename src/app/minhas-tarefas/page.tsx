@@ -18,119 +18,164 @@ import {
   PlayCircle,
   CheckCircle2,
 } from "lucide-react"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useAuth } from "@/hooks/use-auth"
+import { getTasks } from "@/services/task-order-approval-invoice.service"
+import { getTeams } from "@/services/team.service"
+import { getSellers } from "@/services/seller.service"
+import { useToast } from "@/hooks/use-toast"
 
 export default function MinhasTarefas() {
+  const { user: authUser, loading: authLoading } = useAuth()
+  const { toast } = useToast()
+  
   const [filtroStatus, setFiltroStatus] = useState("todas")
   const [filtroPrioridade, setFiltroPrioridade] = useState("todas")
+  const [loading, setLoading] = useState(true)
+  const [tarefas, setTarefas] = useState<any[]>([])
+  
+  // Obter user de várias fontes
+  const [user, setUser] = useState<any>(null)
+  
+  useEffect(() => {
+    if (authUser) {
+      setUser(authUser)
+      return
+    }
+    
+    try {
+      const storedUser = localStorage.getItem('user') || localStorage.getItem('currentUser')
+      if (storedUser) {
+        setUser(JSON.parse(storedUser))
+      }
+    } catch (e) {
+      console.warn("[minhas-tarefas] erro ao ler user", e)
+    }
+  }, [authUser])
+  
+  const userId = user?.id || user?.sub || user?.userId || user?.email || null
+  
+  // Carregar tarefas do backend
+  useEffect(() => {
+    if (authLoading) return
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+    
+    loadTasks()
+  }, [userId, authLoading]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Simulando usuário logado
+  async function loadTasks() {
+    if (!userId) {
+      setLoading(false)
+      return
+    }
+    
+    setLoading(true)
+    try {
+      console.log("[minhas-tarefas] carregando tarefas para userId:", userId)
+      
+      // Buscar todas as tarefas
+      const allTasks = await getTasks("", 0, 100)
+      
+      // Buscar seller do usuário
+      const sellers = await getSellers("", 0, 100)
+      const mySeller = sellers.find((s: any) => String(s.user?.id ?? s.userId) === String(userId))
+      
+      // Buscar teams do seller
+      let myTeamIds: string[] = []
+      if (mySeller?.id) {
+        const teams = await getTeams("", 0, 100)
+        myTeamIds = teams
+          .filter((team) => {
+            const sellerIds = Array.isArray(team.sellers)
+              ? team.sellers.map((s: any) => String(s?.id ?? s))
+              : Array.isArray(team.sellerIds)
+              ? team.sellerIds.map((id) => String(id))
+              : []
+            return sellerIds.includes(String(mySeller.id))
+          })
+          .map((team) => String(team.id))
+      }
+      
+      console.log("[minhas-tarefas] mySeller:", mySeller?.id, "myTeamIds:", myTeamIds)
+      
+      // Filtrar tarefas atribuídas ao usuário ou ao grupo
+      const minhasTarefas = allTasks.filter((task: any) => {
+        // Tarefa atribuída diretamente ao usuário
+        const assignedToUserId = task.assignedTo?.id || task.assignedToId || task.userId
+        if (assignedToUserId && String(assignedToUserId) === String(userId)) {
+          return true
+        }
+        
+        // Tarefa atribuída ao seller
+        if (mySeller?.id && assignedToUserId && String(assignedToUserId) === String(mySeller.id)) {
+          return true
+        }
+        
+        // Tarefa atribuída ao grupo/team
+        const taskTeamId = task.teamId || task.groupId || (task.relatedEntity?.type === 'team' ? task.relatedEntity.id : null)
+        if (taskTeamId && myTeamIds.includes(String(taskTeamId))) {
+          return true
+        }
+        
+        return false
+      })
+      
+      console.log("[minhas-tarefas] total de tarefas:", allTasks.length, "minhas tarefas:", minhasTarefas.length)
+      
+      setTarefas(minhasTarefas)
+    } catch (error: any) {
+      console.error("[minhas-tarefas] erro ao carregar", error)
+      toast({
+        title: "Erro ao carregar tarefas",
+        description: error?.message ?? "Não foi possível carregar as tarefas",
+        variant: "destructive",
+      })
+      setTarefas([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Simulando usuário logado (fallback para UI)
   const usuarioAtual = {
-    nome: "João Silva",
-    avatar: "JS",
+    nome: user?.name || user?.firstName || "Usuário",
+    avatar: user?.name?.substring(0, 2).toUpperCase() || "U",
   }
-
+  
+  // Calcular métricas das tarefas reais
+  const tarefasPendentes = tarefas.filter((t) => !t.done && (!t.status || t.status === 'PENDING' || t.status === 'TODO'))
+  const tarefasEmAndamento = tarefas.filter((t) => !t.done && (t.status === 'IN_PROGRESS' || t.status === 'DOING'))
+  const tarefasConcluidas = tarefas.filter((t) => t.done || t.status === 'DONE' || t.status === 'COMPLETED')
+  
   const metricas = {
-    totalTarefas: 8,
-    pendentes: 3,
-    emAndamento: 2,
-    concluidas: 3,
-    produtividade: 75,
+    totalTarefas: tarefas.length,
+    pendentes: tarefasPendentes.length,
+    emAndamento: tarefasEmAndamento.length,
+    concluidas: tarefasConcluidas.length,
+    produtividade: tarefas.length > 0 ? Math.round((tarefasConcluidas.length / tarefas.length) * 100) : 0,
   }
+  
+  // Mapear tarefas para formato da UI
+  const mapTaskToUI = (task: any) => ({
+    id: task.id,
+    titulo: task.title || task.name || "Sem título",
+    descricao: task.description || "",
+    prioridade: task.priority === 'HIGH' ? 'Alta' : task.priority === 'MEDIUM' ? 'Média' : 'Baixa',
+    prazo: task.dueDate ? new Date(task.dueDate).toISOString().split('T')[0] : null,
+    criadoEm: task.createdAt ? new Date(task.createdAt).toISOString().split('T')[0] : null,
+    estimativa: task.estimatedTime || task.estimate || "N/A",
+    tags: task.tags || [],
+    progresso: task.progress || 0,
+  })
 
   const minhasTarefas = {
-    pendentes: [
-      {
-        id: 1,
-        titulo: "Apresentação para cliente ABC Corp",
-        descricao: "Preparar proposta comercial completa com análise de ROI",
-        prioridade: "Alta",
-        prazo: "2024-01-18",
-        criadoEm: "2024-01-12",
-        estimativa: "6h",
-        tags: ["proposta", "cliente"],
-      },
-      {
-        id: 2,
-        titulo: "Follow-up com leads da semana",
-        descricao: "Entrar em contato com 10 leads que demonstraram interesse",
-        prioridade: "Média",
-        prazo: "2024-01-20",
-        criadoEm: "2024-01-14",
-        estimativa: "3h",
-        tags: ["leads", "follow-up"],
-      },
-      {
-        id: 3,
-        titulo: "Atualizar pipeline de vendas",
-        descricao: "Revisar e atualizar status de todas as oportunidades em aberto",
-        prioridade: "Baixa",
-        prazo: "2024-01-22",
-        criadoEm: "2024-01-13",
-        estimativa: "2h",
-        tags: ["pipeline", "atualização"],
-      },
-    ],
-    emAndamento: [
-      {
-        id: 4,
-        titulo: "Negociação contrato XYZ Ltda",
-        descricao: "Revisar termos e condições do contrato de prestação de serviços",
-        prioridade: "Alta",
-        prazo: "2024-01-16",
-        criadoEm: "2024-01-10",
-        estimativa: "4h",
-        progresso: 65,
-        tags: ["contrato", "negociação"],
-      },
-      {
-        id: 5,
-        titulo: "Preparar relatório mensal",
-        descricao: "Compilar dados de vendas e performance do mês",
-        prioridade: "Média",
-        prazo: "2024-01-19",
-        criadoEm: "2024-01-11",
-        estimativa: "5h",
-        progresso: 40,
-        tags: ["relatório", "vendas"],
-      },
-    ],
-    concluidas: [
-      {
-        id: 6,
-        titulo: "Reunião com equipe de marketing",
-        descricao: "Alinhar estratégias de captação de leads para Q1",
-        prioridade: "Alta",
-        prazo: "2024-01-12",
-        criadoEm: "2024-01-08",
-        concluidoEm: "2024-01-12",
-        tempoGasto: "2h",
-        tags: ["reunião", "marketing"],
-      },
-      {
-        id: 7,
-        titulo: "Cadastrar novos clientes no sistema",
-        descricao: "Inserir dados de 5 novos clientes fechados na semana",
-        prioridade: "Média",
-        prazo: "2024-01-13",
-        criadoEm: "2024-01-09",
-        concluidoEm: "2024-01-13",
-        tempoGasto: "1h",
-        tags: ["cadastro", "clientes"],
-      },
-      {
-        id: 8,
-        titulo: "Treinamento sobre novo produto",
-        descricao: "Participar do treinamento sobre lançamento de produto",
-        prioridade: "Alta",
-        prazo: "2024-01-11",
-        criadoEm: "2024-01-07",
-        concluidoEm: "2024-01-11",
-        tempoGasto: "3h",
-        tags: ["treinamento", "produto"],
-      },
-    ],
+    pendentes: tarefasPendentes.map(mapTaskToUI),
+    emAndamento: tarefasEmAndamento.map(mapTaskToUI),
+    concluidas: tarefasConcluidas.map(mapTaskToUI),
   }
 
   const tarefasFiltradas = {
@@ -176,11 +221,39 @@ export default function MinhasTarefas() {
               </Avatar>
               <div className="flex-1">
                 <h2 className="text-2xl font-bold">{usuarioAtual.nome}</h2>
-                <p className="text-muted-foreground">Suas tarefas e compromissos</p>
+                <p className="text-muted-foreground">
+                  {loading ? "Carregando suas tarefas..." : "Suas tarefas e compromissos"}
+                </p>
               </div>
+              {!loading && !authLoading && (
+                <Button onClick={loadTasks} variant="outline" disabled={!userId}>
+                  Atualizar
+                </Button>
+              )}
             </div>
           </CardContent>
         </Card>
+        
+        {authLoading || loading ? (
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              Carregando tarefas...
+            </CardContent>
+          </Card>
+        ) : !userId ? (
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              Faça login para visualizar suas tarefas
+            </CardContent>
+          </Card>
+        ) : tarefas.length === 0 ? (
+          <Card>
+            <CardContent className="p-6 text-center text-muted-foreground">
+              Você não tem tarefas atribuídas no momento
+            </CardContent>
+          </Card>
+        ) : (
+          <>
 
         {/* Métricas Pessoais */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
@@ -453,6 +526,8 @@ export default function MinhasTarefas() {
             </CardContent>
           </Card>
         </div>
+        </>
+        )}
       </div>
     </SidebarInset>
   )

@@ -21,6 +21,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Eye, Edit, Copy, X, Plus, Search, Filter, ShoppingCart, Trash2 } from "lucide-react"
 import invoiceModel, { type InvoiceUI } from "@/models/invoice.model"
 import { listCustomers, type CustomerDTO } from "@/services/customer.service"
+import { getApproverForSeller, getSellerIdFromUserId } from "@/lib/approval-helper"
+import { useAuth } from "@/hooks/use-auth"
 
 // Perfil atual (troque por seu hook de auth e groups quando disponível)
 type UserRole = "admin" | "manager" | "seller"
@@ -192,6 +194,15 @@ export default function OrdensPage() {
   async function createOrderBackendFromOrder(order: Order) {
     try {
       console.debug("[OrdensPage] creating invoice via invoiceModel")
+      
+      // Buscar sellerId a partir do currentUser
+      const sellerId = await getSellerIdFromUserId(currentUser.id)
+      
+      // Buscar aprovador (manager do grupo ou admin)
+      const approverId = sellerId ? await getApproverForSeller(sellerId) : null
+      
+      console.log("[OrdensPage] aprovador calculado", { sellerId, approverId })
+      
       const uiPartial: Partial<InvoiceUI> = {
         code: order.orderNumber,
         customer: order.customer,
@@ -199,6 +210,7 @@ export default function OrdensPage() {
         total: order.totalValue,
         status: order.status as any, // model converte para enum do backend
         notes: order.notes,
+        approverIds: approverId ? [approverId] : undefined, // envia aprovador
         items: order.products.map((p) => ({
           productId: p.id,
           description: p.name,
