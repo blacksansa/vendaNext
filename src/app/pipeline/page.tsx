@@ -49,8 +49,8 @@ import { getTeams } from "@/services/team.service"
 import { getSellers } from "@/services/seller.service"
 import { listCustomers, createCustomer } from "@/services/customer.service"
 import { useToast } from "@/hooks/use-toast"
-import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCorners, PointerSensor, useSensor, useSensors, DragOverlay } from "@dnd-kit/core"
-import { useSortable } from "@dnd-kit/sortable"
+import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCorners, PointerSensor, useSensor, useSensors, DragOverlay, useDroppable } from "@dnd-kit/core"
+import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
 const pipelineStages = [
@@ -87,6 +87,19 @@ const pipelineStages = [
     description: "Clientes que já compraram",
   },
 ]
+
+// Componente de Coluna Droppable
+function DroppableColumn({ stage, children }: any) {
+  const { setNodeRef } = useDroppable({
+    id: stage.id.toString(),
+  })
+
+  return (
+    <div ref={setNodeRef} className="space-y-2">
+      {children}
+    </div>
+  )
+}
 
 // Componente de Card arrastável
 function DraggableCard({ deal, stage, children, onClick }: any) {
@@ -565,24 +578,29 @@ export default function PipelinePage() {
             onDragEnd={handleDragEnd}
           >
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {pipelineStages.map((stage) => (
-              <div key={stage.id} id={stage.id.toString()} className="space-y-2">
-              <Card className="min-h-[600px]">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium flex items-center gap-2">
-                      <div className={`w-3 h-3 rounded-full ${stage.color}`} />
-                      {stage.name}
-                    </CardTitle>
-                    <Badge variant="secondary">{getDealsByStage(stage.id).length}</Badge>
-                  </div>
-                  <CardDescription className="text-xs">{stage.description}</CardDescription>
-                  {stage.value > 0 && (
-                    <p className="text-sm font-semibold text-green-600">R$ {stage.value.toLocaleString()}</p>
-                  )}
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {getDealsByStage(stage.id).map((deal) => (
+            {pipelineStages.map((stage) => {
+              const stageDeals = getDealsByStage(stage.id)
+              const dealIds = stageDeals.map(d => d.id.toString())
+              
+              return (
+                <DroppableColumn key={stage.id} stage={stage}>
+                  <Card className="min-h-[600px]">
+                    <CardHeader className="pb-3">
+                      <div className="flex items-center justify-between">
+                        <CardTitle className="text-sm font-medium flex items-center gap-2">
+                          <div className={`w-3 h-3 rounded-full ${stage.color}`} />
+                          {stage.name}
+                        </CardTitle>
+                        <Badge variant="secondary">{stageDeals.length}</Badge>
+                      </div>
+                      <CardDescription className="text-xs">{stage.description}</CardDescription>
+                      {stage.value > 0 && (
+                        <p className="text-sm font-semibold text-green-600">R$ {stage.value.toLocaleString()}</p>
+                      )}
+                    </CardHeader>
+                    <CardContent className="space-y-3">
+                      <SortableContext items={dealIds} strategy={verticalListSortingStrategy}>
+                        {stageDeals.map((deal) => (
                     <DraggableCard
                       key={deal.id}
                       deal={deal}
@@ -822,10 +840,12 @@ export default function PipelinePage() {
                       </CardContent>
                     </DraggableCard>
                   ))}
+                  </SortableContext>
                 </CardContent>
               </Card>
-              </div>
-            ))}
+              </DroppableColumn>
+            )
+            })}
           </div>
           <DragOverlay>
             {activeId ? (
