@@ -33,6 +33,7 @@ export default function GruposPage() {
   const [dialogoGerenciarAberto, setDialogoGerenciarAberto] = useState(false)
   const [dialogoAdicionarMembroAberto, setDialogoAdicionarMembroAberto] = useState(false)
   const [dialogoEditarMembroAberto, setDialogoEditarMembroAberto] = useState(false)
+  const [salvandoGrupo, setSalvandoGrupo] = useState(false)
 
   const [novoGrupo, setNovoGrupo] = useState({
     nome: "",
@@ -51,6 +52,7 @@ export default function GruposPage() {
     selecionado,
     editando,
     setEditando,
+    updateEditando,
     setSelecionado,
     criarGrupo,
     atualizarGrupo,
@@ -83,15 +85,30 @@ export default function GruposPage() {
 
   const handleSalvarEdicaoGrupo = async () => {
     if (!editando) return
-    await atualizarGrupo(editando.id, {
-      nome: editando.nome,
-      descricao: editando.descricao,
-      metaMensal: Number(editando.metaMensal ?? editando.metaMensal),
-      liderUserId: editando.liderUserId ?? editando.lider ?? null,
-      status: editando.status,
-    } as any)
-    setEditando(null)
-    setDialogoEditarAberto(false)
+    setSalvandoGrupo(true)
+    try {
+      console.log("[grupos page] salvando edição", {
+        id: editando.id,
+        nome: editando.nome,
+        metaMensal: editando.metaMensal,
+        liderUserId: editando.liderUserId,
+      })
+      const resultado = await atualizarGrupo(editando.id, {
+        nome: editando.nome,
+        descricao: editando.descricao,
+        metaMensal: Number(editando.metaMensal ?? 0),
+        liderUserId: editando.liderUserId ?? null,
+        status: editando.status,
+      })
+      console.log("[grupos page] salvamento OK", resultado)
+      setEditando(null)
+      setDialogoEditarAberto(false)
+    } catch (error: any) {
+      console.error("[grupos page] erro ao salvar", error)
+      alert(`Erro ao salvar grupo: ${error?.message ?? 'Erro desconhecido'}`)
+    } finally {
+      setSalvandoGrupo(false)
+    }
   }
 
   const handleGerenciarGrupo = (grupo: any) => {
@@ -494,8 +511,8 @@ export default function GruposPage() {
                   <Label htmlFor="edit-nome">Nome do Grupo</Label>
                   <Input
                     id="edit-nome"
-                    value={editando.nome}
-                    onChange={(e) => setEditando({ ...editando, nome: e.target.value })}
+                    value={editando.nome ?? ""}
+                    onChange={(e) => updateEditando({ nome: e.target.value })}
                   />
                 </div>
                 <div className="grid gap-2">
@@ -505,9 +522,8 @@ export default function GruposPage() {
                       value={editando.liderUserId ? String(editando.liderUserId) : ""}
                       onValueChange={(value) => {
                         const selected = gerentes.find((g) => String(g.id) === value)
-                        setEditando({
-                          ...editando,
-                          liderUserId: value, // Keep as string
+                        updateEditando({
+                          liderUserId: value,
                           lider: selected?.nome ?? "",
                         })
                       }}
@@ -533,15 +549,15 @@ export default function GruposPage() {
                     id="edit-meta"
                     type="number"
                     value={String(editando.metaMensal ?? "")}
-                    onChange={(e) => setEditando({ ...editando, metaMensal: Number(e.target.value) })}
+                    onChange={(e) => updateEditando({ metaMensal: Number(e.target.value) })}
                   />
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="edit-descricao">Descrição</Label>
                   <Textarea
                     id="edit-descricao"
-                    value={editando.descricao}
-                    onChange={(e) => setEditando({ ...editando, descricao: e.target.value })}
+                    value={editando.descricao ?? ""}
+                    onChange={(e) => updateEditando({ descricao: e.target.value })}
                   />
                 </div>
               </div>
@@ -550,7 +566,9 @@ export default function GruposPage() {
               <Button variant="outline" onClick={() => { setEditando(null); setDialogoEditarAberto(false) }}>
                 Cancelar
               </Button>
-              <Button onClick={handleSalvarEdicaoGrupo}>Salvar Alterações</Button>
+              <Button onClick={handleSalvarEdicaoGrupo} disabled={salvandoGrupo}>
+                {salvandoGrupo ? "Salvando..." : "Salvar Alterações"}
+              </Button>
             </DialogFooter>
           </DialogContent>
         </Dialog>

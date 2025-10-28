@@ -87,18 +87,7 @@ function buildTeamPayload(data: Partial<TeamDTO>, existing?: Partial<TeamDTO>) {
         ? (data as any)?.active
         : (existing as any)?.active,
     sellers: sellersPayload, // sempre [{ id }]
-
-    // preferido
-    managerId: mId,
-
-    // aliases (caso backend aceite outros campos)
-    manager: managerObj,
-    leaderUserId: mId,
-    leaderId: mId,
-    leader: managerObj,
-    liderUserId: mId,
-    liderId: mId,
-    lider: managerObj,
+    managerId: mId, // backend espera apenas managerId
   }
 
   // valida mínimos para create
@@ -133,38 +122,6 @@ export const createTeam = async (data: Partial<TeamDTO>): Promise<TeamDTO> => {
   }
 }
 
-// extrai o líder do objeto retornado pelo backend em vários formatos
-function getLeaderFromTeam(obj: any): string | number | null {
-  if (!obj) return null
-  const cand =
-    obj.managerId ??
-    obj.leaderUserId ??
-    obj.liderUserId ??
-    obj.manager?.id ??
-    obj.leader?.id ??
-    obj.lider?.id ??
-    null
-  return cand ?? null
-}
-
-// cria variantes de payload só com um formato de líder por vez
-function withLeaderVariant(base: any, mId: any, variant: "managerId" | "manager" | "leaderUserId" | "leader" | "liderUserId" | "lider") {
-  const p = { ...base }
-  delete p.managerId
-  delete p.manager
-  delete p.leaderUserId
-  delete p.leader
-  delete p.liderUserId
-  delete p.lider
-  if (variant === "managerId") p.managerId = mId
-  if (variant === "manager") p.manager = mId != null ? { id: mId } : undefined
-  if (variant === "leaderUserId") p.leaderUserId = mId
-  if (variant === "leader") p.leader = mId != null ? { id: mId } : undefined
-  if (variant === "liderUserId") p.liderUserId = mId
-  if (variant === "lider") p.lider = mId != null ? { id: mId } : undefined
-  return p
-}
-
 export const updateTeam = async (id: number, data: Partial<TeamDTO>): Promise<TeamDTO> => {
   const needsExisting =
     (data as any)?.name == null && (data as any)?.nome == null ||
@@ -186,61 +143,13 @@ export const updateTeam = async (id: number, data: Partial<TeamDTO>): Promise<Te
     sellersCount: Array.isArray(base?.sellers) ? base.sellers.length : 0,
   })
 
-  const desiredManager =
-    (data as any)?.managerId ??
-    (data as any)?.liderUserId ??
-    (data as any)?.leaderUserId ??
-    (data as any)?.lider ??
-    (data as any)?.leader ??
-    base?.managerId ??
-    null
-
-  // Se não há mudança de líder declarada, faz update direto
-  if (!desiredManager) {
-    const saved = await teamApi.saveOrUpdate(base as TeamDTO)
-    return saved
-  }
-
-  // Tenta variantes de líder até persistir
-  const variants: Array<{ key: any; name: string }> = [
-    { key: "managerId", name: "managerId" },
-    { key: "manager", name: "manager" },
-    { key: "leaderUserId", name: "leaderUserId" },
-    { key: "leader", name: "leader" },
-    { key: "liderUserId", name: "liderUserId" },
-    { key: "lider", name: "lider" },
-  ]
-
-  let lastError: any = null
-  for (let i = 0; i < variants.length; i++) {
-    const v = variants[i]
-    const payload = withLeaderVariant(base, desiredManager, v.key as any)
-    try {
-      console.log("[team] leader try", { id, variant: v.name, value: desiredManager })
-      const saved = await teamApi.saveOrUpdate(payload as TeamDTO)
-      const persisted = getLeaderFromTeam(saved)
-      console.log("[team] leader saved", { id, variant: v.name, persisted })
-      if (String(persisted ?? "") === String(desiredManager)) {
-        return saved
-      }
-      // confirmação por GET (caso o save não retorne o campo)
-      const fetched = await teamApi.getById(id)
-      const persistedGet = getLeaderFromTeam(fetched)
-      console.log("[team] leader get", { id, variant: v.name, persisted: persistedGet })
-      if (String(persistedGet ?? "") === String(desiredManager)) {
-        return fetched
-      }
-      // se não persistiu, tenta próxima variante
-    } catch (err: any) {
-      lastError = err
-      console.error("[team] leader try error", { id, variant: v.name, message: err?.message })
-      // continua tentando as próximas variantes
-    }
-  }
-
-  // Se nenhuma variante persistiu, faz update sem mudanças de líder como fallback
-  if (lastError) throw lastError
-  return await teamApi.saveOrUpdate(base as TeamDTO)
+  // Envia diretamente - backend aceita managerId
+  const saved = await teamApi.saveOrUpdate(base as TeamDTO)
+  console.log("[team] update response", {
+    id,
+    managerId: saved?.managerId ?? null,
+  })
+  return saved
 }
 
 export const deleteTeam = (id: number): Promise<void> =>

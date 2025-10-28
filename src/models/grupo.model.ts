@@ -211,6 +211,12 @@ class GrupoModel {
       const users = await getUsers("", 0, 100)
       const sellers = await getSellers("", 0, 100)
 
+      console.debug("[GrupoModel] fetchGrupos dados carregados", {
+        teams: teams?.length ?? 0,
+        users: users?.length ?? 0,
+        sellers: sellers?.length ?? 0,
+      })
+
       const grupos = this.transformTeamsToGrupos(teams, users, sellers)
 
       const gerentes = (users || [])
@@ -250,6 +256,15 @@ class GrupoModel {
   private transformTeamsToGrupos(teams: any[], users: any[], sellers: any[]): Grupo[] {
     return (teams || []).map((team: any) => {
       const gerente = users.find((u) => String(u.id) === String(team.managerId))
+      
+      console.debug("[GrupoModel] transforming team", {
+        teamId: team.id,
+        teamName: team.name,
+        managerId: team.managerId,
+        gerenteFound: gerente ? this.getUserName(gerente) : null,
+        totalUsers: users.length,
+      })
+      
       const teamSellerIds = this.getTeamSellerIds(team)
       const vendedoresGrupo: VendedorGrupo[] = (teamSellerIds || [])
         .map((sid: any) => {
@@ -264,10 +279,12 @@ class GrupoModel {
         })
         .filter(Boolean) as VendedorGrupo[]
 
+      const liderNome = gerente ? this.getUserName(gerente) : (team.managerId ? `Líder ${team.managerId.substring(0, 8)}` : "Sem líder")
+      
       return {
         id: team.id,
         nome: team.name,
-        lider: gerente ? this.getUserName(gerente) : team.managerId ?? "",
+        lider: liderNome,
         liderUserId: team.managerId ?? null,
         membros: vendedoresGrupo.length,
         metaMensal: Number(team.quota ?? 0),
@@ -282,7 +299,9 @@ class GrupoModel {
 
   // ---------- Mutations ----------
   setEditando(grupo: Grupo | null) {
-    this.setState({ editando: grupo })
+    // Cria uma CÓPIA para permitir edição sem mutar o original
+    const ref = grupo ? { ...grupo } : null
+    this.setState({ editando: ref })
   }
 
   setSelecionado(grupo: Grupo | null) {
@@ -383,24 +402,9 @@ class GrupoModel {
       const res = await updateTeam(Number(atual.id), body)
       console.debug("[GrupoModel] atualizarGrupo OK", { id, res })
 
-      const grupos = this.state.grupos.map((g) => {
-        if (String(g.id) !== String(atual.id)) return g
-        const merged = { ...g, ...updates, raw: { ...g.raw, ...body } }
-        if (typeof updates.liderUserId !== "undefined") {
-          const novoNome =
-            (this.state.gerentes || []).find((u) => String(u.id) === String(body.managerId))?.nome ?? merged.lider
-          merged.lider = novoNome
-          merged.liderUserId = body.managerId
-        }
-        if (typeof updates.nome === "undefined") merged.nome = raw.name ?? merged.nome
-        if (typeof updates.descricao === "undefined") merged.descricao = raw.description ?? merged.descricao
-        if (typeof updates.metaMensal === "undefined") merged.metaMensal = Number(raw.quota ?? merged.metaMensal)
-        if (typeof updates.status === "undefined") merged.status = raw.active === false ? "inativo" : "ativo"
-        return merged
-      })
-      this.setState({ grupos })
-
-      return grupos.find((g) => String(g.id) === String(atual.id))
+      // Refetch para garantir que os dados estão sincronizados com o backend
+      await this.fetchGrupos()
+      return this.state.grupos.find((g) => String(g.id) === String(atual.id)) ?? null
     } catch (e) {
       console.error("[GrupoModel] atualizarGrupo ERRO", e)
       this.toast?.({ title: "Erro ao atualizar grupo", variant: "destructive" })
