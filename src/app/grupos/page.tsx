@@ -75,7 +75,7 @@ export default function GruposPage() {
       nome: novoGrupo.nome,
       descricao: novoGrupo.descricao,
       metaMensal: Number(novoGrupo.metaMensal || 0),
-      liderUserId: novoGrupo.lider || null,
+      liderUserId: novoGrupo.lider || null, // Will be converted to string in model
     })
     setNovoGrupo({ nome: "", lider: "", descricao: "", metaMensal: "" })
     setDialogoEditarAberto(false)
@@ -507,7 +507,7 @@ export default function GruposPage() {
                         const selected = gerentes.find((g) => String(g.id) === value)
                         setEditando({
                           ...editando,
-                          liderUserId: isNaN(Number(value)) ? value : Number(value),
+                          liderUserId: value, // Keep as string
                           lider: selected?.nome ?? "",
                         })
                       }}

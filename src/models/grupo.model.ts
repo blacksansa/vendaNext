@@ -24,7 +24,7 @@ export interface Grupo {
   id: string | number
   nome: string
   lider: string
-  liderUserId: string | number | null
+  liderUserId: string | null
   membros: number
   metaMensal: number
   vendidoMes: number
@@ -105,8 +105,8 @@ class GrupoModel {
 
   private normalizeId<T extends string | number | null | undefined>(v: T) {
     if (v === null || typeof v === "undefined") return null
-    if (typeof v === "string" && /^\d+$/.test(v)) return Number(v)
-    return v as any
+    // Always return as string since backend expects String for managerId
+    return String(v)
   }
 
   private sanitizeSellerIds(ids: any[]): number[] {
@@ -325,7 +325,7 @@ class GrupoModel {
       name: string
       description: string
       quota: number
-      managerId: number | null
+      managerId: string | null
       active: boolean
       code: string
       sellerIds: number[]
@@ -334,6 +334,11 @@ class GrupoModel {
     const sellerIds = this.sanitizeSellerIds(
       typeof overrides?.sellerIds !== "undefined" ? overrides!.sellerIds! : this.getTeamSellerIds(raw),
     )
+    // Ensure managerId is always a string or null
+    const managerId = typeof overrides?.managerId !== "undefined"
+      ? overrides!.managerId
+      : this.normalizeId(raw?.managerId ?? grupo.liderUserId) ?? null
+    
     return {
       id: Number(grupo.id),
       name: typeof overrides?.name !== "undefined" ? overrides!.name! : (raw?.name ?? grupo.nome ?? ""),
@@ -345,10 +350,7 @@ class GrupoModel {
         typeof overrides?.quota !== "undefined"
           ? Number(overrides!.quota!)
           : Number((raw?.quota ?? grupo.metaMensal ?? 0)),
-      managerId:
-        typeof overrides?.managerId !== "undefined"
-          ? overrides!.managerId
-          : this.normalizeId(raw?.managerId ?? grupo.liderUserId) ?? null,
+      managerId,
       active:
         typeof overrides?.active !== "undefined"
           ? overrides!.active
