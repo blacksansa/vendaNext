@@ -30,20 +30,23 @@ async function resolveToken(): Promise<string | null> {
         const r = await fetch("/api/auth/session", { credentials: "include" })
         if (r.ok) {
           const json = await r.json()
-          // adapt depending on your NextAuth callbacks (check where you store token)
+          // Check multiple possible locations for the token
           const t = json?.accessToken || json?.token || json?.user?.accessToken
-          if (t) return t
+          if (t) {
+            console.log("Token found in session")
+            return t
+          } else {
+            console.warn("Session found but no accessToken:", Object.keys(json))
+          }
+        } else {
+          console.warn("Failed to fetch session:", r.status)
         }
       } catch (e) {
-        // ignore
+        console.error("Error fetching session:", e)
       }
-
-      // cookie fallback: try to read next-auth cookie (very basic)
-      const cookieMatch = document.cookie.match(/(?:^|;\s*)next-auth.session-token=([^;]+)/)
-      if (cookieMatch && cookieMatch[1]) return decodeURIComponent(cookieMatch[1])
     }
   } catch (e) {
-    // ignore
+    console.error("Error resolving token:", e)
   }
   return null
 }
@@ -60,10 +63,13 @@ api.interceptors.request.use(
         // do not override if already present
         if (!config.headers["Authorization"] && !config.headers["authorization"]) {
           config.headers["Authorization"] = `Bearer ${token}`
+          console.log("Token attached to request:", config.url)
         }
+      } else {
+        console.warn("No token found for request:", config.url)
       }
     } catch (e) {
-      // ignore
+      console.error("Error attaching token:", e)
     }
     return config
   },
@@ -76,7 +82,12 @@ api.interceptors.request.use(
 api.interceptors.response.use(
   (res) => res,
   (err) => {
-    // you can log or handle 401 globally here if needed
+    if (err.response?.status === 401) {
+      console.error("401 Unauthorized:", err.config?.url, err.response?.data)
+    }
+    if (err.response?.status === 400) {
+      console.error("400 Bad Request:", err.config?.url, err.response?.data)
+    }
     return Promise.reject(err)
   }
 )

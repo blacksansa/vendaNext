@@ -47,7 +47,7 @@ import { ConditionalRender } from "@/components/conditional-render"
 import { getOpportunities, updateOpportunity, createOpportunity } from "@/services/opportunity.service"
 import { getTeams } from "@/services/team.service"
 import { getSellers } from "@/services/seller.service"
-import { listCustomers } from "@/services/customer.service"
+import { listCustomers, createCustomer } from "@/services/customer.service"
 import { useToast } from "@/hooks/use-toast"
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCorners, PointerSensor, useSensor, useSensors, DragOverlay } from "@dnd-kit/core"
 import { useSortable } from "@dnd-kit/sortable"
@@ -196,53 +196,14 @@ export default function PipelinePage() {
     
     setLoading(true)
     try {
-      console.log("[pipeline] carregando oportunidades para userId:", userId)
+      console.log("[pipeline] carregando todas as oportunidades")
       
-      // Buscar todas as oportunidades
+      // Buscar todas as oportunidades (sem filtro)
       const allOpps = await getOpportunities("", 0, 100)
       
-      // Buscar seller do usuário
-      const sellers = await getSellers("", 0, 100)
-      const mySeller = sellers.find((s: any) => String(s.user?.id ?? s.userId) === String(userId))
+      console.log("[pipeline] total de oportunidades:", allOpps.length)
       
-      // Buscar teams do seller
-      let myTeamIds: string[] = []
-      if (mySeller?.id) {
-        const teams = await getTeams("", 0, 100)
-        myTeamIds = teams
-          .filter((team) => {
-            const sellerIds = Array.isArray(team.sellers)
-              ? team.sellers.map((s: any) => String(s?.id ?? s))
-              : Array.isArray(team.sellerIds)
-              ? team.sellerIds.map((id) => String(id))
-              : []
-            return sellerIds.includes(String(mySeller.id))
-          })
-          .map((team) => String(team.id))
-      }
-      
-      console.log("[pipeline] mySeller:", mySeller?.id, "myTeamIds:", myTeamIds)
-      
-      // Filtrar oportunidades do usuário ou grupo
-      const minhasOportunidades = allOpps.filter((opp: any) => {
-        // Oportunidade do seller
-        const oppSellerId = opp.seller?.id || opp.sellerId
-        if (mySeller?.id && oppSellerId && String(oppSellerId) === String(mySeller.id)) {
-          return true
-        }
-        
-        // Oportunidade do team
-        const oppTeamId = opp.teamId || opp.pipelineId
-        if (oppTeamId && myTeamIds.includes(String(oppTeamId))) {
-          return true
-        }
-        
-        return false
-      })
-      
-      console.log("[pipeline] total:", allOpps.length, "minhas:", minhasOportunidades.length)
-      
-      setOpportunities(minhasOportunidades)
+      setOpportunities(allOpps)
     } catch (error: any) {
       console.error("[pipeline] erro ao carregar", error)
       toast({
@@ -375,21 +336,44 @@ export default function PipelinePage() {
 
       if (!customer) {
         // Criar customer novo
-        customer = {
+        const customerData: any = {
+          code: `CUST-${Date.now()}`,
           name: newOppData.customerName,
-          tradingName: newOppData.companyName || newOppData.customerName,
-          email: newOppData.customerEmail,
-          phone: newOppData.customerPhone,
+          companyName: newOppData.companyName || newOppData.customerName,
         }
+
+        // Adicionar contatos se fornecidos
+        if (newOppData.customerEmail || newOppData.customerPhone) {
+          customerData.contacts = []
+          if (newOppData.customerEmail) {
+            customerData.contacts.push({
+              type: { id: 1 },
+              value: newOppData.customerEmail,
+            })
+          }
+          if (newOppData.customerPhone) {
+            customerData.contacts.push({
+              type: { id: 2 },
+              value: newOppData.customerPhone,
+            })
+          }
+        }
+
+        customer = await createCustomer(customerData)
       }
 
-      // Criar oportunidade
+      // Criar oportunidade com item padrão
       const newOpp = await createOpportunity({
-        customer,
-        status: "OPEN",
-        stage: { id: 1 }, // Primeira etapa
+        customer: { id: customer.id },
+        status: "PROGRESS",
+        stage: { id: 1 },
         contactDate: Date.now(),
-        items: [],
+        items: [
+          {
+            product: { id: 1 },
+            quantity: 1,
+          }
+        ],
         description: newOppData.notes,
       })
 
