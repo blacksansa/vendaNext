@@ -19,6 +19,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Eye, Edit, Copy, X, Plus, Search, Filter, ShoppingCart, Trash2 } from "lucide-react"
+import invoiceModel, { type InvoiceUI } from "@/models/invoice.model"
+import { listCustomers, type CustomerDTO } from "@/services/customer.service"
 
 // Perfil atual (troque por seu hook de auth e groups quando disponível)
 type UserRole = "admin" | "manager" | "seller"
@@ -114,6 +116,35 @@ const mockOrders: Order[] = [
   },
 ]
 
+// mapeia InvoiceUI -> Order (mantém a apresentação da página)
+function mapInvoiceToOrder(inv: InvoiceUI): Order {
+  // status já vem mapeado no model (em_aberto/aprovada/faturada/cancelada)
+  return {
+    id: inv.id,
+    orderNumber: inv.code ?? `INV-${inv.id}`,
+    customer: inv.customer ?? "—",
+    date: inv.date ?? new Date().toISOString().split("T")[0],
+    totalValue: Number(inv.total ?? 0),
+    status: inv.status as OrderStatus,
+    seller: inv.seller ?? "—",
+    products: (inv.items || []).map((it, i) => ({
+      id: String(it.productId ?? it.id ?? i + 1),
+      name: it.description ?? `Item ${i + 1}`,
+      quantity: Number(it.quantity ?? 1),
+      price: Number(it.unitPrice ?? 0),
+      subtotal: Number(it.total ?? (Number(it.quantity ?? 1) * Number(it.unitPrice ?? 0))),
+    })),
+    history: (inv.history || []).map((h, i) => ({
+      id: String(h.id ?? i + 1),
+      action: h.action ?? "",
+      user: h.user ?? "",
+      date: h.date ?? "",
+      description: h.description ?? "",
+    })),
+    notes: inv.notes,
+  }
+}
+
 export default function OrdensPage() {
   // Mock de usuário atual (substitua por seu hook de auth)
   const [currentUser] = useState<CurrentUser>(() => {
@@ -138,85 +169,67 @@ export default function OrdensPage() {
   }
 
   // Backend helpers (fallback para localhost durante desenvolvimento)
-  const apiBase =
+  const apiBaseRaw =
     typeof window !== "undefined"
       ? (window as any).BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8080"
       : (process.env.NEXT_PUBLIC_API_URL || "")
+  // remove trailing slashes and a possible /api suffix to avoid double /api
+  const apiBase = apiBaseRaw.replace(/\/+$/, "").replace(/\/api$/i, "")
 
   async function fetchOrdersFromBackend() {
-    console.debug("[OrdensPage] fetchOrdersFromBackend ->", `${apiBase}/api/order`)
     try {
-      const res = await fetch(`${apiBase}/api/order`, { method: "GET" })
-      console.debug("[OrdensPage] fetchOrdersFromBackend status:", res.status)
-      if (!res.ok) {
-        const text = await res.text().catch(() => "")
-        console.warn("[OrdensPage] fetchOrdersFromBackend non-ok body:", text)
-        throw new Error(`status ${res.status}`)
-      }
-      const data = await res.json()
-      console.debug("[OrdensPage] fetchOrdersFromBackend data:", Array.isArray(data) ? `array(${data.length})` : data)
-
-      // map backend DTO to local Order shape (assume minimal fields)
-      const mapped: Order[] = (data || []).map((o: any, idx: number) => ({
-        id: String(o.id ?? o.code ?? idx + 1),
-        orderNumber: o.code ?? `ORD-${String(o.id ?? idx + 1)}`,
-        customer: o.customer ?? o.client ?? "—",
-        date: o.createdAt ? new Date(o.createdAt).toISOString().split("T")[0] : new Date().toISOString().split("T")[0],
-        totalValue: Number(o.total ?? o.totalValue ?? 0),
-        status: (o.status ?? "em_aberto") as OrderStatus,
-        seller: o.sellerName ?? o.seller ?? currentUser.name,
-        products: (o.items || []).map((it: any, i: number) => ({
-          id: String(it.productId ?? i + 1),
-          name: it.description ?? it.name ?? `Item ${i + 1}`,
-          quantity: Number(it.quantity ?? it.qty ?? 1),
-          price: Number(it.unitPrice ?? it.price ?? 0),
-          subtotal: Number(it.total ?? (it.quantity ?? 1) * (it.unitPrice ?? it.price ?? 0)),
-        })),
-        history: (o.history || []).map((h: any, i: number) => ({
-          id: String(i + 1),
-          action: h.action ?? h.status ?? "",
-          user: h.user ?? h.by ?? "",
-          date: h.date ?? h.createdAt ?? "",
-          description: h.description ?? "",
-        })),
-        notes: o.notes ?? "",
-      }))
-      // substitui os mock/local apenas se a chamada funcionou
+      console.debug("[OrdensPage] fetching invoices via invoiceModel")
+      const data = await invoiceModel.list(0, 200, "")
+      const mapped: Order[] = data.map(mapInvoiceToOrder)
       persistOrders(mapped)
-      console.debug("[OrdensPage] fetchOrdersFromBackend -> persisted mapped orders")
       return mapped
-    } catch (e) {
-      console.warn("[OrdensPage] fetchOrdersFromBackend failed:", e)
+    } catch (err) {
+      console.warn("[OrdensPage] fetchInvoicesFromBackend failed:", err)
       return null
     }
   }
 
-  async function createOrderBackend(payload: any) {
+  async function createOrderBackendFromOrder(order: Order) {
     try {
-      const res = await fetch(`${apiBase}/api/order`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      return await res.json()
+      console.debug("[OrdensPage] creating invoice via invoiceModel")
+      const uiPartial: Partial<InvoiceUI> = {
+        code: order.orderNumber,
+        customer: order.customer,
+        seller: order.seller,
+        total: order.totalValue,
+        status: order.status as any, // model converte para enum do backend
+        notes: order.notes,
+        items: order.products.map((p) => ({
+          productId: p.id,
+          description: p.name,
+          quantity: p.quantity,
+          unitPrice: p.price,
+          total: p.subtotal,
+        })),
+      }
+      const res = await invoiceModel.create(uiPartial)
+      return res
     } catch (e) {
-      console.warn("[OrdensPage] createOrderBackend failed:", e)
+      console.warn("[OrdensPage] createInvoiceBackend failed:", e)
       return null
     }
   }
 
-  async function updateOrderBackend(id: string | number, payload: any) {
+  async function updateOrderBackend(id: string | number, payload: { status?: OrderStatus; approverId?: string; notes?: string }) {
     try {
-      const res = await fetch(`${apiBase}/api/order/${id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      })
-      if (!res.ok) throw new Error(`status ${res.status}`)
-      return await res.json()
+      console.debug("[OrdensPage] updating invoice via invoiceModel", id, payload)
+      if (payload.status === "aprovada") {
+        const approverNum = Number(payload.approverId)
+        return await invoiceModel.approve(id, Number.isFinite(approverNum) ? approverNum : undefined)
+      }
+      const uiPartial: Partial<InvoiceUI> = {
+        status: payload.status as any,
+        notes: payload.notes,
+      }
+      const res = await invoiceModel.update(id, uiPartial)
+      return res
     } catch (e) {
-      console.warn("[OrdensPage] updateOrderBackend failed:", e)
+      console.warn("[OrdensPage] updateInvoiceBackend failed:", e)
       return null
     }
   }
@@ -236,8 +249,27 @@ export default function OrdensPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all")
   const [sellerFilter, setSellerFilter] = useState<string>("all")
 
+  // Clientes cadastrados
+  const [customers, setCustomers] = useState<CustomerDTO[]>([])
+  const [customersLoading, setCustomersLoading] = useState(false)
+  useEffect(() => {
+    if (!isNewOrderOpen) return
+    ;(async () => {
+      try {
+        setCustomersLoading(true)
+        const data = await listCustomers(0, 200, "")
+        setCustomers(Array.isArray(data) ? data : [])
+      } catch {
+        setCustomers([])
+      } finally {
+        setCustomersLoading(false)
+      }
+    })()
+  }, [isNewOrderOpen])
+
   // Nova ordem
   const [newOrder, setNewOrder] = useState({
+    customerId: undefined as number | undefined,
     customer: "",
     seller: currentUser.name, // vendedor logado
     notes: "",
@@ -410,6 +442,19 @@ export default function OrdensPage() {
     })
   }
 
+  // Atualizar campos de produto (inline na tabela)
+  function updateProductField(productId: string, field: "quantity" | "price", value: number) {
+    setNewOrder((prev) => {
+      const products = prev.products.map((p) => {
+        if (p.id !== productId) return p
+        const quantity = field === "quantity" ? Math.max(1, Math.floor(value) || 1) : p.quantity
+        const price = field === "price" ? Math.max(0, Number(value) || 0) : p.price
+        return { ...p, quantity, price, subtotal: quantity * price }
+      })
+      return { ...prev, products }
+    })
+  }
+
   const handleCreateOrder = () => {
     if (newOrder.customer && newOrder.products.length > 0) {
       const totalValue = newOrder.products.reduce((sum, p) => sum + p.subtotal, 0)
@@ -469,13 +514,13 @@ export default function OrdensPage() {
           })),
           notes: order.notes,
         }
-        const res = await createOrderBackend(payload)
+        const res = await createOrderBackendFromOrder(order)
         if (res) {
           // prefer backend id/code if returned
           const created: Order = {
             ...order,
-            id: String(res.id ?? res.code ?? order.id),
-            orderNumber: res.code ?? order.orderNumber,
+            id: String((res as any)?.id ?? (res as any)?.code ?? order.id),
+            orderNumber: (res as any)?.code ?? order.orderNumber,
           }
           persistOrders([...orders, created])
         } else {
@@ -487,7 +532,7 @@ export default function OrdensPage() {
       })
 
       setIsNewOrderOpen(false)
-      setNewOrder({ customer: "", seller: currentUser.name, notes: "", products: [] })
+      setNewOrder({ customerId: undefined, customer: "", seller: currentUser.name, notes: "", products: [] })
     }
   }
 
@@ -781,24 +826,41 @@ export default function OrdensPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
-                <Input
-                  id="customer"
-                  placeholder="Nome do cliente"
-                  value={newOrder.customer}
-                  onChange={(e) => setNewOrder({ ...newOrder, customer: e.target.value })}
-                />
+                {customers && customers.length > 0 ? (
+                  <Select
+                    value={newOrder.customerId ? String(newOrder.customerId) : ""}
+                    onValueChange={(val) => {
+                      const sel = customers.find((c) => String(c.id) === val)
+                      setNewOrder({
+                        ...newOrder,
+                        customerId: sel ? sel.id : undefined,
+                        customer: sel ? sel.name : "",
+                      })
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder={customersLoading ? "Carregando..." : "Selecione um cliente"} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {customers.map((c) => (
+                        <SelectItem key={c.id} value={String(c.id)}>
+                          {c.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    id="customer"
+                    placeholder={customersLoading ? "Carregando..." : "Nome do cliente"}
+                    value={newOrder.customer}
+                    onChange={(e) => setNewOrder({ ...newOrder, customer: e.target.value })}
+                  />
+                )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="seller">Vendedor *</Label>
-                <Select value={newOrder.seller} onValueChange={(value) => setNewOrder({ ...newOrder, seller: value })}>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="João Silva">João Silva</SelectItem>
-                    <SelectItem value="Maria Santos">Maria Santos</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input id="seller" value={newOrder.seller} disabled />
               </div>
             </div>
 
@@ -861,7 +923,7 @@ export default function OrdensPage() {
                       <TableRow>
                         <TableHead>Produto</TableHead>
                         <TableHead className="text-right">Qtd</TableHead>
-                        <TableHead className="text-right">Preço</TableHead>
+                        <TableHead className="text-right">Preço Unit.</TableHead>
                         <TableHead className="text-right">Subtotal</TableHead>
                         <TableHead className="text-right">Ações</TableHead>
                       </TableRow>
@@ -870,12 +932,24 @@ export default function OrdensPage() {
                       {newOrder.products.map((product) => (
                         <TableRow key={product.id}>
                           <TableCell>{product.name}</TableCell>
-                          <TableCell className="text-right">{product.quantity}</TableCell>
                           <TableCell className="text-right">
-                            {new Intl.NumberFormat("pt-BR", {
-                              style: "currency",
-                              currency: "BRL",
-                            }).format(product.price)}
+                            <Input
+                              className="text-right"
+                              type="number"
+                              min={1}
+                              value={product.quantity}
+                              onChange={(e) => updateProductField(product.id, "quantity", Number(e.target.value))}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              className="text-right"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={product.price}
+                              onChange={(e) => updateProductField(product.id, "price", Number(e.target.value))}
+                            />
                           </TableCell>
                           <TableCell className="text-right font-medium">
                             {new Intl.NumberFormat("pt-BR", {
@@ -916,6 +990,156 @@ export default function OrdensPage() {
             <Button onClick={handleCreateOrder} disabled={!newOrder.customer || newOrder.products.length === 0}>
               <ShoppingCart className="mr-2 h-4 w-4" />
               Criar Ordem
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Dialog Editar Ordem */}
+      <Dialog
+        open={isEditOrderOpen}
+        onOpenChange={(open) => {
+          setIsEditOrderOpen(open)
+          if (!open) setSelectedOrder(null)
+        }}
+      >
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Editar Ordem de Venda</DialogTitle>
+            <DialogDescription>Altere os dados da ordem de venda</DialogDescription>
+          </DialogHeader>
+
+          {selectedOrder ? (
+            <div className="space-y-4">
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <Label htmlFor="customer">Cliente *</Label>
+                  {customers && customers.length > 0 ? (
+                    <Select
+                      value={(() => {
+                        const sel = customers.find((c) => c.name === selectedOrder.customer)
+                        return sel ? String(sel.id) : ""
+                      })()}
+                      onValueChange={(val) => {
+                        const sel = customers.find((c) => String(c.id) === val)
+                        if (sel) setSelectedOrder({ ...selectedOrder, customer: sel.name })
+                        else setSelectedOrder({ ...selectedOrder, customer: "" })
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={customersLoading ? "Carregando..." : "Selecione um cliente"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {customers.map((c) => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id="customer"
+                      placeholder={customersLoading ? "Carregando..." : "Nome do cliente"}
+                      value={selectedOrder.customer ?? ""}
+                      onChange={(e) => setSelectedOrder({ ...selectedOrder, customer: e.target.value })}
+                    />
+                  )}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="seller">Vendedor *</Label>
+                  <Input id="seller" value={selectedOrder.seller ?? ""} disabled />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="notes">Observações</Label>
+                <Textarea
+                  id="notes"
+                  value={selectedOrder.notes ?? ""}
+                  onChange={(e) => setSelectedOrder({ ...selectedOrder, notes: e.target.value })}
+                  placeholder="Observações sobre a ordem..."
+                />
+              </div>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Produtos</CardTitle>
+                  <CardDescription>Revise os produtos desta ordem</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Produto</TableHead>
+                        <TableHead className="text-right">Qtd</TableHead>
+                        <TableHead className="text-right">Preço Unit.</TableHead>
+                        <TableHead className="text-right">Subtotal</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {selectedOrder.products.map((product) => (
+                        <TableRow key={product.id}>
+                          <TableCell>{product.name}</TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              className="text-right"
+                              type="number"
+                              min={1}
+                              value={product.quantity}
+                              onChange={(e) => updateProductField(product.id, "quantity", Number(e.target.value))}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Input
+                              className="text-right"
+                              type="number"
+                              min={0}
+                              step="0.01"
+                              value={product.price}
+                              onChange={(e) => updateProductField(product.id, "price", Number(e.target.value))}
+                            />
+                          </TableCell>
+                          <TableCell className="text-right font-medium">
+                            {new Intl.NumberFormat("pt-BR", {
+                              style: "currency",
+                              currency: "BRL",
+                            }).format(product.subtotal)}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button variant="ghost" size="icon" onClick={() => handleRemoveProduct(product.id)}>
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      <TableRow>
+                        <TableCell colSpan={3} className="text-right font-bold">
+                          Total:
+                        </TableCell>
+                        <TableCell className="text-right font-bold text-lg">
+                          {new Intl.NumberFormat("pt-BR", {
+                            style: "currency",
+                            currency: "BRL",
+                          }).format(selectedOrder.products.reduce((sum, p) => sum + p.subtotal, 0))}
+                        </TableCell>
+                        <TableCell />
+                      </TableRow>
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            </div>
+          ) : null}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsEditOrderOpen(false)}>
+              Cancelar
+            </Button>
+            <Button onClick={handleCreateOrder} size="lg">
+              <Plus className="mr-2 h-4 w-4" />
+              Salvar Alterações
             </Button>
           </DialogFooter>
         </DialogContent>

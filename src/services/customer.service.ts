@@ -57,3 +57,17 @@ export const getCustomerInvoiceItemCount = api.invoiceItemCount.bind(api)
 export const getCustomerInvoiceItemList = api.invoiceItemList.bind(api)
 export const getAiCustomerCentralLast = api.aiCustomerCentralLast.bind(api)
 export const createAiCustomerCentral = api.aiCustomerCentralCreate.bind(api)
+
+export interface CustomerDTO {
+  id: number
+  name: string
+  document?: string
+  email?: string
+}
+
+export async function listCustomers(page = 0, size = 100, term = ""): Promise<CustomerDTO[]> {
+  return fetchData<CustomerDTO[]>("/customer", {
+    method: "GET",
+    params: { page, size, t: term },
+  })
+}

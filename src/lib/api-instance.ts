@@ -1,82 +1,84 @@
-import axios from 'axios';
-import { getSession, signOut } from 'next-auth/react';
+import axios from "axios"
 
+/**
+ * Axios instance used across the app.
+ * baseURL points to backend and already includes '/api' to match server endpoints.
+ * Adjust NEXT_PUBLIC_BACKEND_URL in .env if needed (no trailing slash).
+ */
+const BACKEND = (process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8080").replace(/\/+$/g, "")
 const api = axios.create({
-  baseURL: process.env.NEXT_PUBLIC_API_URL,
-});
+  baseURL: `${BACKEND}/api`,
+  timeout: 30_000,
+  headers: { "Content-Type": "application/json" },
+})
 
-api.interceptors.request.use(async (config) => {
-  console.log('Request Interceptor: Getting session');
-  const session = await getSession();
-  if (session?.accessToken) {
-    console.log('Request Interceptor: Attaching token to headers');
-    config.headers.Authorization = `Bearer ${session.accessToken}`;
-  }
-  return config;
-});
+/**
+ * Try to resolve an access token.
+ * Order:
+ *  1) localStorage 'accessToken' (if you store it there)
+ *  2) fetch NextAuth session at /api/auth/session (if you use NextAuth)
+ *  3) cookie 'next-auth.session-token' fallback (simple parse)
+ */
+async function resolveToken(): Promise<string | null> {
+  try {
+    if (typeof window !== "undefined") {
+      const fromStorage = localStorage.getItem("accessToken")
+      if (fromStorage) return fromStorage
 
-let isRefreshing = false;
-let failedQueue: { resolve: (value: unknown) => void; reject: (reason?: any) => void; }[] = [];
-
-const processQueue = (error: any, token = null) => {
-  failedQueue.forEach(prom => {
-    if (error) {
-      prom.reject(error);
-    } else {
-      prom.resolve(token);
-    }
-  });
-
-  failedQueue = [];
-};
-
-api.interceptors.response.use(
-  response => response,
-  async (error) => {
-    const originalRequest = error.config;
-
-    if (error.response.status === 401 && !originalRequest._retry) {
-      console.log('Response Interceptor: 401 error');
-      if (isRefreshing) {
-        console.log('Response Interceptor: Token refresh is already in progress');
-        return new Promise(function(resolve, reject) {
-          failedQueue.push({ resolve, reject });
-        }).then(token => {
-          originalRequest.headers['Authorization'] = 'Bearer ' + token;
-          return axios(originalRequest);
-        }).catch(err => {
-          return Promise.reject(err);
-        });
+      // try NextAuth session endpoint
+      try {
+        const r = await fetch("/api/auth/session", { credentials: "include" })
+        if (r.ok) {
+          const json = await r.json()
+          // adapt depending on your NextAuth callbacks (check where you store token)
+          const t = json?.accessToken || json?.token || json?.user?.accessToken
+          if (t) return t
+        }
+      } catch (e) {
+        // ignore
       }
 
-      originalRequest._retry = true;
-      isRefreshing = true;
-      console.log('Response Interceptor: Starting token refresh');
-
-      return new Promise(async (resolve, reject) => {
-        try {
-          const session = await getSession({ force: true });
-          if (session) {
-            console.log('Response Interceptor: Token refresh successful');
-            originalRequest.headers.Authorization = `Bearer ${session.accessToken}`;
-            processQueue(null, session.accessToken);
-            resolve(api(originalRequest));
-          } else {
-            throw new Error("No session after refresh");
-          }
-        } catch (e) {
-          console.error('Response Interceptor: Token refresh failed', e);
-          processQueue(e, null);
-          signOut();
-          reject(e);
-        } finally {
-          isRefreshing = false;
-        }
-      });
+      // cookie fallback: try to read next-auth cookie (very basic)
+      const cookieMatch = document.cookie.match(/(?:^|;\s*)next-auth.session-token=([^;]+)/)
+      if (cookieMatch && cookieMatch[1]) return decodeURIComponent(cookieMatch[1])
     }
-
-    return Promise.reject(error);
+  } catch (e) {
+    // ignore
   }
-);
+  return null
+}
 
-export default api;
+/**
+ * Request interceptor: attach Authorization header when token found.
+ */
+api.interceptors.request.use(
+  async (config) => {
+    try {
+      const token = await resolveToken()
+      if (token) {
+        config.headers = config.headers || {}
+        // do not override if already present
+        if (!config.headers["Authorization"] && !config.headers["authorization"]) {
+          config.headers["Authorization"] = `Bearer ${token}`
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+    return config
+  },
+  (error) => Promise.reject(error)
+)
+
+/**
+ * Optional: response interceptor to surface nicer errors (already handled in fetchData)
+ */
+api.interceptors.response.use(
+  (res) => res,
+  (err) => {
+    // you can log or handle 401 globally here if needed
+    return Promise.reject(err)
+  }
+)
+
+export default api
