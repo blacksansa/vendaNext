@@ -90,12 +90,19 @@ const pipelineStages = [
 
 // Componente de Coluna Droppable
 function DroppableColumn({ stage, children }: any) {
-  const { setNodeRef } = useDroppable({
+  const { setNodeRef, isOver } = useDroppable({
     id: stage.id.toString(),
   })
 
   return (
-    <div ref={setNodeRef} className="space-y-2">
+    <div 
+      ref={setNodeRef} 
+      className="space-y-2 min-h-[500px]"
+      style={{ 
+        backgroundColor: isOver ? 'rgba(59, 130, 246, 0.1)' : 'transparent',
+        transition: 'background-color 0.2s'
+      }}
+    >
       {children}
     </div>
   )
@@ -246,6 +253,8 @@ export default function PipelinePage() {
     email: opp.customer?.email || "",
     phone: opp.customer?.phone || "",
     notes: opp.description || "",
+    interactions: [], // Array vazio por padrão - pode ser populado com dados reais no futuro
+    raw: opp, // Manter referência ao objeto original para updates
   }))
   
   // Atualizar métricas com dados reais
@@ -304,6 +313,7 @@ export default function PipelinePage() {
   }
 
   function handleDragStart(event: DragStartEvent) {
+    console.log("[DND] Drag started:", event.active.id)
     setActiveId(event.active.id.toString())
   }
 
@@ -311,10 +321,17 @@ export default function PipelinePage() {
     const { active, over } = event
     setActiveId(null)
 
-    if (!over) return
+    console.log("[DND] Drag ended - active:", active.id, "over:", over?.id)
+
+    if (!over) {
+      console.log("[DND] No drop target")
+      return
+    }
 
     const dealId = parseInt(active.id.toString())
     const newStageId = parseInt(over.id.toString())
+
+    console.log("[DND] Moving deal", dealId, "to stage", newStageId)
 
     // Atualizar localmente
     setOpportunities((prev) =>
@@ -324,8 +341,8 @@ export default function PipelinePage() {
     // Atualizar no backend
     try {
       const opportunity = opportunities.find((o) => o.id === dealId)
-      if (opportunity?.raw) {
-        await updateOpportunity(dealId, { ...opportunity.raw, stage: { id: newStageId } })
+      if (opportunity) {
+        await updateOpportunity(dealId, { ...opportunity, stage: { id: newStageId } })
         toast({ title: "Sucesso", description: "Oportunidade movida" })
       }
     } catch (error: any) {
@@ -583,22 +600,22 @@ export default function PipelinePage() {
               const dealIds = stageDeals.map(d => d.id.toString())
               
               return (
-                <DroppableColumn key={stage.id} stage={stage}>
-                  <Card className="min-h-[600px]">
-                    <CardHeader className="pb-3">
-                      <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm font-medium flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full ${stage.color}`} />
-                          {stage.name}
-                        </CardTitle>
-                        <Badge variant="secondary">{stageDeals.length}</Badge>
-                      </div>
-                      <CardDescription className="text-xs">{stage.description}</CardDescription>
-                      {stage.value > 0 && (
-                        <p className="text-sm font-semibold text-green-600">R$ {stage.value.toLocaleString()}</p>
-                      )}
-                    </CardHeader>
-                    <CardContent className="space-y-3">
+                <Card key={stage.id} className="min-h-[600px]">
+                  <CardHeader className="pb-3">
+                    <div className="flex items-center justify-between">
+                      <CardTitle className="text-sm font-medium flex items-center gap-2">
+                        <div className={`w-3 h-3 rounded-full ${stage.color}`} />
+                        {stage.name}
+                      </CardTitle>
+                      <Badge variant="secondary">{stageDeals.length}</Badge>
+                    </div>
+                    <CardDescription className="text-xs">{stage.description}</CardDescription>
+                    {stage.value > 0 && (
+                      <p className="text-sm font-semibold text-green-600">R$ {stage.value.toLocaleString()}</p>
+                    )}
+                  </CardHeader>
+                  <CardContent className="space-y-3">
+                    <DroppableColumn stage={stage}>
                       <SortableContext items={dealIds} strategy={verticalListSortingStrategy}>
                         {stageDeals.map((deal) => (
                     <DraggableCard
@@ -841,9 +858,9 @@ export default function PipelinePage() {
                     </DraggableCard>
                   ))}
                   </SortableContext>
+                  </DroppableColumn>
                 </CardContent>
               </Card>
-              </DroppableColumn>
             )
             })}
           </div>
