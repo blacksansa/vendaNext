@@ -1,5 +1,6 @@
 "use client"
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useAuth } from "@/hooks/use-auth"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -30,8 +31,9 @@ import {
   MessageSquare,
   Calendar,
   Activity,
+  Loader2,
 } from "lucide-react"
-import { AlertCircle } from "lucide-react" // Import AlertCircle
+import { AlertCircle } from "lucide-react"
 import {
   XAxis,
   YAxis,
@@ -46,102 +48,186 @@ import {
 } from "recharts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { getTeams, TeamDTO } from "@/services/team.service"
+import { getOpportunities } from "@/services/opportunity.service"
+import { Opportunity } from "@/lib/types"
 
-// Dados simulados para o dashboard de líderes
-const gruposLiderados = [
-  {
-    id: "1",
-    nome: "Equipe Sudeste",
-    vendedores: 8,
-    vendas: 450000,
-    meta: 500000,
-    crescimento: 12.5,
-    status: "acima_meta",
-    cor: "blue",
-    vendedoresAtivos: 7,
-    ticketMedio: 3500,
-    conversao: 18.2,
-  },
-  {
-    id: "2",
-    nome: "Equipe Expansão",
-    vendedores: 5,
-    vendas: 180000,
-    meta: 250000,
-    crescimento: -5.2,
-    status: "abaixo_meta",
-    cor: "red",
-    vendedoresAtivos: 4,
-    ticketMedio: 2800,
-    conversao: 14.1,
-  },
-]
-
-const performanceVendedores = [
-  { nome: "João Silva", vendas: 85000, meta: 80000, performance: 106, status: "excelente" },
-  { nome: "Maria Santos", vendas: 92000, meta: 90000, performance: 102, status: "bom" },
-  { nome: "Carlos Oliveira", vendas: 65000, meta: 75000, performance: 87, status: "atencao" },
-  { nome: "Ana Costa", vendas: 78000, meta: 70000, performance: 111, status: "excelente" },
-  { nome: "Pedro Lima", vendas: 45000, meta: 60000, performance: 75, status: "critico" },
-]
-
-const dadosTemporais = [
-  { mes: "Jan", vendas: 380000, meta: 400000, vendedores: 12 },
-  { mes: "Fev", vendas: 420000, meta: 450000, vendedores: 13 },
-  { mes: "Mar", vendas: 465000, meta: 480000, vendedores: 13 },
-  { mes: "Abr", vendas: 510000, meta: 500000, vendedores: 14 },
-  { mes: "Mai", vendas: 485000, meta: 520000, vendedores: 13 },
-  { mes: "Jun", vendas: 630000, meta: 550000, vendedores: 13 },
-]
-
-const distribuicaoStatus = [
-  { name: "Excelente", value: 35, color: "#22c55e" },
-  { name: "Bom", value: 40, color: "#3b82f6" },
-  { name: "Atenção", value: 20, color: "#f59e0b" },
-  { name: "Crítico", value: 5, color: "#ef4444" },
-]
-
-const atividadesRecentes = [
-  { id: 1, tipo: "meta_atingida", vendedor: "João Silva", descricao: "Atingiu 106% da meta mensal", tempo: "2h atrás" },
-  { id: 2, tipo: "alerta", vendedor: "Pedro Lima", descricao: "Performance abaixo de 80% da meta", tempo: "4h atrás" },
-  {
-    id: 3,
-    tipo: "conquista",
-    vendedor: "Ana Costa",
-    descricao: "Fechou maior deal do mês (R$ 25.000)",
-    tempo: "1d atrás",
-  },
-  {
-    id: 4,
-    tipo: "reuniao",
-    vendedor: "Equipe Sudeste",
-    descricao: "Reunião de alinhamento agendada",
-    tempo: "2d atrás",
-  },
-]
-
-const proximasAcoes = [
-  { id: 1, acao: "Reunião 1:1 com Pedro Lima", prioridade: "alta", prazo: "Hoje, 14:00" },
-  { id: 2, acao: "Revisão de metas Q2", prioridade: "media", prazo: "Amanhã" },
-  { id: 3, acao: "Treinamento equipe vendas", prioridade: "baixa", prazo: "Próxima semana" },
-  { id: 4, acao: "Análise de pipeline", prioridade: "alta", prazo: "Sexta-feira" },
-]
-
-const usuarioLogado = {
-  id: "user123",
-  nome: "João Silva",
-  papel: "lider",
-  grupoLiderado: 1,
+interface TeamWithMetrics extends TeamDTO {
+  totalVendas: number
+  totalOportunidades: number
+  oportunidadesAbertas: number
+  oportunidadesGanhas: number
+  oportunidadesPerdidas: number
+  ticketMedio: number
+  taxaConversao: number
 }
 
 export default function DashboardLideresPage() {
+  const { user, roles, loading: authLoading } = useAuth()
   const [periodoSelecionado, setPeriodoSelecionado] = useState("mes")
   const [grupoSelecionado, setGrupoSelecionado] = useState("todos")
+  const [teams, setTeams] = useState<TeamWithMetrics[]>([])
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([])
+  const [loading, setLoading] = useState(true)
 
-  const gruposPermitidos =
-    usuarioLogado.papel === "admin"
-      ? gruposLiderados
-      : gruposLiderados.filter((grupo) => grupo.id === usuarioLogado.grupoLiderado.toString())
+  const isAdmin = roles?.includes("admin")
+  const isLeader = roles?.includes("leader") || roles?.includes("lider")
+
+  // Get the Keycloak UUID from the user session
+  const userKeycloakId = (user as any)?.id // This is the UUID from Keycloak (sub claim)
+  
+  console.log("[lideres] ============ USER IDENTIFICATION ============")
+  console.log("[lideres] user object:", user)
+  console.log("[lideres] userKeycloakId (UUID):", userKeycloakId)
+  console.log("[lideres] user.email:", user?.email)
+  console.log("[lideres] isAdmin:", isAdmin)
+  console.log("[lideres] isLeader:", isLeader)
+
+  // Filter teams based on user role
+  // Admin sees all teams
+  // Leaders see only teams where they are the manager OR in the sellers list
+  const gruposPermitidos = isAdmin 
+    ? teams 
+    : teams.filter((team) => {
+        if (!userKeycloakId) return false
+        
+        // Check if user is the manager - compare Keycloak UUID or email as fallback
+        const isManager = team.managerId === userKeycloakId || team.managerId === user?.email
+        
+        // Check if user is in the sellers list
+        const isSeller = team.sellers?.some((seller: any) => {
+          if (typeof seller === 'object') {
+            // Check seller's userId (which is Keycloak UUID) or email
+            return seller.userId === userKeycloakId || 
+                   seller.email === user?.email ||
+                   seller.id === userKeycloakId
+          }
+          return seller === userKeycloakId || seller === user?.email
+        })
+        
+        console.log(`[lideres] Team ${team.name}: isManager=${isManager}, isSeller=${isSeller}, managerId=${team.managerId}, userKeycloakId=${userKeycloakId}`)
+        
+        return isManager || isSeller
+      })
+
+  console.log("[lideres] ============ GRUPOS PERMITIDOS ============")
+  console.log("[lideres] isAdmin:", isAdmin)
+  console.log("[lideres] user email:", user?.email)
+  console.log("[lideres] userKeycloakId:", userKeycloakId)
+  console.log("[lideres] total teams:", teams.length)
+  console.log("[lideres] gruposPermitidos:", gruposPermitidos.length)
+  console.log("[lideres] gruposPermitidos data:", gruposPermitidos)
+
+  useEffect(() => {
+    async function loadData() {
+      if (authLoading || !userKeycloakId) return
+      
+      try {
+        setLoading(true)
+        console.log("[lideres] ============ LOADING DATA ============")
+        console.log("[lideres] User:", user?.email)
+        console.log("[lideres] User Keycloak UUID:", userKeycloakId)
+        console.log("[lideres] Roles:", roles)
+        console.log("[lideres] Is Admin:", isAdmin)
+        console.log("[lideres] Is Leader:", isLeader)
+        
+        // Load all teams
+        const allTeams = await getTeams("", 0, 100)
+        console.log("[lideres] ============ TEAMS LOADED ============")
+        console.log("[lideres] Total teams:", allTeams.length)
+        console.log("[lideres] Teams:", allTeams)
+        
+        // Log detailed team info
+        allTeams.forEach((team, idx) => {
+          console.log(`[lideres] Team ${idx}:`, {
+            id: team.id,
+            name: team.name,
+            managerId: team.managerId,
+            sellers: team.sellers,
+            sellersLength: team.sellers?.length
+          })
+        })
+        
+        // Load all opportunities
+        const allOpportunities = await getOpportunities("", 0, 1000)
+        console.log("[lideres] ============ OPPORTUNITIES LOADED ============")
+        console.log("[lideres] Total opportunities:", allOpportunities.length)
+        
+        setOpportunities(allOpportunities)
+        
+        // For now, we'll distribute opportunities evenly across teams
+        // In a real scenario, you'd want to add a team_id or seller_id field to opportunities
+        const teamsWithMetrics: TeamWithMetrics[] = allTeams.map((team, index) => {
+          // Simple distribution: assign opportunities based on team index
+          // This is a placeholder - in production you should have proper relationships
+          const startIdx = Math.floor((index / allTeams.length) * allOpportunities.length)
+          const endIdx = Math.floor(((index + 1) / allTeams.length) * allOpportunities.length)
+          const teamOpportunities = allOpportunities.slice(startIdx, endIdx)
+          
+          const oportunidadesAbertas = teamOpportunities.filter(o => o.status === "OPEN").length
+          const oportunidadesGanhas = teamOpportunities.filter(o => o.status === "WON").length
+          const oportunidadesPerdidas = teamOpportunities.filter(o => o.status === "LOST").length
+          
+          // Calculate total sales from won opportunities
+          const totalVendas = teamOpportunities
+            .filter(o => o.status === "WON")
+            .reduce((sum, o) => sum + (o.value || 0), 0)
+          
+          const ticketMedio = oportunidadesGanhas > 0 ? totalVendas / oportunidadesGanhas : 0
+          
+          const totalClosed = oportunidadesGanhas + oportunidadesPerdidas
+          const taxaConversao = totalClosed > 0 ? (oportunidadesGanhas / totalClosed) * 100 : 0
+          
+          return {
+            ...team,
+            totalVendas,
+            totalOportunidades: teamOpportunities.length,
+            oportunidadesAbertas,
+            oportunidadesGanhas,
+            oportunidadesPerdidas,
+            ticketMedio,
+            taxaConversao,
+          }
+        })
+        
+        console.log("[lideres] ============ TEAMS WITH METRICS ============")
+        console.log("[lideres] Teams with metrics:", teamsWithMetrics)
+        
+        setTeams(teamsWithMetrics)
+        
+        console.log("[lideres] ============ FILTERED TEAMS ============")
+        console.log("[lideres] All teams count:", teamsWithMetrics.length)
+        console.log("[lideres] userKeycloakId for filtering:", userKeycloakId)
+        
+        // Check filter logic - same as gruposPermitidos
+        const filtered = isAdmin 
+          ? teamsWithMetrics 
+          : teamsWithMetrics.filter((team) => {
+              const isManager = team.managerId === userKeycloakId || team.managerId === user?.email
+              const isSeller = team.sellers?.some((seller: any) => {
+                if (typeof seller === 'object') {
+                  return seller.userId === userKeycloakId ||
+                         seller.email === user?.email ||
+                         seller.id === userKeycloakId
+                }
+                return seller === userKeycloakId || seller === user?.email
+              })
+              console.log(`[lideres] Filter check - Team ${team.name}: manager=${team.managerId}, isManager=${isManager}, isSeller=${isSeller}`)
+              return isManager || isSeller
+            })
+        
+        console.log("[lideres] Filtered teams count:", filtered.length)
+        console.log("[lideres] Filtered teams:", filtered)
+        
+      } catch (error) {
+        console.error("[lideres] Error loading data:", error)
+      } finally {
+        setLoading(false)
+      }
+    }
+    
+    loadData()
+  }, [userKeycloakId, authLoading, isAdmin, user])
 
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {
@@ -154,40 +240,89 @@ export default function DashboardLideresPage() {
     return meta > 0 ? Math.round((vendas / meta) * 100) : 0
   }
 
-  const obterCorStatus = (status: string) => {
-    switch (status) {
-      case "excelente":
-        return "text-green-600"
-      case "bom":
-        return "text-blue-600"
-      case "atencao":
-        return "text-yellow-600"
-      case "critico":
-        return "text-red-600"
-      default:
-        return "text-gray-600"
-    }
+  const obterCorStatus = (taxaConversao: number) => {
+    if (taxaConversao >= 80) return "text-green-600"
+    if (taxaConversao >= 60) return "text-blue-600"
+    if (taxaConversao >= 40) return "text-yellow-600"
+    return "text-red-600"
   }
 
-  const obterIconeStatus = (status: string) => {
-    switch (status) {
-      case "excelente":
-        return <CheckCircle className="h-4 w-4 text-green-600" />
-      case "bom":
-        return <TrendingUp className="h-4 w-4 text-blue-600" />
-      case "atencao":
-        return <AlertTriangle className="h-4 w-4 text-yellow-600" />
-      case "critico":
-        return <TrendingDown className="h-4 w-4 text-red-600" />
-      default:
-        return <Activity className="h-4 w-4 text-gray-600" />
-    }
+  const obterIconeStatus = (taxaConversao: number) => {
+    if (taxaConversao >= 80) return <CheckCircle className="h-4 w-4 text-green-600" />
+    if (taxaConversao >= 60) return <TrendingUp className="h-4 w-4 text-blue-600" />
+    if (taxaConversao >= 40) return <AlertTriangle className="h-4 w-4 text-yellow-600" />
+    return <TrendingDown className="h-4 w-4 text-red-600" />
   }
 
-  const totalVendas = gruposPermitidos.reduce((acc, grupo) => acc + grupo.vendas, 0)
-  const totalMetas = gruposPermitidos.reduce((acc, grupo) => acc + grupo.meta, 0)
-  const totalVendedores = gruposPermitidos.reduce((acc, grupo) => acc + grupo.vendedores, 0)
-  const mediaPerformance = calcularPercentualMeta(totalVendas, totalMetas)
+  const getStatusLabel = (taxaConversao: number) => {
+    if (taxaConversao >= 80) return "excelente"
+    if (taxaConversao >= 60) return "bom"
+    if (taxaConversao >= 40) return "atenção"
+    return "crítico"
+  }
+
+  const totalVendas = gruposPermitidos.reduce((acc, grupo) => acc + grupo.totalVendas, 0)
+  const totalMetas = gruposPermitidos.reduce((acc, grupo) => acc + (grupo.quota || 0), 0)
+  const totalVendedores = gruposPermitidos.reduce((acc, grupo) => acc + (grupo.sellers?.length || 0), 0)
+  const mediaPerformance = totalMetas > 0 ? calcularPercentualMeta(totalVendas, totalMetas) : 0
+  const totalOportunidades = gruposPermitidos.reduce((acc, grupo) => acc + grupo.totalOportunidades, 0)
+
+  // Calculate distribution of performance
+  const calcularDistribuicaoStatus = () => {
+    if (gruposPermitidos.length === 0) {
+      return [
+        { name: "Excelente", value: 0, color: "#22c55e" },
+        { name: "Bom", value: 0, color: "#3b82f6" },
+        { name: "Atenção", value: 0, color: "#f59e0b" },
+        { name: "Crítico", value: 0, color: "#ef4444" },
+      ]
+    }
+
+    const total = gruposPermitidos.length
+    const excelente = gruposPermitidos.filter(g => g.taxaConversao >= 80).length
+    const bom = gruposPermitidos.filter(g => g.taxaConversao >= 60 && g.taxaConversao < 80).length
+    const atencao = gruposPermitidos.filter(g => g.taxaConversao >= 40 && g.taxaConversao < 60).length
+    const critico = gruposPermitidos.filter(g => g.taxaConversao < 40).length
+
+    return [
+      { name: "Excelente", value: Math.round((excelente / total) * 100), color: "#22c55e" },
+      { name: "Bom", value: Math.round((bom / total) * 100), color: "#3b82f6" },
+      { name: "Atenção", value: Math.round((atencao / total) * 100), color: "#f59e0b" },
+      { name: "Crítico", value: Math.round((critico / total) * 100), color: "#ef4444" },
+    ]
+  }
+
+  const distribuicaoStatus = calcularDistribuicaoStatus()
+
+  if (authLoading || loading) {
+    return (
+      <SidebarInset>
+        <header className="flex h-16 shrink-0 items-center gap-2">
+          <div className="flex items-center gap-2 px-4">
+            <SidebarTrigger className="-ml-1" />
+            <Separator orientation="vertical" className="mr-2 h-4" />
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem className="hidden md:block">
+                  <BreadcrumbLink href="/">Dashboard</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator className="hidden md:block" />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Dashboard Líderes</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
+          </div>
+        </header>
+        <div className="flex flex-1 items-center justify-center p-4">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Carregando dados...</p>
+          </div>
+        </div>
+      </SidebarInset>
+    )
+  }
 
   return (
     <SidebarInset>
@@ -214,12 +349,12 @@ export default function DashboardLideresPage() {
           <div>
             <h1 className="text-3xl font-bold tracking-tight flex items-center gap-2">
               <Crown className="h-8 w-8 text-yellow-500" />
-              {usuarioLogado.papel === "admin" ? "Dashboard de Líderes" : "Meu Dashboard de Liderança"}
+              {isAdmin ? "Dashboard de Líderes" : "Meu Dashboard de Liderança"}
             </h1>
             <p className="text-muted-foreground">
-              {usuarioLogado.papel === "admin"
+              {isAdmin
                 ? "Visão executiva para líderes de grupos de vendas"
-                : `Gerencie seu grupo: ${gruposPermitidos[0]?.nome || "Nenhum grupo atribuído"}`}
+                : `Gerencie seu grupo${gruposPermitidos.length > 0 ? `: ${gruposPermitidos[0]?.name || ""}` : ""}`}
             </p>
           </div>
           <div className="flex gap-2">
@@ -241,7 +376,7 @@ export default function DashboardLideresPage() {
           </div>
         </div>
 
-        {usuarioLogado.papel === "lider" && gruposPermitidos.length === 0 && (
+        {isLeader && !isAdmin && gruposPermitidos.length === 0 && (
           <Card>
             <CardHeader className="text-center">
               <AlertCircle className="h-12 w-12 text-yellow-500 mx-auto mb-2" />
@@ -267,34 +402,34 @@ export default function DashboardLideresPage() {
                   <p className="text-xs text-muted-foreground">
                     {formatarMoeda(totalVendas)} de {formatarMoeda(totalMetas)}
                   </p>
-                  <Progress value={mediaPerformance} className="mt-2" />
+                  <Progress value={Math.min(mediaPerformance, 100)} className="mt-2" />
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">
-                    {usuarioLogado.papel === "admin" ? "Vendedores Liderados" : "Meus Vendedores"}
+                    {isAdmin ? "Vendedores Liderados" : "Meus Vendedores"}
                   </CardTitle>
                   <Users className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{totalVendedores}</div>
                   <p className="text-xs text-muted-foreground">
-                    {gruposPermitidos.reduce((acc, g) => acc + g.vendedoresAtivos, 0)} ativos
+                    {gruposPermitidos.filter(g => g.active).length} grupos ativos
                   </p>
                 </CardContent>
               </Card>
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <CardTitle className="text-sm font-medium">
-                    {usuarioLogado.papel === "admin" ? "Grupos Gerenciados" : "Meu Grupo"}
+                    {isAdmin ? "Grupos Gerenciados" : "Meu Grupo"}
                   </CardTitle>
                   <Crown className="h-4 w-4 text-muted-foreground" />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{gruposPermitidos.length}</div>
                   <p className="text-xs text-muted-foreground">
-                    {gruposPermitidos.filter((g) => g.status === "acima_meta").length} acima da meta
+                    {totalOportunidades} oportunidades no total
                   </p>
                 </CardContent>
               </Card>
@@ -306,11 +441,13 @@ export default function DashboardLideresPage() {
                 <CardContent>
                   <div className="text-2xl font-bold">
                     {formatarMoeda(
-                      gruposPermitidos.reduce((acc, g) => acc + g.ticketMedio, 0) / gruposPermitidos.length,
+                      gruposPermitidos.length > 0 
+                        ? gruposPermitidos.reduce((acc, g) => acc + g.ticketMedio, 0) / gruposPermitidos.length
+                        : 0
                     )}
                   </div>
                   <p className="text-xs text-muted-foreground">
-                    {usuarioLogado.papel === "admin" ? "Média dos grupos" : "Do seu grupo"}
+                    {isAdmin ? "Média dos grupos" : "Do seu grupo"}
                   </p>
                 </CardContent>
               </Card>
@@ -321,44 +458,52 @@ export default function DashboardLideresPage() {
               <Card>
                 <CardHeader>
                   <CardTitle>
-                    {usuarioLogado.papel === "admin" ? "Performance dos Grupos" : "Performance do Meu Grupo"}
+                    {isAdmin ? "Performance dos Grupos" : "Performance do Meu Grupo"}
                   </CardTitle>
                   <CardDescription>
-                    {usuarioLogado.papel === "admin"
+                    {isAdmin
                       ? "Acompanhe o desempenho de cada equipe"
                       : "Acompanhe o desempenho da sua equipe"}
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {gruposPermitidos.map((grupo) => (
-                    <div key={grupo.id} className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <div className={`w-3 h-3 rounded-full bg-${grupo.cor}-500`} />
-                          <span className="font-medium">{grupo.nome}</span>
-                          <Badge variant="outline">{grupo.vendedores} vendedores</Badge>
-                          {usuarioLogado.papel === "lider" && (
-                            <Badge variant="secondary" className="text-xs">
-                              <Crown className="h-3 w-3 mr-1" />
-                              Seu Grupo
-                            </Badge>
-                          )}
+                  {gruposPermitidos.length === 0 ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">
+                      Nenhum grupo encontrado
+                    </p>
+                  ) : (
+                    gruposPermitidos.map((grupo) => {
+                      const percentualMeta = calcularPercentualMeta(grupo.totalVendas, grupo.quota || 0)
+                      return (
+                        <div key={grupo.id} className="space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-blue-500" />
+                              <span className="font-medium">{grupo.name || grupo.code}</span>
+                              <Badge variant="outline">{grupo.sellers?.length || 0} vendedores</Badge>
+                              {!isAdmin && (
+                                <Badge variant="secondary" className="text-xs">
+                                  <Crown className="h-3 w-3 mr-1" />
+                                  Seu Grupo
+                                </Badge>
+                              )}
+                            </div>
+                            <div className="text-right">
+                              <div className="font-medium">{percentualMeta}%</div>
+                              <div className="text-xs text-muted-foreground">{formatarMoeda(grupo.totalVendas)}</div>
+                            </div>
+                          </div>
+                          <Progress value={Math.min(percentualMeta, 100)} />
+                          <div className="flex justify-between text-xs text-muted-foreground">
+                            <span>Meta: {formatarMoeda(grupo.quota || 0)}</span>
+                            <span className={grupo.taxaConversao >= 60 ? "text-green-600" : "text-yellow-600"}>
+                              Taxa Conversão: {grupo.taxaConversao.toFixed(1)}%
+                            </span>
+                          </div>
                         </div>
-                        <div className="text-right">
-                          <div className="font-medium">{calcularPercentualMeta(grupo.vendas, grupo.meta)}%</div>
-                          <div className="text-xs text-muted-foreground">{formatarMoeda(grupo.vendas)}</div>
-                        </div>
-                      </div>
-                      <Progress value={calcularPercentualMeta(grupo.vendas, grupo.meta)} />
-                      <div className="flex justify-between text-xs text-muted-foreground">
-                        <span>Meta: {formatarMoeda(grupo.meta)}</span>
-                        <span className={grupo.crescimento > 0 ? "text-green-600" : "text-red-600"}>
-                          {grupo.crescimento > 0 ? "+" : ""}
-                          {grupo.crescimento}%
-                        </span>
-                      </div>
-                    </div>
-                  ))}
+                      )
+                    })
+                  )}
                 </CardContent>
               </Card>
 
@@ -413,54 +558,70 @@ export default function DashboardLideresPage() {
               <TabsContent value="performance">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Performance Individual dos Vendedores</CardTitle>
-                    <CardDescription>Acompanhe o desempenho de cada membro da equipe</CardDescription>
+                    <CardTitle>Performance dos Grupos</CardTitle>
+                    <CardDescription>Acompanhe o desempenho detalhado de cada grupo</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>Vendedor</TableHead>
-                          <TableHead>Vendas</TableHead>
-                          <TableHead>Meta</TableHead>
-                          <TableHead>Performance</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Ação</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {performanceVendedores.map((vendedor) => (
-                          <TableRow key={vendedor.nome}>
-                            <TableCell className="font-medium">{vendedor.nome}</TableCell>
-                            <TableCell>{formatarMoeda(vendedor.vendas)}</TableCell>
-                            <TableCell>{formatarMoeda(vendedor.meta)}</TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                <div className="w-16 bg-muted rounded-full h-2">
-                                  <div
-                                    className="bg-primary h-2 rounded-full"
-                                    style={{ width: `${Math.min(vendedor.performance, 100)}%` }}
-                                  />
-                                </div>
-                                <span className="text-sm">{vendedor.performance}%</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <div className="flex items-center gap-2">
-                                {obterIconeStatus(vendedor.status)}
-                                <span className={`text-sm ${obterCorStatus(vendedor.status)}`}>{vendedor.status}</span>
-                              </div>
-                            </TableCell>
-                            <TableCell>
-                              <Button variant="outline" size="sm">
-                                <MessageSquare className="mr-2 h-4 w-4" />
-                                1:1
-                              </Button>
-                            </TableCell>
+                    {gruposPermitidos.length === 0 ? (
+                      <p className="text-sm text-muted-foreground text-center py-8">
+                        Nenhum grupo encontrado
+                      </p>
+                    ) : (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Grupo</TableHead>
+                            <TableHead>Vendedores</TableHead>
+                            <TableHead>Vendas</TableHead>
+                            <TableHead>Meta</TableHead>
+                            <TableHead>Conversão</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Ação</TableHead>
                           </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {gruposPermitidos.map((grupo) => {
+                            const percentualMeta = calcularPercentualMeta(grupo.totalVendas, grupo.quota || 0)
+                            
+                            return (
+                              <TableRow key={grupo.id}>
+                                <TableCell className="font-medium">{grupo.name || grupo.code}</TableCell>
+                                <TableCell>
+                                  <Badge variant="outline">{grupo.sellers?.length || 0}</Badge>
+                                </TableCell>
+                                <TableCell>{formatarMoeda(grupo.totalVendas)}</TableCell>
+                                <TableCell>{formatarMoeda(grupo.quota || 0)}</TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-16 bg-muted rounded-full h-2">
+                                      <div
+                                        className="bg-primary h-2 rounded-full"
+                                        style={{ width: `${Math.min(grupo.taxaConversao, 100)}%` }}
+                                      />
+                                    </div>
+                                    <span className="text-sm">{grupo.taxaConversao.toFixed(0)}%</span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <div className="flex items-center gap-2">
+                                    {obterIconeStatus(grupo.taxaConversao)}
+                                    <span className={`text-sm ${obterCorStatus(grupo.taxaConversao)}`}>
+                                      {getStatusLabel(grupo.taxaConversao)}
+                                    </span>
+                                  </div>
+                                </TableCell>
+                                <TableCell>
+                                  <Button variant="outline" size="sm" onClick={() => window.location.href = `/grupos?id=${grupo.id}`}>
+                                    <Users className="mr-2 h-4 w-4" />
+                                    Ver
+                                  </Button>
+                                </TableCell>
+                              </TableRow>
+                            )
+                          })}
+                        </TableBody>
+                      </Table>
+                    )}
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -468,20 +629,79 @@ export default function DashboardLideresPage() {
               <TabsContent value="tendencias">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Tendências de Performance</CardTitle>
-                    <CardDescription>Evolução das vendas e metas ao longo do tempo</CardDescription>
+                    <CardTitle>Visão Geral das Oportunidades</CardTitle>
+                    <CardDescription>Status das oportunidades nos seus grupos</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <AreaChart data={dadosTemporais}>
-                        <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="mes" />
-                        <YAxis />
-                        <Tooltip formatter={(value) => formatarMoeda(Number(value))} />
-                        <Area type="monotone" dataKey="vendas" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.6} />
-                        <Area type="monotone" dataKey="meta" stroke="#10b981" fill="#10b981" fillOpacity={0.3} />
-                      </AreaChart>
-                    </ResponsiveContainer>
+                    <div className="grid gap-4 md:grid-cols-3">
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium text-blue-600">Abertas</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">
+                            {gruposPermitidos.reduce((sum, g) => sum + g.oportunidadesAbertas, 0)}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Em negociação
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium text-green-600">Ganhas</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">
+                            {gruposPermitidos.reduce((sum, g) => sum + g.oportunidadesGanhas, 0)}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            {formatarMoeda(totalVendas)} em vendas
+                          </p>
+                        </CardContent>
+                      </Card>
+                      <Card>
+                        <CardHeader className="pb-2">
+                          <CardTitle className="text-sm font-medium text-red-600">Perdidas</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                          <div className="text-2xl font-bold">
+                            {gruposPermitidos.reduce((sum, g) => sum + g.oportunidadesPerdidas, 0)}
+                          </div>
+                          <p className="text-xs text-muted-foreground mt-1">
+                            Oportunidades não convertidas
+                          </p>
+                        </CardContent>
+                      </Card>
+                    </div>
+                    
+                    <div className="mt-6">
+                      <h4 className="text-sm font-medium mb-4">Performance por Grupo</h4>
+                      <div className="space-y-4">
+                        {gruposPermitidos.map((grupo) => (
+                          <div key={grupo.id} className="p-4 border rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <h5 className="font-medium">{grupo.name || grupo.code}</h5>
+                              <Badge variant="outline">{grupo.taxaConversao.toFixed(1)}% conversão</Badge>
+                            </div>
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Abertas</span>
+                                <div className="font-medium text-blue-600">{grupo.oportunidadesAbertas}</div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Ganhas</span>
+                                <div className="font-medium text-green-600">{grupo.oportunidadesGanhas}</div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Perdidas</span>
+                                <div className="font-medium text-red-600">{grupo.oportunidadesPerdidas}</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
                   </CardContent>
                 </Card>
               </TabsContent>
@@ -489,25 +709,41 @@ export default function DashboardLideresPage() {
               <TabsContent value="atividades">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Atividades Recentes</CardTitle>
-                    <CardDescription>Acompanhe as últimas atividades da sua equipe</CardDescription>
+                    <CardTitle>Resumo de Atividades</CardTitle>
+                    <CardDescription>Visão geral das atividades dos seus grupos</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-4">
-                      {atividadesRecentes.map((atividade) => (
-                        <div key={atividade.id} className="flex items-start gap-3 p-3 border rounded-lg">
-                          <div className="mt-1">
-                            {atividade.tipo === "meta_atingida" && <Award className="h-5 w-5 text-green-600" />}
-                            {atividade.tipo === "alerta" && <AlertTriangle className="h-5 w-5 text-yellow-600" />}
-                            {atividade.tipo === "conquista" && <TrendingUp className="h-5 w-5 text-blue-600" />}
-                            {atividade.tipo === "reuniao" && <Calendar className="h-5 w-5 text-purple-600" />}
-                          </div>
-                          <div className="flex-1">
-                            <div className="flex items-center justify-between">
-                              <span className="font-medium">{atividade.vendedor}</span>
-                              <span className="text-xs text-muted-foreground">{atividade.tempo}</span>
+                      {gruposPermitidos.map((grupo) => (
+                        <div key={grupo.id} className="p-4 border rounded-lg">
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                              <Crown className="h-5 w-5 text-yellow-500" />
+                              <h4 className="font-semibold">{grupo.name || grupo.code}</h4>
+                              {!isAdmin && (
+                                <Badge variant="secondary" className="text-xs">Seu Grupo</Badge>
+                              )}
                             </div>
-                            <p className="text-sm text-muted-foreground mt-1">{atividade.descricao}</p>
+                            <Badge variant="outline">{grupo.sellers?.length || 0} vendedores</Badge>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className="text-2xl font-bold text-blue-600">{grupo.oportunidadesAbertas}</div>
+                              <div className="text-xs text-muted-foreground mt-1">Abertas</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className="text-2xl font-bold text-green-600">{grupo.oportunidadesGanhas}</div>
+                              <div className="text-xs text-muted-foreground mt-1">Ganhas</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className="text-2xl font-bold">{formatarMoeda(grupo.totalVendas)}</div>
+                              <div className="text-xs text-muted-foreground mt-1">Total Vendas</div>
+                            </div>
+                            <div className="text-center p-3 bg-muted/50 rounded">
+                              <div className="text-2xl font-bold">{grupo.taxaConversao.toFixed(0)}%</div>
+                              <div className="text-xs text-muted-foreground mt-1">Conversão</div>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -519,37 +755,86 @@ export default function DashboardLideresPage() {
               <TabsContent value="acoes">
                 <Card>
                   <CardHeader>
-                    <CardTitle>Próximas Ações</CardTitle>
-                    <CardDescription>Tarefas e compromissos importantes</CardDescription>
+                    <CardTitle>Ações de Gestão</CardTitle>
+                    <CardDescription>Identifique pontos de atenção e ações recomendadas</CardDescription>
                   </CardHeader>
                   <CardContent>
                     <div className="space-y-3">
-                      {proximasAcoes.map((acao) => (
-                        <div key={acao.id} className="flex items-center justify-between p-3 border rounded-lg">
-                          <div className="flex items-center gap-3">
-                            <div
-                              className={`w-3 h-3 rounded-full ${
-                                acao.prioridade === "alta"
-                                  ? "bg-red-500"
-                                  : acao.prioridade === "media"
-                                    ? "bg-yellow-500"
-                                    : "bg-green-500"
-                              }`}
-                            />
-                            <div>
-                              <span className="font-medium">{acao.acao}</span>
-                              <div className="flex items-center gap-2 mt-1">
-                                <Clock className="h-4 w-4 text-muted-foreground" />
-                                <span className="text-sm text-muted-foreground">{acao.prazo}</span>
+                      {gruposPermitidos.map((grupo) => {
+                        const needsAttention = grupo.taxaConversao < 50
+                        const needsQuota = !grupo.quota || grupo.quota === 0
+                        const hasNoSellers = !grupo.sellers || grupo.sellers.length === 0
+                        
+                        const actions = []
+                        
+                        if (hasNoSellers) {
+                          actions.push({
+                            titulo: `Adicionar vendedores ao grupo ${grupo.name}`,
+                            prioridade: "alta",
+                            descricao: "Grupo sem vendedores atribuídos"
+                          })
+                        }
+                        
+                        if (needsQuota) {
+                          actions.push({
+                            titulo: `Definir meta para ${grupo.name}`,
+                            prioridade: "media",
+                            descricao: "Grupo sem meta definida"
+                          })
+                        }
+                        
+                        if (needsAttention && !hasNoSellers) {
+                          actions.push({
+                            titulo: `Revisar performance de ${grupo.name}`,
+                            prioridade: "alta",
+                            descricao: `Taxa de conversão baixa: ${grupo.taxaConversao.toFixed(1)}%`
+                          })
+                        }
+                        
+                        if (grupo.oportunidadesAbertas > 10) {
+                          actions.push({
+                            titulo: `Acompanhar oportunidades abertas em ${grupo.name}`,
+                            prioridade: "media",
+                            descricao: `${grupo.oportunidadesAbertas} oportunidades aguardando fechamento`
+                          })
+                        }
+                        
+                        return actions.map((acao, idx) => (
+                          <div key={`${grupo.id}-${idx}`} className="flex items-center justify-between p-3 border rounded-lg">
+                            <div className="flex items-center gap-3">
+                              <div
+                                className={`w-3 h-3 rounded-full ${
+                                  acao.prioridade === "alta"
+                                    ? "bg-red-500"
+                                    : acao.prioridade === "media"
+                                      ? "bg-yellow-500"
+                                      : "bg-green-500"
+                                }`}
+                              />
+                              <div>
+                                <span className="font-medium">{acao.titulo}</span>
+                                <div className="flex items-center gap-2 mt-1">
+                                  <AlertTriangle className="h-4 w-4 text-muted-foreground" />
+                                  <span className="text-sm text-muted-foreground">{acao.descricao}</span>
+                                </div>
                               </div>
                             </div>
+                            <Button variant="outline" size="sm">
+                              <CheckCircle className="mr-2 h-4 w-4" />
+                              Resolver
+                            </Button>
                           </div>
-                          <Button variant="outline" size="sm">
-                            <CheckCircle className="mr-2 h-4 w-4" />
-                            Concluir
-                          </Button>
+                        ))
+                      })}
+                      
+                      {gruposPermitidos.every(g => 
+                        g.sellers && g.sellers.length > 0 && g.quota && g.taxaConversao >= 50
+                      ) && (
+                        <div className="text-center py-8 text-muted-foreground">
+                          <CheckCircle className="h-12 w-12 mx-auto mb-2 text-green-500" />
+                          <p>Todos os grupos estão funcionando bem!</p>
                         </div>
-                      ))}
+                      )}
                     </div>
                   </CardContent>
                 </Card>
@@ -563,72 +848,75 @@ export default function DashboardLideresPage() {
                       <CardDescription>Administre seus grupos de vendas</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                      {gruposPermitidos.map((grupo) => (
-                        <div key={grupo.id} className="p-4 border rounded-lg space-y-3">
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-2">
-                              <div className={`w-4 h-4 rounded-full bg-${grupo.cor}-500`} />
-                              <h3 className="font-semibold">{grupo.nome}</h3>
-                              <Badge variant="outline">{grupo.vendedores} membros</Badge>
-                              {usuarioLogado.papel === "lider" && (
-                                <Badge variant="secondary" className="text-xs">
-                                  <Crown className="h-3 w-3 mr-1" />
-                                  Seu Grupo
-                                </Badge>
-                              )}
-                            </div>
-                            <div className="flex gap-2">
-                              <Button variant="outline" size="sm">
-                                <Users className="mr-2 h-4 w-4" />
-                                Gerenciar
-                              </Button>
-                              <Button variant="outline" size="sm">
-                                <Target className="mr-2 h-4 w-4" />
-                                Metas
-                              </Button>
-                            </div>
-                          </div>
-
-                          <div className="grid grid-cols-3 gap-4 text-sm">
-                            <div>
-                              <span className="text-muted-foreground">Vendas</span>
-                              <div className="font-medium">{formatarMoeda(grupo.vendas)}</div>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Meta</span>
-                              <div className="font-medium">{formatarMoeda(grupo.meta)}</div>
-                            </div>
-                            <div>
-                              <span className="text-muted-foreground">Performance</span>
-                              <div
-                                className={`font-medium ${grupo.crescimento > 0 ? "text-green-600" : "text-red-600"}`}
-                              >
-                                {calcularPercentualMeta(grupo.vendas, grupo.meta)}%
+                      {gruposPermitidos.map((grupo) => {
+                        const percentualMeta = calcularPercentualMeta(grupo.totalVendas, grupo.quota || 0)
+                        return (
+                          <div key={grupo.id} className="p-4 border rounded-lg space-y-3">
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-2">
+                                <div className="w-4 h-4 rounded-full bg-blue-500" />
+                                <h3 className="font-semibold">{grupo.name || grupo.code}</h3>
+                                <Badge variant="outline">{grupo.sellers?.length || 0} membros</Badge>
+                                {!isAdmin && (
+                                  <Badge variant="secondary" className="text-xs">
+                                    <Crown className="h-3 w-3 mr-1" />
+                                    Seu Grupo
+                                  </Badge>
+                                )}
+                              </div>
+                              <div className="flex gap-2">
+                                <Button variant="outline" size="sm" onClick={() => window.location.href = `/grupos?id=${grupo.id}`}>
+                                  <Users className="mr-2 h-4 w-4" />
+                                  Gerenciar
+                                </Button>
                               </div>
                             </div>
-                          </div>
 
-                          <div className="flex gap-2">
-                            <Button variant="ghost" size="sm" className="text-blue-600">
-                              <MessageSquare className="mr-2 h-4 w-4" />
-                              Reunião de Equipe
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-green-600">
-                              <Award className="mr-2 h-4 w-4" />
-                              Reconhecimento
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-orange-600">
-                              <AlertTriangle className="mr-2 h-4 w-4" />
-                              Plano de Ação
-                            </Button>
-                          </div>
-                        </div>
-                      ))}
+                            <div className="grid grid-cols-3 gap-4 text-sm">
+                              <div>
+                                <span className="text-muted-foreground">Vendas</span>
+                                <div className="font-medium">{formatarMoeda(grupo.totalVendas)}</div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Meta</span>
+                                <div className="font-medium">{formatarMoeda(grupo.quota || 0)}</div>
+                              </div>
+                              <div>
+                                <span className="text-muted-foreground">Performance</span>
+                                <div
+                                  className={`font-medium ${percentualMeta >= 100 ? "text-green-600" : percentualMeta >= 80 ? "text-blue-600" : "text-yellow-600"}`}
+                                >
+                                  {percentualMeta}%
+                                </div>
+                              </div>
+                            </div>
 
-                      <Button className="w-full bg-transparent" variant="outline">
-                        <Users className="mr-2 h-4 w-4" />
-                        Criar Novo Grupo
-                      </Button>
+                            <div className="flex gap-2">
+                              <Button variant="ghost" size="sm" className="text-blue-600">
+                                <Target className="mr-2 h-4 w-4" />
+                                Ajustar Meta
+                              </Button>
+                              <Button variant="ghost" size="sm" className="text-green-600">
+                                <Award className="mr-2 h-4 w-4" />
+                                Reconhecimento
+                              </Button>
+                              {grupo.oportunidadesAbertas > 5 && (
+                                <Button variant="ghost" size="sm" className="text-orange-600">
+                                  <AlertTriangle className="mr-2 h-4 w-4" />
+                                  Revisar Pipeline
+                                </Button>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })}
+
+                      {isAdmin && (
+                        <Button className="w-full bg-transparent" variant="outline" onClick={() => window.location.href = '/grupos'}>
+                          <Users className="mr-2 h-4 w-4" />
+                          Gerenciar Todos os Grupos
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
 
@@ -638,82 +926,85 @@ export default function DashboardLideresPage() {
                       <CardDescription>Ferramentas de gestão para líderes</CardDescription>
                     </CardHeader>
                     <CardContent className="space-y-3">
-                      <Button className="w-full justify-start bg-transparent" variant="outline">
+                      <Button 
+                        className="w-full justify-start bg-transparent" 
+                        variant="outline"
+                        onClick={() => window.location.href = '/grupos'}
+                      >
                         <Target className="mr-2 h-4 w-4" />
-                        Definir Metas Mensais
+                        Definir Metas de Grupos
                       </Button>
-                      <Button className="w-full justify-start bg-transparent" variant="outline">
-                        <Users className="mr-2 h-4 w-4" />
-                        Redistribuir Vendedores
-                      </Button>
-                      <Button className="w-full justify-start bg-transparent" variant="outline">
-                        <Calendar className="mr-2 h-4 w-4" />
-                        Agendar Reuniões 1:1
-                      </Button>
-                      <Button className="w-full justify-start bg-transparent" variant="outline">
-                        <Award className="mr-2 h-4 w-4" />
-                        Programa de Incentivos
-                      </Button>
-                      <Button className="w-full justify-start bg-transparent" variant="outline">
+                      <Button 
+                        className="w-full justify-start bg-transparent" 
+                        variant="outline"
+                        onClick={() => window.location.href = '/pipeline'}
+                      >
                         <Activity className="mr-2 h-4 w-4" />
-                        Relatório de Performance
+                        Ver Pipeline Completo
                       </Button>
-                      <Button className="w-full justify-start bg-transparent" variant="outline">
+                      <Button 
+                        className="w-full justify-start bg-transparent" 
+                        variant="outline"
+                        onClick={() => window.location.href = '/tarefas'}
+                      >
+                        <Calendar className="mr-2 h-4 w-4" />
+                        Gerenciar Tarefas
+                      </Button>
+                      <Button 
+                        className="w-full justify-start bg-transparent" 
+                        variant="outline"
+                        onClick={() => window.location.href = '/relatorios'}
+                      >
                         <TrendingUp className="mr-2 h-4 w-4" />
-                        Análise de Tendências
+                        Relatórios Detalhados
                       </Button>
+                      {isAdmin && (
+                        <Button 
+                          className="w-full justify-start bg-transparent" 
+                          variant="outline"
+                          onClick={() => window.location.href = '/vendedores'}
+                        >
+                          <Users className="mr-2 h-4 w-4" />
+                          Gerenciar Vendedores
+                        </Button>
+                      )}
                     </CardContent>
                   </Card>
                 </div>
 
                 <Card className="mt-4">
                   <CardHeader>
-                    <CardTitle>Configurações de Liderança</CardTitle>
-                    <CardDescription>Personalize sua abordagem de gestão</CardDescription>
+                    <CardTitle>Resumo Executivo</CardTitle>
+                    <CardDescription>Visão consolidada da performance</CardDescription>
                   </CardHeader>
                   <CardContent>
-                    <div className="grid gap-4 md:grid-cols-2">
-                      <div className="space-y-3">
-                        <h4 className="font-medium">Notificações de Performance</h4>
-                        <div className="space-y-2">
-                          <label className="flex items-center space-x-2">
-                            <input type="checkbox" defaultChecked className="rounded" />
-                            <span className="text-sm">Alertar quando vendedor fica abaixo de 80% da meta</span>
-                          </label>
-                          <label className="flex items-center space-x-2">
-                            <input type="checkbox" defaultChecked className="rounded" />
-                            <span className="text-sm">Notificar quando grupo atinge meta mensal</span>
-                          </label>
-                          <label className="flex items-center space-x-2">
-                            <input type="checkbox" className="rounded" />
-                            <span className="text-sm">Relatório semanal automático</span>
-                          </label>
+                    <div className="grid gap-4 md:grid-cols-4">
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <div className="text-3xl font-bold text-blue-600">
+                          {gruposPermitidos.reduce((sum, g) => sum + g.totalOportunidades, 0)}
                         </div>
+                        <div className="text-sm text-muted-foreground mt-1">Total Oportunidades</div>
                       </div>
-
-                      <div className="space-y-3">
-                        <h4 className="font-medium">Frequência de Reuniões</h4>
-                        <div className="space-y-2">
-                          <Select defaultValue="semanal">
-                            <SelectTrigger>
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="diaria">Diária</SelectItem>
-                              <SelectItem value="semanal">Semanal</SelectItem>
-                              <SelectItem value="quinzenal">Quinzenal</SelectItem>
-                              <SelectItem value="mensal">Mensal</SelectItem>
-                            </SelectContent>
-                          </Select>
-                          <p className="text-xs text-muted-foreground">
-                            Frequência padrão para reuniões 1:1 com vendedores
-                          </p>
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <div className="text-3xl font-bold text-green-600">
+                          {gruposPermitidos.reduce((sum, g) => sum + g.oportunidadesGanhas, 0)}
                         </div>
+                        <div className="text-sm text-muted-foreground mt-1">Oportunidades Ganhas</div>
                       </div>
-                    </div>
-
-                    <div className="mt-6 pt-4 border-t">
-                      <Button>Salvar Configurações</Button>
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <div className="text-3xl font-bold">
+                          {formatarMoeda(totalVendas)}
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">Vendas Totais</div>
+                      </div>
+                      <div className="text-center p-4 bg-muted/50 rounded-lg">
+                        <div className="text-3xl font-bold">
+                          {gruposPermitidos.length > 0 
+                            ? (gruposPermitidos.reduce((sum, g) => sum + g.taxaConversao, 0) / gruposPermitidos.length).toFixed(0)
+                            : 0}%
+                        </div>
+                        <div className="text-sm text-muted-foreground mt-1">Taxa Conversão Média</div>
+                      </div>
                     </div>
                   </CardContent>
                 </Card>

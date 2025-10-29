@@ -72,9 +72,28 @@ export async function getApproverForSeller(sellerId: string | number): Promise<s
  */
 export async function getSellerIdFromUserId(userId: string | number): Promise<number | null> {
   try {
+    console.log("[approval-helper] buscando seller para userId:", userId)
     const sellers = await getSellers("", 0, 100)
+    console.log("[approval-helper] total sellers:", sellers.length)
+    
+    sellers.forEach((s: any) => {
+      console.log("[approval-helper] seller:", {
+        id: s.id,
+        name: s.name,
+        userId: s.user?.id ?? s.userId,
+        matches: String(s.user?.id ?? s.userId) === String(userId)
+      })
+    })
+    
     const seller = sellers.find((s: any) => String(s.user?.id ?? s.userId) === String(userId))
-    return seller?.id ? Number(seller.id) : null
+    
+    if (seller) {
+      console.log("[approval-helper] seller encontrado:", { id: seller.id, name: seller.name })
+      return Number(seller.id)
+    } else {
+      console.warn("[approval-helper] nenhum seller encontrado para userId:", userId)
+      return null
+    }
   } catch (error) {
     console.error("[approval-helper] erro ao buscar seller", error)
     return null

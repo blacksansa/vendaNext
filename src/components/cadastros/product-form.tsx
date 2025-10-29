@@ -50,11 +50,13 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
   }
 
   const handleInputChange = (field: string, value: any) => {
+    console.log("[ProductForm] campo alterado:", field, value)
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
   return (
     <div className="space-y-4">
+      {console.log("[ProductForm] formData atual:", formData)}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="code">Código *</Label>
@@ -154,8 +156,12 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
             id="price"
             type="number"
             step="0.01"
-            value={formData.price || ""}
-            onChange={(e) => handleInputChange("price", parseFloat(e.target.value))}
+            min="0"
+            value={formData.price ?? ""}
+            onChange={(e) => {
+              const value = e.target.value
+              handleInputChange("price", value === "" ? 0 : parseFloat(value) || 0)
+            }}
             placeholder="0.00"
           />
         </div>
@@ -167,8 +173,12 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
           <Input
             id="stockQuantity"
             type="number"
-            value={formData.stockQuantity || ""}
-            onChange={(e) => handleInputChange("stockQuantity", parseInt(e.target.value))}
+            min="0"
+            value={formData.stockQuantity ?? ""}
+            onChange={(e) => {
+              const value = e.target.value
+              handleInputChange("stockQuantity", value === "" ? 0 : parseInt(value) || 0)
+            }}
             placeholder="0"
           />
         </div>
@@ -177,8 +187,12 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
           <Input
             id="minStock"
             type="number"
-            value={formData.minStock || ""}
-            onChange={(e) => handleInputChange("minStock", parseInt(e.target.value))}
+            min="0"
+            value={formData.minStock ?? ""}
+            onChange={(e) => {
+              const value = e.target.value
+              handleInputChange("minStock", value === "" ? 0 : parseInt(value) || 0)
+            }}
             placeholder="0"
           />
         </div>

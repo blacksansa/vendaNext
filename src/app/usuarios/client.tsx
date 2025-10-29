@@ -81,9 +81,9 @@ export function UsuariosPageClient({
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [newUser, setNewUser] = useState({
-    name: "",
+    firstName: "",
+    lastName: "",
     email: "",
-    role: "",
     password: "",
   });
 
@@ -93,50 +93,179 @@ export function UsuariosPageClient({
   };
 
   const handleCreateUser = async () => {
+    console.log('[user-creation] Starting user creation');
+    console.log('[user-creation] User data:', newUser);
+    
+    // Validation
+    if (!newUser.firstName || !newUser.email || !newUser.password) {
+      console.error('[user-creation] Validation failed - missing fields');
+      setStatus('create', 'error');
+      return;
+    }
+
     setStatus('create', 'loading');
+    
+    // Optimistic update - create temporary user
+    const tempUser: User = {
+      id: `temp-${Date.now()}`,
+      firstName: newUser.firstName,
+      lastName: newUser.lastName || "",
+      email: newUser.email,
+      enabled: true,
+      emailVerified: false,
+      sendEmail: true,
+      groups: [],
+      createdTimestamp: Date.now(),
+    };
+    
+    console.log('[user-creation] Adding optimistic user:', tempUser);
+    setUsers(prev => [...prev, tempUser]);
+    setTotalUsers(prev => prev + 1);
+    setActiveUsers(prev => prev + 1);
+    
     try {
-      await createUser(newUser as any);
-      fetchUsers();
-      setNewUser({ name: "", email: "", role: "", password: "" });
+      console.log('[user-creation] Calling API createUser');
+      const userData = {
+        firstName: newUser.firstName,
+        lastName: newUser.lastName || "",
+        email: newUser.email,
+        password: newUser.password,
+        enabled: true,
+        emailVerified: false,
+        sendEmail: true,
+      };
+      console.log('[user-creation] Sending user data:', userData);
+      const createdUser = await createUser(userData as any);
+      console.log('[user-creation] User created successfully:', createdUser);
+      
+      // Replace optimistic user with real user
+      setUsers(prev => prev.map(u => u.id === tempUser.id ? createdUser : u));
+      
+      setNewUser({ firstName: "", lastName: "", email: "", password: "" });
       setIsCreateDialogOpen(false);
       setStatus('create', 'success');
     } catch (err: any) {
+      console.error('[user-creation] Error creating user:', err);
+      console.error('[user-creation] Error message:', err.message);
+      
+      // Rollback optimistic update
+      setUsers(prev => prev.filter(u => u.id !== tempUser.id));
+      setTotalUsers(prev => prev - 1);
+      setActiveUsers(prev => prev - 1);
+      
       setStatus('create', 'error');
     }
   };
 
   const handleDeleteUser = async (userId: string) => {
+    console.log('[user-delete] Starting delete for user:', userId);
     setStatus(userId, 'loading');
+    
+    // Optimistic update - remove user from list
+    const userToDelete = users.find(u => u.id === userId);
+    if (!userToDelete) {
+      console.error('[user-delete] User not found:', userId);
+      setStatus(userId, 'error');
+      return;
+    }
+    
+    console.log('[user-delete] Removing user optimistically:', userToDelete);
+    setUsers(prev => prev.filter(u => u.id !== userId));
+    setTotalUsers(prev => prev - 1);
+    if (userToDelete.enabled) {
+      setActiveUsers(prev => prev - 1);
+    }
+    
     try {
+      console.log('[user-delete] Calling API deleteUser');
       await deleteUser(userId);
-      fetchUsers();
+      console.log('[user-delete] User deleted successfully');
       setStatus(userId, 'success');
     } catch (err: any) {
+      console.error('[user-delete] Error deleting user:', err);
+      
+      // Rollback optimistic update
+      setUsers(prev => [...prev, userToDelete]);
+      setTotalUsers(prev => prev + 1);
+      if (userToDelete.enabled) {
+        setActiveUsers(prev => prev + 1);
+      }
+      
       setStatus(userId, 'error');
     }
   };
 
   const handleToggleUserStatus = async (user: User) => {
+    console.log('[user-toggle] Toggling status for user:', user.id, 'current:', user.enabled);
     setStatus(user.id!, 'loading');
+    
+    const newStatus = !user.enabled;
+    
+    // Optimistic update
+    console.log('[user-toggle] Updating status optimistically to:', newStatus);
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, enabled: newStatus } : u));
+    if (newStatus) {
+      setActiveUsers(prev => prev + 1);
+    } else {
+      setActiveUsers(prev => prev - 1);
+    }
+    
     try {
-      await updateUser(user.id!, { ...user, enabled: !user.enabled });
-      fetchUsers();
+      console.log('[user-toggle] Calling API updateUser');
+      await updateUser(user.id!, { ...user, enabled: newStatus });
+      console.log('[user-toggle] Status updated successfully');
       setStatus(user.id!, 'success');
     } catch (err: any) {
+      console.error('[user-toggle] Error toggling status:', err);
+      
+      // Rollback optimistic update
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, enabled: user.enabled } : u));
+      if (newStatus) {
+        setActiveUsers(prev => prev - 1);
+      } else {
+        setActiveUsers(prev => prev + 1);
+      }
+      
       setStatus(user.id!, 'error');
     }
   };
 
   const handleUpdateUser = async () => {
     if (!selectedUser) return;
+    console.log('[user-update] Starting update for user:', selectedUser.id);
+    console.log('[user-update] Updated data:', selectedUser);
+    
     setStatus(selectedUser.id!, 'loading');
+    
+    // Store original user for rollback
+    const originalUser = users.find(u => u.id === selectedUser.id);
+    if (!originalUser) {
+      console.error('[user-update] Original user not found:', selectedUser.id);
+      setStatus(selectedUser.id!, 'error');
+      return;
+    }
+    
+    // Optimistic update
+    console.log('[user-update] Updating user optimistically');
+    setUsers(prev => prev.map(u => u.id === selectedUser.id ? selectedUser : u));
+    
     try {
-      await updateUser(selectedUser.id!, selectedUser);
-      fetchUsers();
+      console.log('[user-update] Calling API updateUser');
+      const updatedUser = await updateUser(selectedUser.id!, selectedUser);
+      console.log('[user-update] User updated successfully:', updatedUser);
+      
+      // Update with real data from server
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? updatedUser : u));
+      
       setIsEditDialogOpen(false);
       setSelectedUser(null);
       setStatus(selectedUser.id!, 'success');
     } catch (err: any) {
+      console.error('[user-update] Error updating user:', err);
+      
+      // Rollback optimistic update
+      setUsers(prev => prev.map(u => u.id === selectedUser.id ? originalUser : u));
+      
       setStatus(selectedUser.id!, 'error');
     }
   };
@@ -154,16 +283,63 @@ export function UsuariosPageClient({
   };
 
   const handleGroupAssignment = async (user: User, groupId: string, checked: boolean) => {
+    console.log('[group-assignment] User:', user.id, 'Group:', groupId, 'Checked:', checked);
     setStatus(user.id!, 'loading');
+    
+    // Store original groups for rollback
+    const originalGroups = user.groups || [];
+    const group = userGroups.find(g => g.id === groupId);
+    
+    if (!group) {
+      console.error('[group-assignment] Group not found:', groupId);
+      setStatus(user.id!, 'error');
+      return;
+    }
+    
+    // Optimistic update
+    let newGroups;
+    if (checked) {
+      console.log('[group-assignment] Adding group optimistically:', group.name);
+      newGroups = [...originalGroups, group];
+    } else {
+      console.log('[group-assignment] Removing group optimistically:', group.name);
+      newGroups = originalGroups.filter(g => g.id !== groupId);
+    }
+    
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, groups: newGroups } : u));
+    
+    // Update admin count if needed
+    if (group.name === 'Administradores') {
+      if (checked) {
+        setAdminUsers(prev => prev + 1);
+      } else {
+        setAdminUsers(prev => prev - 1);
+      }
+    }
+    
     try {
+      console.log('[group-assignment] Calling API');
       if (checked) {
         await addUserToGroup(groupId, user.id!);
       } else {
         await removeUserFromGroup(groupId, user.id!);
       }
-      fetchUsers();
+      console.log('[group-assignment] Group assignment successful');
       setStatus(user.id!, 'success');
     } catch (err: any) {
+      console.error('[group-assignment] Error assigning group:', err);
+      
+      // Rollback optimistic update
+      setUsers(prev => prev.map(u => u.id === user.id ? { ...u, groups: originalGroups } : u));
+      
+      if (group.name === 'Administradores') {
+        if (checked) {
+          setAdminUsers(prev => prev - 1);
+        } else {
+          setAdminUsers(prev => prev + 1);
+        }
+      }
+      
       setStatus(user.id!, 'error');
     }
   };
@@ -201,14 +377,25 @@ const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defa
               <div className="grid gap-4 py-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label htmlFor="name">Nome Completo</Label>
+                    <Label htmlFor="firstName">Nome</Label>
                     <Input
-                      id="name"
-                      value={newUser.name}
-                      onChange={(e) => setNewUser({ ...newUser, name: e.target.value })}
-                      placeholder="Digite o nome completo"
+                      id="firstName"
+                      value={newUser.firstName}
+                      onChange={(e) => setNewUser({ ...newUser, firstName: e.target.value })}
+                      placeholder="Digite o primeiro nome"
                     />
                   </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="lastName">Sobrenome</Label>
+                    <Input
+                      id="lastName"
+                      value={newUser.lastName}
+                      onChange={(e) => setNewUser({ ...newUser, lastName: e.target.value })}
+                      placeholder="Digite o sobrenome"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="email">Email</Label>
                     <Input
@@ -219,8 +406,6 @@ const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defa
                       placeholder="usuario@empresa.com"
                     />
                   </div>
-                </div>
-                <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="password">Senha Temporária</Label>
                     <div className="relative">
@@ -314,19 +499,19 @@ const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defa
                       <TableCell>
                         <div className="flex items-center gap-3">
                           <Avatar className="h-8 w-8">
-                            <AvatarImage src={user.avatar || "/placeholder.svg"} />
+                            <AvatarImage src={"/placeholder.svg"} />
                             <AvatarFallback>
-                              {user.name
-                                ? user.name
-                                    .split(" ")
-                                    .map((n) => n[0])
-                                    .join("")
-                                    .toUpperCase()
+                              {user.firstName && user.lastName
+                                ? `${user.firstName[0]}${user.lastName[0]}`.toUpperCase()
+                                : user.firstName
+                                ? user.firstName.substring(0, 2).toUpperCase()
                                 : "NN"}
                             </AvatarFallback>
                           </Avatar>
                           <div>
-                            <div className="font-medium">{user.name} {user.groups?.some(g => g.name === 'Administradores') && <Shield className="w-4 h-4 inline-block ml-1 text-red-500" />}</div>
+                            <div className="font-medium">
+                              {user.firstName} {user.lastName} {user.groups?.some(g => g.name === 'Administradores') && <Shield className="w-4 h-4 inline-block ml-1 text-red-500" />}
+                            </div>
                             <div className="text-sm text-muted-foreground">{user.email}</div>
                           </div>
                         </div>
@@ -504,24 +689,33 @@ const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defa
             <div className="grid gap-4 py-4">
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="name-edit">Nome Completo</Label>
+                  <Label htmlFor="firstName-edit">Nome</Label>
                   <Input
-                    id="name-edit"
-                    value={selectedUser.name}
-                    onChange={(e) => setSelectedUser({ ...selectedUser, name: e.target.value })}
-                    placeholder="Digite o nome completo"
+                    id="firstName-edit"
+                    value={selectedUser.firstName}
+                    onChange={(e) => setSelectedUser({ ...selectedUser, firstName: e.target.value })}
+                    placeholder="Digite o primeiro nome"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label htmlFor="email-edit">Email</Label>
+                  <Label htmlFor="lastName-edit">Sobrenome</Label>
                   <Input
-                    id="email-edit"
-                    type="email"
-                    value={selectedUser.email}
-                    onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })}
-                    placeholder="usuario@empresa.com"
+                    id="lastName-edit"
+                    value={selectedUser.lastName}
+                    onChange={(e) => setSelectedUser({ ...selectedUser, lastName: e.target.value })}
+                    placeholder="Digite o sobrenome"
                   />
                 </div>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="email-edit">Email</Label>
+                <Input
+                  id="email-edit"
+                  type="email"
+                  value={selectedUser.email}
+                  onChange={(e) => setSelectedUser({ ...selectedUser, email: e.target.value })}
+                  placeholder="usuario@empresa.com"
+                />
               </div>
             </div>
           )}

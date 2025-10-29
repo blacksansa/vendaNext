@@ -7,6 +7,7 @@ import {
   getInvoiceById,
   createInvoice,
   updateInvoice,
+  deleteInvoice,
   approveInvoice,
   getApprovers,
   invoicesAnalytics,
@@ -38,6 +39,7 @@ export interface InvoiceUI {
   code?: string
   customer?: string
   seller?: string
+  sellerId?: number | string
   date?: string
   total?: number
   status: InvoiceStatusUI
@@ -63,6 +65,13 @@ export class InvoiceModel {
 
   // map single InvoiceDTO -> InvoiceUI
   mapDtoToUi(inv: InvoiceDTO): InvoiceUI {
+    console.log("[InvoiceModel] mapDtoToUi - invoice recebida:", {
+      id: inv.id,
+      approverId: inv.approverId,
+      approverIds: (inv as any).approverIds,
+      status: inv.status
+    })
+    
     const items = (inv.items ?? []).map((it: ServiceInvoiceItemDTO | any, idx) => ({
       id: String(it?.id ?? idx + 1),
       productId: it?.productId,
@@ -80,28 +89,48 @@ export class InvoiceModel {
       description: h?.description ?? "",
     }))
 
+    // Sempre retornar approverId como array para compatibilidade
+    const approverIds = (inv as any).approverIds
+      ? (inv as any).approverIds
+      : inv.approverId 
+      ? [String(inv.approverId)] 
+      : undefined
+    
+    console.log("[InvoiceModel] approverIds final:", approverIds)
+
     return {
       id: String(inv.id ?? inv.code ?? Math.random().toString(36).slice(2, 9)),
       code: inv.code,
       customer: inv.customerName ?? inv.customerName ?? inv.customerId ? String(inv.customerId) : undefined,
       seller: inv.sellerName ?? (inv as any).seller ?? undefined,
+      sellerId: inv.sellerId,
       date: inv.createdAt ?? inv.invoiceDate ?? undefined,
-      total: Number(inv.total ?? 0),
+      total: Number(inv.total ?? inv.netAmount ?? 0),
       status: this.mapStatus(inv.status),
       items,
       notes: inv.notes ?? undefined,
       history,
-      approverIds: Array.isArray(inv.approverIds) ? inv.approverIds : inv.approverId ? [String(inv.approverId)] : undefined,
+      approverIds,
       raw: inv,
     }
   }
 
   // map UI -> payload for create/update
   mapUiToPayload(ui: Partial<InvoiceUI>): Partial<InvoiceDTO> {
+    console.log("[InvoiceModel] mapUiToPayload input:", ui)
+    
     const payload: Partial<InvoiceDTO> = {}
     if (ui.code !== undefined) payload.code = ui.code
     if (ui.notes !== undefined) payload.notes = ui.notes
-    if (ui.total !== undefined) payload.total = ui.total
+    if (ui.total !== undefined) {
+      payload.total = ui.total
+      payload.netAmount = ui.total // backend usa netAmount como valor principal
+    }
+    if (ui.customer !== undefined) payload.customerName = ui.customer
+    if (ui.seller !== undefined) payload.sellerName = ui.seller
+    if (ui.sellerId !== undefined) payload.sellerId = Number(ui.sellerId)
+    if (ui.date !== undefined) payload.issuanceDate = ui.date
+    
     // map items
     if (ui.items) {
       payload.items = ui.items.map((it) => ({
@@ -119,16 +148,21 @@ export class InvoiceModel {
       else if (ui.status === "cancelada") payload.status = "CANCELLED"
       else payload.status = "DRAFT"
     }
+    // approver handling: backend usa approverId (singular)
     if (ui.approverIds !== undefined) {
-      // backend may accept approverIds or approverId; prefer approverIds if supported
-      ;(payload as any).approverIds = ui.approverIds
-      if (!Array.isArray(ui.approverIds) || ui.approverIds.length === 0) {
-        // nothing
+      console.log("[InvoiceModel] approverIds recebido:", ui.approverIds)
+      if (Array.isArray(ui.approverIds) && ui.approverIds.length > 0) {
+        payload.approverId = ui.approverIds[0] // backend aceita apenas um approverId
+        console.log("[InvoiceModel] approverId setado:", payload.approverId)
       } else {
-        // keep single approver for legacy endpoints
-        payload.approverId = ui.approverIds[0]
+        payload.approverId = null
+        console.log("[InvoiceModel] approverId null - array vazio ou não é array")
       }
+    } else {
+      console.log("[InvoiceModel] approverIds é undefined, não será enviado")
     }
+    
+    console.log("[InvoiceModel] payload final:", payload)
     return payload
   }
 
@@ -183,6 +217,18 @@ export class InvoiceModel {
         ;(payload as any).approverId = approverId
       }
       return updateInvoice(Number(id), payload)
+    }
+  }
+
+  async delete(id: string | number) {
+    console.log('[InvoiceModel] deletando invoice:', id)
+    try {
+      await deleteInvoice(Number(id))
+      console.log('[InvoiceModel] invoice deletada com sucesso')
+      return true
+    } catch (e) {
+      console.error('[InvoiceModel] delete failed:', e)
+      throw e
     }
   }
 

@@ -55,10 +55,12 @@ export function SellerForm({ seller, onSave, onCancel }: SellerFormProps) {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+    console.log("[SellerForm] submetendo seller:", formData)
     onSave(formData)
   }
 
   const handleChange = (field: keyof SellerDTO, value: any) => {
+    console.log("[SellerForm] campo alterado:", field, "=", value)
     setFormData((prev) => ({ ...prev, [field]: value }))
   }
 

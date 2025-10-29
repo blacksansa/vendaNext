@@ -31,11 +31,13 @@ export interface InvoiceDTO {
   customerName?: string
   createdAt?: string
   invoiceDate?: string
+  issuanceDate?: string
   dueDate?: string
   currency?: string
   subtotal?: number
   taxTotal?: number
   total?: number
+  netAmount?: number
   items?: InvoiceItemDTO[]
   notes?: string
   history?: InvoiceHistoryDTO[]
@@ -44,6 +46,10 @@ export interface InvoiceDTO {
   approvedAt?: string | null
   teamId?: number | null
   externalReference?: string | null
+  // Campos opcionais de NF-e
+  series?: string
+  document?: string
+  invoiceKey?: string
 }
 
 /**
@@ -73,6 +79,12 @@ export const createInvoice = (payload: Partial<InvoiceDTO>) =>
  */
 export const updateInvoice = (id: number | string, payload: Partial<InvoiceDTO>) =>
   invoiceApi.saveOrUpdate({ ...payload, id })
+
+/**
+ * Delete invoice
+ */
+export const deleteInvoice = (id: number | string) =>
+  invoiceApi.delete(Number(id))
 
 /**
  * Approve invoice.

@@ -21,8 +21,20 @@ import {
 import { useState, useEffect } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/use-auth"
-import { getMyTasks } from "@/services/task-order-approval-invoice.service"
+import { getMyTasks, updateTask } from "@/services/task-order-approval-invoice.service"
 import { useToast } from "@/hooks/use-toast"
+import {
+  DndContext,
+  DragEndEvent,
+  DragOverlay,
+  DragStartEvent,
+  closestCorners,
+  PointerSensor,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core"
+import { CSS } from "@dnd-kit/utilities"
+import { useSortable } from "@dnd-kit/sortable"
 
 export default function MinhasTarefas() {
   const { user: authUser, loading: authLoading } = useAuth()
@@ -32,26 +44,30 @@ export default function MinhasTarefas() {
   const [filtroPrioridade, setFiltroPrioridade] = useState("todas")
   const [loading, setLoading] = useState(true)
   const [tarefas, setTarefas] = useState<any[]>([])
+  const [activeId, setActiveId] = useState<string | null>(null)
+  
+  // Configurar sensores de drag and drop
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8,
+      },
+    })
+  )
   
   // Obter user de várias fontes
   const [user, setUser] = useState<any>(null)
   
   useEffect(() => {
-    console.log("[minhas-tarefas] ============ DETECÇÃO DE USUÁRIO ============")
-    console.log("[minhas-tarefas] authUser:", authUser)
-    
     if (authUser) {
-      console.log("[minhas-tarefas] usando authUser do hook")
       setUser(authUser)
       return
     }
     
     try {
       const storedUser = localStorage.getItem('user') || localStorage.getItem('currentUser')
-      console.log("[minhas-tarefas] storedUser raw:", storedUser)
       if (storedUser) {
         const parsedUser = JSON.parse(storedUser)
-        console.log("[minhas-tarefas] storedUser parsed:", parsedUser)
         setUser(parsedUser)
       }
     } catch (e) {
@@ -60,7 +76,6 @@ export default function MinhasTarefas() {
   }, [authUser])
   
   const userId = user?.id || user?.sub || user?.userId || user?.email || null
-  console.log("[minhas-tarefas] userId final calculado:", userId, "de user:", user)
   
   // Carregar tarefas do backend
   useEffect(() => {
@@ -75,30 +90,17 @@ export default function MinhasTarefas() {
 
   async function loadTasks() {
     if (!userId) {
-      console.log("[minhas-tarefas] userId não definido, abortando carregamento")
       setLoading(false)
       return
     }
     
     setLoading(true)
     try {
-      console.log("[minhas-tarefas] ============ CARREGANDO TAREFAS ============")
-      console.log("[minhas-tarefas] userId:", userId)
-      console.log("[minhas-tarefas] user completo:", user)
-      
       // Usar o endpoint dedicado que já filtra por usuário no backend
       const minhasTarefas = await getMyTasks("", 0, 100)
-      
-      console.log("[minhas-tarefas] ============ RESPOSTA DO BACKEND ============")
-      console.log("[minhas-tarefas] total de tarefas recebidas:", minhasTarefas.length)
-      console.log("[minhas-tarefas] tarefas recebidas:", JSON.stringify(minhasTarefas, null, 2))
-      
       setTarefas(minhasTarefas)
     } catch (error: any) {
-      console.error("[minhas-tarefas] ============ ERRO AO CARREGAR ============")
-      console.error("[minhas-tarefas] erro:", error)
-      console.error("[minhas-tarefas] erro.message:", error?.message)
-      console.error("[minhas-tarefas] erro.response:", error?.response)
+      console.error("Erro ao carregar tarefas:", error)
       toast({
         title: "Erro ao carregar tarefas",
         description: error?.message ?? "Não foi possível carregar as tarefas",
@@ -107,6 +109,66 @@ export default function MinhasTarefas() {
       setTarefas([])
     } finally {
       setLoading(false)
+    }
+  }
+
+  async function handleStatusChange(taskId: number, newStatus: string) {
+    // Backup das tarefas atuais para rollback
+    const backupTarefas = [...tarefas]
+    
+    try {
+      // Atualizar UI otimisticamente (primeiro)
+      setTarefas(prevTarefas => 
+        prevTarefas.map(t => 
+          t.id === taskId ? { ...t, status: newStatus } : t
+        )
+      )
+      
+      // Depois fazer a requisição ao backend
+      await updateTask(taskId, { status: newStatus })
+      
+      toast({
+        title: "Status atualizado",
+        description: "O status da tarefa foi alterado com sucesso",
+      })
+    } catch (error: any) {
+      console.error("Erro ao atualizar status:", error)
+      
+      // Rollback: reverter para o estado anterior
+      setTarefas(backupTarefas)
+      
+      toast({
+        title: "Erro ao atualizar status",
+        description: error?.message ?? "Não foi possível atualizar o status da tarefa",
+        variant: "destructive",
+      })
+    }
+  }
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string)
+  }
+
+  async function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event
+    
+    setActiveId(null)
+    
+    if (!over) return
+    
+    const taskId = parseInt(active.id as string)
+    const newStatus = over.id as string
+    
+    // Mapear status para o backend
+    const statusMap: Record<string, string> = {
+      "pendentes": "PENDING",
+      "emAndamento": "IN_PROGRESS",
+      "concluidas": "DONE"
+    }
+    
+    const backendStatus = statusMap[newStatus]
+    if (backendStatus) {
+      await handleStatusChange(taskId, backendStatus)
     }
   }
 
@@ -120,12 +182,6 @@ export default function MinhasTarefas() {
   const tarefasPendentes = tarefas.filter((t) => !t.done && (!t.status || t.status === 'PENDING' || t.status === 'TODO'))
   const tarefasEmAndamento = tarefas.filter((t) => !t.done && (t.status === 'IN_PROGRESS' || t.status === 'DOING'))
   const tarefasConcluidas = tarefas.filter((t) => t.done || t.status === 'DONE' || t.status === 'COMPLETED')
-  
-  console.log("[minhas-tarefas] ============ FILTRAGEM DE TAREFAS ============")
-  console.log("[minhas-tarefas] total tarefas:", tarefas.length)
-  console.log("[minhas-tarefas] tarefasPendentes:", tarefasPendentes.length)
-  console.log("[minhas-tarefas] tarefasEmAndamento:", tarefasEmAndamento.length)
-  console.log("[minhas-tarefas] tarefasConcluidas:", tarefasConcluidas.length)
   
   const metricas = {
     totalTarefas: tarefas.length,
@@ -173,6 +229,127 @@ export default function MinhasTarefas() {
             (t) => filtroPrioridade === "todas" || t.prioridade.toLowerCase() === filtroPrioridade,
           )
         : [],
+  }
+
+  // Componente de tarefa draggable
+  function DraggableTaskCard({ tarefa, status }: { tarefa: any; status: string }) {
+    const {
+      attributes,
+      listeners,
+      setNodeRef,
+      transform,
+      transition,
+      isDragging,
+    } = useSortable({ id: tarefa.id.toString() })
+
+    const style = {
+      transform: CSS.Transform.toString(transform),
+      transition,
+      opacity: isDragging ? 0.5 : 1,
+    }
+
+    const borderColor = status === "pendentes" ? "border-l-orange-500" : 
+                        status === "emAndamento" ? "border-l-blue-500" : 
+                        "border-l-green-500"
+
+    return (
+      <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
+        <Card className={`border-l-4 ${borderColor} hover:shadow-md transition-shadow cursor-move`}>
+          <CardContent className="p-4">
+            <div className="space-y-3">
+              <div className="flex items-start justify-between">
+                <h4 className="font-medium text-sm leading-tight">{tarefa.titulo}</h4>
+                <Badge
+                  variant={
+                    tarefa.prioridade === "Alta"
+                      ? "destructive"
+                      : tarefa.prioridade === "Média"
+                        ? "secondary"
+                        : "outline"
+                  }
+                  className="text-xs shrink-0"
+                >
+                  {tarefa.prioridade}
+                </Badge>
+              </div>
+              <p className="text-xs text-muted-foreground leading-relaxed">{tarefa.descricao}</p>
+              {status === "emAndamento" && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-muted-foreground">Progresso:</span>
+                    <span className="font-medium">{tarefa.progresso}%</span>
+                  </div>
+                  <Progress value={tarefa.progresso} className="h-2" />
+                </div>
+              )}
+              <div className="flex items-center justify-between text-xs text-muted-foreground">
+                <div className="flex items-center gap-1">
+                  <Calendar className="h-3 w-3" />
+                  {tarefa.prazo ? new Date(tarefa.prazo).toLocaleDateString() : "Sem prazo"}
+                </div>
+                <div className="flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  {tarefa.estimativa}
+                </div>
+              </div>
+              {tarefa.tags && tarefa.tags.length > 0 && (
+                <div className="flex flex-wrap gap-1">
+                  {tarefa.tags.map((tag: string) => (
+                    <Badge key={tag} variant="outline" className="text-xs">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+              {status === "pendentes" && (
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleStatusChange(tarefa.id, "IN_PROGRESS")
+                  }}
+                >
+                  <PlayCircle className="h-4 w-4 mr-2" />
+                  Iniciar Tarefa
+                </Button>
+              )}
+              {status === "emAndamento" && (
+                <Button 
+                  variant="default" 
+                  size="sm" 
+                  className="w-full"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleStatusChange(tarefa.id, "DONE")
+                  }}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Concluir Tarefa
+                </Button>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Componente de coluna droppable
+  function DroppableColumn({ id, children }: { id: string; children: React.ReactNode }) {
+    const { setNodeRef, isOver } = useSortable({ id })
+
+    return (
+      <div 
+        ref={setNodeRef} 
+        className={`space-y-4 min-h-[100px] transition-colors ${
+          isOver ? 'bg-primary/5 rounded-lg p-2' : ''
+        }`}
+      >
+        {children}
+      </div>
+    )
   }
 
   return (
@@ -324,184 +501,87 @@ export default function MinhasTarefas() {
         </Card>
 
         {/* Kanban de Tarefas Pessoais */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Coluna Pendentes */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <Clock className="h-5 w-5 text-orange-500" />
-                  <CardTitle className="text-lg">Pendentes</CardTitle>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCorners}
+          onDragStart={handleDragStart}
+          onDragEnd={handleDragEnd}
+        >
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            {/* Coluna Pendentes */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Clock className="h-5 w-5 text-orange-500" />
+                    <CardTitle className="text-lg">Pendentes</CardTitle>
+                  </div>
+                  <Badge variant="secondary">{tarefasFiltradas.pendentes.length}</Badge>
                 </div>
-                <Badge variant="secondary">{tarefasFiltradas.pendentes.length}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {tarefasFiltradas.pendentes.map((tarefa) => (
-                <Card key={tarefa.id} className="border-l-4 border-l-orange-500 hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <h4 className="font-medium text-sm leading-tight">{tarefa.titulo}</h4>
-                        <Badge
-                          variant={
-                            tarefa.prioridade === "Alta"
-                              ? "destructive"
-                              : tarefa.prioridade === "Média"
-                                ? "secondary"
-                                : "outline"
-                          }
-                          className="text-xs shrink-0"
-                        >
-                          {tarefa.prioridade}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{tarefa.descricao}</p>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(tarefa.prazo).toLocaleDateString()}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {tarefa.estimativa}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {tarefa.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                      <Button variant="default" size="sm" className="w-full">
-                        <PlayCircle className="h-4 w-4 mr-2" />
-                        Iniciar Tarefa
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <DroppableColumn id="pendentes">
+                  {tarefasFiltradas.pendentes.map((tarefa) => (
+                    <DraggableTaskCard key={tarefa.id} tarefa={tarefa} status="pendentes" />
+                  ))}
+                </DroppableColumn>
+              </CardContent>
+            </Card>
 
-          {/* Coluna Em Andamento */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <AlertCircle className="h-5 w-5 text-blue-500" />
-                  <CardTitle className="text-lg">Em Andamento</CardTitle>
+            {/* Coluna Em Andamento */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <AlertCircle className="h-5 w-5 text-blue-500" />
+                    <CardTitle className="text-lg">Em Andamento</CardTitle>
+                  </div>
+                  <Badge variant="secondary">{tarefasFiltradas.emAndamento.length}</Badge>
                 </div>
-                <Badge variant="secondary">{tarefasFiltradas.emAndamento.length}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {tarefasFiltradas.emAndamento.map((tarefa) => (
-                <Card key={tarefa.id} className="border-l-4 border-l-blue-500 hover:shadow-md transition-shadow">
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <h4 className="font-medium text-sm leading-tight">{tarefa.titulo}</h4>
-                        <Badge
-                          variant={
-                            tarefa.prioridade === "Alta"
-                              ? "destructive"
-                              : tarefa.prioridade === "Média"
-                                ? "secondary"
-                                : "outline"
-                          }
-                          className="text-xs shrink-0"
-                        >
-                          {tarefa.prioridade}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{tarefa.descricao}</p>
-                      <div className="space-y-2">
-                        <div className="flex items-center justify-between text-xs">
-                          <span className="text-muted-foreground">Progresso:</span>
-                          <span className="font-medium">{tarefa.progresso}%</span>
-                        </div>
-                        <Progress value={tarefa.progresso} className="h-2" />
-                      </div>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3" />
-                          {new Date(tarefa.prazo).toLocaleDateString()}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {tarefa.estimativa}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {tarefa.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                      <Button variant="default" size="sm" className="w-full">
-                        <CheckCircle2 className="h-4 w-4 mr-2" />
-                        Concluir Tarefa
-                      </Button>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </CardContent>
-          </Card>
+              </CardHeader>
+              <CardContent>
+                <DroppableColumn id="emAndamento">
+                  {tarefasFiltradas.emAndamento.map((tarefa) => (
+                    <DraggableTaskCard key={tarefa.id} tarefa={tarefa} status="emAndamento" />
+                  ))}
+                </DroppableColumn>
+              </CardContent>
+            </Card>
 
-          {/* Coluna Concluídas */}
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="h-5 w-5 text-green-500" />
-                  <CardTitle className="text-lg">Concluídas</CardTitle>
+            {/* Coluna Concluídas */}
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <CheckCircle className="h-5 w-5 text-green-500" />
+                    <CardTitle className="text-lg">Concluídas</CardTitle>
+                  </div>
+                  <Badge variant="secondary">{tarefasFiltradas.concluidas.length}</Badge>
                 </div>
-                <Badge variant="secondary">{tarefasFiltradas.concluidas.length}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              {tarefasFiltradas.concluidas.map((tarefa) => (
-                <Card
-                  key={tarefa.id}
-                  className="border-l-4 border-l-green-500 opacity-75 hover:opacity-100 transition-opacity"
-                >
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex items-start justify-between">
-                        <h4 className="font-medium text-sm leading-tight line-through">{tarefa.titulo}</h4>
-                        <Badge variant="outline" className="text-xs shrink-0">
-                          {tarefa.prioridade}
-                        </Badge>
-                      </div>
-                      <p className="text-xs text-muted-foreground leading-relaxed">{tarefa.descricao}</p>
-                      <div className="flex items-center justify-between text-xs text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <CheckCircle className="h-3 w-3 text-green-500" />
-                          {new Date(tarefa.concluidoEm).toLocaleDateString()}
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Clock className="h-3 w-3" />
-                          {tarefa.tempoGasto}
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1">
-                        {tarefa.tags.map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </CardContent>
-          </Card>
-        </div>
+              </CardHeader>
+              <CardContent>
+                <DroppableColumn id="concluidas">
+                  {tarefasFiltradas.concluidas.map((tarefa) => (
+                    <DraggableTaskCard key={tarefa.id} tarefa={tarefa} status="concluidas" />
+                  ))}
+                </DroppableColumn>
+              </CardContent>
+            </Card>
+          </div>
+
+          <DragOverlay>
+            {activeId ? (
+              <Card className="border-l-4 border-l-primary opacity-80">
+                <CardContent className="p-4">
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Movendo tarefa...</h4>
+                    <p className="text-xs text-muted-foreground">Solte na coluna desejada</p>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : null}
+          </DragOverlay>
+        </DndContext>
         </>
         )}
       </div>

@@ -21,6 +21,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Eye, Edit, Copy, X, Plus, Search, Filter, ShoppingCart, Trash2 } from "lucide-react"
 import invoiceModel, { type InvoiceUI } from "@/models/invoice.model"
 import { listCustomers, type CustomerDTO } from "@/services/customer.service"
+import { getProducts, type Product } from "@/services/product.service"
+import { getSellers, type SellerDTO } from "@/services/seller.service"
 import { getApproverForSeller, getSellerIdFromUserId } from "@/lib/approval-helper"
 import { useAuth } from "@/hooks/use-auth"
 
@@ -148,8 +150,26 @@ function mapInvoiceToOrder(inv: InvoiceUI): Order {
 }
 
 export default function OrdensPage() {
+  const { user: authUser } = useAuth()
+  
   // Mock de usuário atual (substitua por seu hook de auth)
   const [currentUser] = useState<CurrentUser>(() => {
+    // Tentar pegar do authUser primeiro
+    if (authUser) {
+      const role = authUser.groups?.includes('admin') || authUser.groups?.includes('gerente') 
+        ? 'admin' 
+        : authUser.groups?.includes('manager') || authUser.groups?.includes('lider')
+        ? 'manager'
+        : 'seller'
+      
+      return {
+        id: authUser.id || authUser.sub || authUser.email || "u-1",
+        name: authUser.name || authUser.email || "Usuário",
+        role
+      }
+    }
+    
+    // Fallback para localStorage
     const saved = globalThis?.localStorage?.getItem("currentUser")
     if (saved) return JSON.parse(saved) as CurrentUser
     const def: CurrentUser = { id: "u-1", name: "João Silva", role: "seller" }
@@ -182,7 +202,39 @@ export default function OrdensPage() {
     try {
       console.debug("[OrdensPage] fetching invoices via invoiceModel")
       const data = await invoiceModel.list(0, 200, "")
-      const mapped: Order[] = data.map(mapInvoiceToOrder)
+      
+      // Filtrar por usuário se não for admin/manager
+      let filteredData = data
+      if (currentUser.role === "seller") {
+        // Buscar sellerId do usuário logado
+        const sellerId = await getSellerIdFromUserId(currentUser.id)
+        console.log("[OrdensPage] filtrando invoices do seller", { userId: currentUser.id, sellerId })
+        
+        if (sellerId) {
+          // Filtrar apenas invoices do vendedor
+          filteredData = data.filter(inv => {
+            const match = inv.raw?.sellerId === sellerId || 
+                         inv.seller === currentUser.name ||
+                         inv.raw?.sellerName === currentUser.name
+            console.log("[OrdensPage] invoice", inv.id, "seller check:", { 
+              invSellerId: inv.raw?.sellerId, 
+              invSellerName: inv.seller,
+              currentSellerId: sellerId,
+              match 
+            })
+            return match
+          })
+        } else {
+          // Fallback: filtrar por nome se não encontrou sellerId
+          filteredData = data.filter(inv => 
+            inv.seller === currentUser.name || 
+            inv.raw?.sellerName === currentUser.name
+          )
+        }
+        console.log("[OrdensPage] total invoices:", data.length, "do usuário:", filteredData.length)
+      }
+      
+      const mapped: Order[] = filteredData.map(mapInvoiceToOrder)
       persistOrders(mapped)
       return mapped
     } catch (err) {
@@ -197,16 +249,27 @@ export default function OrdensPage() {
       
       // Buscar sellerId a partir do currentUser
       const sellerId = await getSellerIdFromUserId(currentUser.id)
+      console.log("[OrdensPage] sellerId encontrado:", sellerId)
       
       // Buscar aprovador (manager do grupo ou admin)
       const approverId = sellerId ? await getApproverForSeller(sellerId) : null
+      console.log("[OrdensPage] approverId encontrado:", approverId)
       
-      console.log("[OrdensPage] aprovador calculado", { sellerId, approverId })
+      console.log("[OrdensPage] dados para criar invoice", { 
+        userId: currentUser.id, 
+        sellerId, 
+        approverId,
+        approverIds: approverId ? [approverId] : undefined,
+        orderNumber: order.orderNumber,
+        customer: order.customer,
+        total: order.totalValue
+      })
       
       const uiPartial: Partial<InvoiceUI> = {
         code: order.orderNumber,
         customer: order.customer,
         seller: order.seller,
+        sellerId: sellerId || undefined, // adiciona sellerId
         total: order.totalValue,
         status: order.status as any, // model converte para enum do backend
         notes: order.notes,
@@ -219,7 +282,16 @@ export default function OrdensPage() {
           total: p.subtotal,
         })),
       }
+      
+      console.log("[OrdensPage] payload para backend:", uiPartial)
       const res = await invoiceModel.create(uiPartial)
+      console.log("[OrdensPage] resposta do backend:", res)
+      
+      // Verificar se approverId foi salvo
+      if (res && typeof res === 'object') {
+        console.log("[OrdensPage] invoice criada com approverId:", (res as any).approverId)
+      }
+      
       return res
     } catch (e) {
       console.warn("[OrdensPage] createInvoiceBackend failed:", e)
@@ -264,31 +336,99 @@ export default function OrdensPage() {
   // Clientes cadastrados
   const [customers, setCustomers] = useState<CustomerDTO[]>([])
   const [customersLoading, setCustomersLoading] = useState(false)
+  
+  // Produtos cadastrados
+  const [products, setProducts] = useState<Product[]>([])
+  const [productsLoading, setProductsLoading] = useState(false)
+  
+  // Vendedores cadastrados
+  const [sellers, setSellers] = useState<SellerDTO[]>([])
+  const [sellersLoading, setSellersLoading] = useState(false)
+  
+  // Buscar dados quando abrir o modal de nova ordem
   useEffect(() => {
     if (!isNewOrderOpen) return
     ;(async () => {
       try {
         setCustomersLoading(true)
-        const data = await listCustomers(0, 200, "")
-        setCustomers(Array.isArray(data) ? data : [])
-      } catch {
+        setProductsLoading(true)
+        setSellersLoading(true)
+        
+        console.log("[OrdensPage] buscando dados para nova ordem...")
+        
+        const [customerData, productData, sellerData] = await Promise.all([
+          listCustomers(0, 200, "").catch(err => {
+            console.error("[OrdensPage] erro ao buscar customers:", err)
+            return []
+          }),
+          getProducts("", 0, 200).catch(err => {
+            console.error("[OrdensPage] erro ao buscar products:", err)
+            return []
+          }),
+          getSellers("", 0, 200).catch(err => {
+            console.error("[OrdensPage] erro ao buscar sellers:", err)
+            return []
+          }),
+        ])
+        
+        console.log("[OrdensPage] dados brutos recebidos:", {
+          customerData,
+          productData,
+          sellerData,
+        })
+        
+        console.log("[OrdensPage] dados carregados:", {
+          customers: customerData?.length ?? 0,
+          products: productData?.length ?? 0,
+          sellers: sellerData?.length ?? 0,
+        })
+        
+        setCustomers(Array.isArray(customerData) ? customerData : [])
+        setProducts(Array.isArray(productData) ? productData : [])
+        setSellers(Array.isArray(sellerData) ? sellerData : [])
+        
+        console.log("[OrdensPage] states atualizados")
+      } catch (err) {
+        console.error("[OrdensPage] erro ao buscar dados", err)
         setCustomers([])
+        setProducts([])
+        setSellers([])
       } finally {
         setCustomersLoading(false)
+        setProductsLoading(false)
+        setSellersLoading(false)
       }
     })()
   }, [isNewOrderOpen])
 
-  // Nova ordem
+  // Nova ordem - preenche vendedor automaticamente
   const [newOrder, setNewOrder] = useState({
     customerId: undefined as number | undefined,
     customer: "",
     seller: currentUser.name, // vendedor logado
+    sellerId: undefined as number | undefined,
     notes: "",
     products: [] as OrderProduct[],
   })
 
+  // Preencher sellerId quando abrir o modal
+  useEffect(() => {
+    if (!isNewOrderOpen) return
+    ;(async () => {
+      const sellerId = await getSellerIdFromUserId(currentUser.id)
+      if (sellerId) {
+        const seller = sellers.find(s => Number(s.id) === sellerId)
+        setNewOrder(prev => ({
+          ...prev,
+          sellerId,
+          seller: seller?.name || seller?.nickname || currentUser.name,
+        }))
+      }
+    })()
+  }, [isNewOrderOpen, currentUser.id, sellers])
+
   const [newProduct, setNewProduct] = useState({
+    id: "",
     name: "",
     quantity: 1,
     price: 0,
@@ -355,6 +495,35 @@ export default function OrdensPage() {
           : order,
       ),
     )
+  }
+
+  const handleDeleteOrder = async (orderId: string) => {
+    console.log("[OrdensPage] tentando deletar ordem:", orderId)
+    if (!confirm("Tem certeza que deseja excluir esta ordem?")) {
+      console.log("[OrdensPage] delete cancelado pelo usuário")
+      return
+    }
+    
+    try {
+      // Tentar deletar no backend
+      await invoiceModel.delete(Number(orderId))
+      console.log("[OrdensPage] ordem deletada no backend:", orderId)
+      
+      // Remover da lista local
+      const updatedOrders = orders.filter((order) => order.id !== orderId)
+      persistOrders(updatedOrders)
+      console.log("[OrdensPage] ordem removida da lista local")
+      
+      // Fechar modal se estava aberto
+      if (selectedOrder?.id === orderId) {
+        setIsDetailOpen(false)
+        setSelectedOrder(null)
+        console.log("[OrdensPage] modal fechado")
+      }
+    } catch (err) {
+      console.error("[OrdensPage] erro ao deletar ordem:", err)
+      alert("Erro ao deletar ordem. Verifique o console para mais detalhes.")
+    }
   }
 
   const handleChangeStatus = (orderId: string, newStatus: OrderStatus) => {
@@ -433,7 +602,7 @@ export default function OrdensPage() {
   const handleAddProduct = () => {
     if (newProduct.name && newProduct.quantity > 0 && newProduct.price > 0) {
       const product: OrderProduct = {
-        id: String(newOrder.products.length + 1),
+        id: newProduct.id || String(newOrder.products.length + 1),
         name: newProduct.name,
         quantity: newProduct.quantity,
         price: newProduct.price,
@@ -443,7 +612,46 @@ export default function OrdensPage() {
         ...newOrder,
         products: [...newOrder.products, product],
       })
-      setNewProduct({ name: "", quantity: 1, price: 0 })
+      setNewProduct({ id: "", name: "", quantity: 1, price: 0 })
+    }
+  }
+
+  const handleSelectCustomerByName = (customerName: string) => {
+    const customer = customers.find(c => 
+      c.name?.toLowerCase() === customerName.toLowerCase()
+    )
+    if (customer) {
+      setNewOrder({
+        ...newOrder,
+        customerId: customer.id,
+        customer: customer.name || "",
+      })
+    }
+  }
+
+  const handleSelectProduct = (productId: string) => {
+    const product = products.find(p => String(p.id) === productId)
+    if (product) {
+      setNewProduct({
+        id: String(product.id),
+        name: product.name,
+        quantity: 1,
+        price: product.price || 0, // Sempre usa o preço do cadastro
+      })
+      console.log("[OrdensPage] produto selecionado com preço do cadastro:", {
+        productId,
+        name: product.name,
+        price: product.price
+      })
+    }
+  }
+  
+  const handleSelectProductByName = (productName: string) => {
+    const product = products.find(p => 
+      p.name.toLowerCase() === productName.toLowerCase()
+    )
+    if (product) {
+      handleSelectProduct(String(product.id))
     }
   }
 
@@ -544,7 +752,15 @@ export default function OrdensPage() {
       })
 
       setIsNewOrderOpen(false)
-      setNewOrder({ customerId: undefined, customer: "", seller: currentUser.name, notes: "", products: [] })
+      setNewOrder({ 
+        customerId: undefined, 
+        customer: "", 
+        seller: currentUser.name, 
+        sellerId: undefined,
+        notes: "", 
+        products: [] 
+      })
+      setNewProduct({ id: "", name: "", quantity: 1, price: 0 })
     }
   }
 
@@ -669,8 +885,18 @@ export default function OrdensPage() {
                         onClick={() => handleCancelOrder(order.id)}
                         title="Cancelar"
                         disabled={order.status === "cancelada" || !canCancel(currentUser, order)}
+                        className="text-orange-500 hover:text-orange-700"
                       >
                         <X className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => handleDeleteOrder(order.id)}
+                        title="Excluir"
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
                   </TableCell>
@@ -838,22 +1064,26 @@ export default function OrdensPage() {
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <Label htmlFor="customer">Cliente *</Label>
-                {customers && customers.length > 0 ? (
+                {customersLoading ? (
+                  <Input disabled placeholder="Carregando clientes..." />
+                ) : customers && customers.length > 0 ? (
                   <Select
                     value={newOrder.customerId ? String(newOrder.customerId) : ""}
                     onValueChange={(val) => {
                       const sel = customers.find((c) => String(c.id) === val)
-                      setNewOrder({
-                        ...newOrder,
-                        customerId: sel ? sel.id : undefined,
-                        customer: sel ? sel.name : "",
-                      })
+                      if (sel) {
+                        setNewOrder({
+                          ...newOrder,
+                          customerId: sel.id,
+                          customer: sel.name || "",
+                        })
+                      }
                     }}
                   >
                     <SelectTrigger>
-                      <SelectValue placeholder={customersLoading ? "Carregando..." : "Selecione um cliente"} />
+                      <SelectValue placeholder="Selecione um cliente" />
                     </SelectTrigger>
-                    <SelectContent>
+                    <SelectContent className="max-h-[300px]">
                       {customers.map((c) => (
                         <SelectItem key={c.id} value={String(c.id)}>
                           {c.name}
@@ -862,17 +1092,20 @@ export default function OrdensPage() {
                     </SelectContent>
                   </Select>
                 ) : (
-                  <Input
-                    id="customer"
-                    placeholder={customersLoading ? "Carregando..." : "Nome do cliente"}
-                    value={newOrder.customer}
-                    onChange={(e) => setNewOrder({ ...newOrder, customer: e.target.value })}
-                  />
+                  <div className="space-y-2">
+                    <div className="text-sm text-muted-foreground p-2 border rounded">
+                      Nenhum cliente cadastrado ou erro ao carregar. 
+                      <br/>
+                      Total carregados: {customers.length}
+                      <br/>
+                      Verifique o console (F12) para mais detalhes.
+                    </div>
+                  </div>
                 )}
               </div>
               <div className="space-y-2">
                 <Label htmlFor="seller">Vendedor *</Label>
-                <Input id="seller" value={newOrder.seller} disabled />
+                <Input id="seller" value={newOrder.seller} disabled className="bg-muted" />
               </div>
             </div>
 
@@ -894,13 +1127,34 @@ export default function OrdensPage() {
               <CardContent className="space-y-4">
                 <div className="grid gap-4 md:grid-cols-4">
                   <div className="md:col-span-2 space-y-2">
-                    <Label htmlFor="productName">Nome do Produto</Label>
-                    <Input
-                      id="productName"
-                      placeholder="Nome do produto"
-                      value={newProduct.name}
-                      onChange={(e) => setNewProduct({ ...newProduct, name: e.target.value })}
-                    />
+                    <Label htmlFor="productName">Produto *</Label>
+                    {productsLoading ? (
+                      <Input disabled placeholder="Carregando produtos..." />
+                    ) : products && products.length > 0 ? (
+                      <Select
+                        value={newProduct.id}
+                        onValueChange={(val) => handleSelectProduct(val)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Selecione um produto" />
+                        </SelectTrigger>
+                        <SelectContent className="max-h-[300px]">
+                          {products.map((p) => (
+                            <SelectItem key={p.id} value={String(p.id)}>
+                              {p.name} {p.code ? `(${p.code})` : ""} {p.price ? `- R$ ${p.price.toFixed(2)}` : ""}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <div className="text-sm text-muted-foreground p-2 border rounded">
+                        Nenhum produto cadastrado ou erro ao carregar.
+                        <br/>
+                        Total carregados: {products.length}
+                        <br/>
+                        Verifique o console (F12) para mais detalhes.
+                      </div>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="quantity">Quantidade</Label>
@@ -921,7 +1175,15 @@ export default function OrdensPage() {
                       step="0.01"
                       value={newProduct.price}
                       onChange={(e) => setNewProduct({ ...newProduct, price: Number.parseFloat(e.target.value) || 0 })}
+                      disabled={!!newProduct.id && products.some(p => String(p.id) === newProduct.id)}
+                      className={!!newProduct.id && products.some(p => String(p.id) === newProduct.id) ? "bg-muted" : ""}
+                      title={!!newProduct.id && products.some(p => String(p.id) === newProduct.id) ? "Preço vem do cadastro do produto" : ""}
                     />
+                    {!!newProduct.id && products.some(p => String(p.id) === newProduct.id) && (
+                      <p className="text-xs text-muted-foreground">
+                        Preço do cadastro
+                      </p>
+                    )}
                   </div>
                 </div>
                 <Button onClick={handleAddProduct} className="w-full bg-transparent" variant="outline">
@@ -999,7 +1261,10 @@ export default function OrdensPage() {
             <Button variant="outline" onClick={() => setIsNewOrderOpen(false)}>
               Cancelar
             </Button>
-            <Button onClick={handleCreateOrder} disabled={!newOrder.customer || newOrder.products.length === 0}>
+            <Button 
+              onClick={handleCreateOrder} 
+              disabled={!newOrder.customer || !newOrder.customerId || newOrder.products.length === 0}
+            >
               <ShoppingCart className="mr-2 h-4 w-4" />
               Criar Ordem
             </Button>

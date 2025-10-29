@@ -489,7 +489,9 @@ export default function CadastrosPage() {
   // Seller Handlers
   const handleSaveSeller = async (sellerData: Partial<SellerDTO>) => {
     try {
-      await createSeller(sellerData)
+      console.log("[Cadastros] criando seller com dados:", sellerData)
+      const created = await createSeller(sellerData)
+      console.log("[Cadastros] seller criado:", created)
       toast({ title: "Sucesso!", description: "Vendedor cadastrado com sucesso." })
       setShowSellerForm(false)
       setEditingSeller(null)
@@ -504,7 +506,9 @@ export default function CadastrosPage() {
   const handleUpdateSeller = async (sellerData: Partial<SellerDTO>) => {
     if (!editingSeller || !editingSeller.id) return
     try {
-      await updateSeller(editingSeller.id, sellerData)
+      console.log("[Cadastros] atualizando seller", editingSeller.id, "com dados:", sellerData)
+      const updated = await updateSeller(editingSeller.id, sellerData)
+      console.log("[Cadastros] seller atualizado:", updated)
       setShowSellerForm(false)
       setEditingSeller(null)
       toast({ title: "Sucesso!", description: "Vendedor atualizado com sucesso." })

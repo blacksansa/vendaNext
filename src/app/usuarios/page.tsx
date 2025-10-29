@@ -160,11 +160,63 @@ export default function UsuariosPage() {
   }, [queryClient]);
 
   const handleCreateUser = async () => {
+    // Clear previous errors
+    setError(null);
+    
+    // Validate inputs
+    if (!newUser.name.trim()) {
+      setError('Nome é obrigatório');
+      return;
+    }
+    
+    if (!newUser.email.trim()) {
+      setError('Email é obrigatório');
+      return;
+    }
+    
+    // Basic email validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(newUser.email)) {
+      setError('Email inválido');
+      return;
+    }
+    
+    if (!newUser.role) {
+      setError('Grupo/Função é obrigatório');
+      return;
+    }
+
     setStatus('create', 'loading');
     try {
-      const createdUser = await createUser(newUser as any);
+      // Split name into firstName and lastName
+      const nameParts = newUser.name.trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
 
+      // Find the selected group
       const selectedGroup = userGroups.find(g => g.name === newUser.role);
+      
+      if (!selectedGroup) {
+        throw new Error('Grupo selecionado não encontrado');
+      }
+
+      // Prepare user data with correct structure for backend
+      const userData = {
+        email: newUser.email,
+        firstName: firstName,
+        lastName: lastName,
+        groups: [{ id: selectedGroup.id, name: selectedGroup.name }],
+        enabled: true,
+        emailVerified: false,
+        sendEmail: true
+      };
+
+      console.log('[createUser] Sending user data:', userData);
+
+      const createdUser = await createUser(userData as any);
+
+      console.log('[createUser] User created:', createdUser);
+
       if (selectedGroup && selectedGroup.name === 'Vendedores') {
         // createdUser may not have a typed `name` property, so cast to any and provide robust fallback
         const displayName = (
@@ -185,7 +237,8 @@ export default function UsuariosPage() {
       setIsCreateDialogOpen(false);
       setStatus('create', 'success');
     } catch (err: any) {
-      setError(err.message);
+      console.error('[createUser] Error creating user:', err);
+      setError(err.message || 'Erro ao criar usuário');
       setStatus('create', 'error');
     }
   };
@@ -368,7 +421,12 @@ export default function UsuariosPage() {
       <div className="flex items-center justify-between space-y-2">
         <h2 className="text-3xl font-bold tracking-tight">Controle de Acesso</h2>
         <div className="flex items-center space-x-2">
-          <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <Dialog open={isCreateDialogOpen} onOpenChange={(open) => {
+            setIsCreateDialogOpen(open);
+            if (open) {
+              setError(null); // Clear error when opening dialog
+            }
+          }}>
             <DialogTrigger asChild>
               <Button>
                 <UserPlus className="mr-2 h-4 w-4" />
@@ -381,6 +439,12 @@ export default function UsuariosPage() {
                 <DialogDescription>Adicione um novo usuário ao sistema e defina suas permissões.</DialogDescription>
               </DialogHeader>
               <div className="grid gap-4 py-4">
+                {error && (
+                  <Alert variant="destructive">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="name">Nome Completo</Label>

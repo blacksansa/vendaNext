@@ -235,11 +235,26 @@ export default function AprovacoesPage() {
         return
       }
       
+      console.log("[aprovacoes] currentUserId:", currentUserId)
+      console.log("[aprovacoes] total invoices:", allInvoices.length)
+      
       // Filtrar apenas as que estão pendentes e o user atual é o aprovador
       const pendingForUser = allInvoices.filter((inv) => {
         const isPending = inv.status === "em_aberto"
         const isApprover = inv.approverIds?.includes(String(currentUserId))
-        console.log("[aprovacoes] invoice", inv.id, {isPending, isApprover, approverIds: inv.approverIds, status: inv.status})
+        console.log("[aprovacoes] invoice", inv.id, {
+          isPending, 
+          isApprover, 
+          approverIds: inv.approverIds,
+          approverIdsType: typeof inv.approverIds,
+          approverIdsIsArray: Array.isArray(inv.approverIds),
+          currentUserId: String(currentUserId),
+          status: inv.status,
+          sellerId: inv.raw?.sellerId,
+          code: inv.code,
+          rawApproverId: inv.raw?.approverId,
+          rawApproverIds: inv.raw?.approverIds
+        })
         return isPending && isApprover
       })
       

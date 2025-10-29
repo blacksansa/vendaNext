@@ -72,6 +72,9 @@ export const authOptions: AuthOptions = {
             decodedToken.resource_access?.[process.env.KEYCLOAK_ID!]?.roles;
           token.roles = clientRoles;
 
+          // Extract user ID from the token (sub is the Keycloak user ID)
+          token.userId = decodedToken.sub;
+
           // Determine high-level role from 'job' claim
           const jobGroup = (decodedToken as any).job?.[0];
           if (jobGroup === 'Administradores') {
@@ -105,8 +108,10 @@ export const authOptions: AuthOptions = {
       session.refreshToken = token.refreshToken;
       session.expiresAt = token.expiresAt;
       session.roles = token.roles; // Keep detailed roles for backend
+      session.userId = token.userId; // Add user ID to session
       if (session.user) {
         session.user.role = token.role; // Add high-level role for frontend
+        session.user.id = token.userId; // Add user ID to user object
       }
       return session;
     },

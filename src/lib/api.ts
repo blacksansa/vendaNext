@@ -14,6 +14,14 @@ export async function fetchData<T>(
   endpoint: string,
   options: { method?: string; body?: any; params?: any } = {}
 ): Promise<T> {
+  console.log(`[API] ${options.method || 'GET'} ${endpoint}`);
+  if (options.body) {
+    console.log('[API] Request body:', options.body);
+  }
+  if (options.params) {
+    console.log('[API] Request params:', options.params);
+  }
+  
   try {
     const response = await api.request<T>({
       url: endpoint,
@@ -21,10 +29,13 @@ export async function fetchData<T>(
       data: options.body,
       params: options.params,
     });
+    console.log(`[API] ${options.method || 'GET'} ${endpoint} - Success:`, response.data);
     return response.data;
   } catch (error: any) {
+    console.error(`[API] ${options.method || 'GET'} ${endpoint} - Error:`, error);
     let errorMessage = "Erro na requisição à API";
     if (error.response && error.response.data) {
+      console.error('[API] Error response data:', error.response.data);
       errorMessage = error.response.data.message || error.response.data.error || JSON.stringify(error.response.data);
     } else if (error.message) {
       errorMessage = error.message;
