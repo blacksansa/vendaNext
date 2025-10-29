@@ -45,14 +45,18 @@ import {
   Trash2,
   Edit,
 } from "lucide-react"
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { RoleGuard } from "@/components/role-guard"
 import { useAuth } from "@/hooks/use-auth"
+import { aiService, AIInsight } from "@/services/ai.service"
 
 export default function CRMDashboard() {
   const { user, roles } = useAuth()
   console.log("Current roles:", roles);
   const [isResumoExpanded, setIsResumoExpanded] = useState(true)
+  const [aiInsights, setAiInsights] = useState<AIInsight[]>([])
+  const [loadingInsights, setLoadingInsights] = useState(false)
+  const [insightsError, setInsightsError] = useState<string | null>(null)
   const [tarefasRapidas, setTarefasRapidas] = useState([
     { id: 1, titulo: "Adicionar Novo Cliente", icone: "Users", url: "/customers", cor: "blue", requiredRole: "manageCustomers" },
     { id: 2, titulo: "Agendar Ligação", icone: "Phone", url: "#", cor: "green", requiredRole: "manageTasks" },
@@ -102,6 +106,46 @@ export default function CRMDashboard() {
       )
       setEditandoTarefa(null)
       setNovaTarefa({ titulo: "", icone: "Users", url: "", cor: "blue" })
+    }
+  }
+
+  // Carregar insights de IA
+  useEffect(() => {
+    loadAIInsights()
+  }, [])
+
+  const loadAIInsights = async () => {
+    setLoadingInsights(true)
+    setInsightsError(null)
+    try {
+      const response = await aiService.getDashboardInsights()
+      setAiInsights(response.insights)
+    } catch (error) {
+      console.error("Erro ao carregar insights:", error)
+      setInsightsError("Não foi possível carregar os insights de IA")
+      // Fallback para dados mockados
+      setAiInsights([
+        {
+          type: "info",
+          title: "📊 Sistema Iniciando",
+          message: "Continue registrando vendas e oportunidades para gerar insights personalizados baseados em seus dados reais."
+        }
+      ])
+    } finally {
+      setLoadingInsights(false)
+    }
+  }
+
+  const getInsightColor = (type: string) => {
+    switch (type) {
+      case "success":
+        return "text-green-600 dark:text-green-400"
+      case "warning":
+        return "text-orange-600 dark:text-orange-400"
+      case "error":
+        return "text-red-600 dark:text-red-400"
+      default:
+        return "text-blue-600 dark:text-blue-400"
     }
   }
 
@@ -209,8 +253,16 @@ export default function CRMDashboard() {
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant="outline" size="sm" onClick={(e) => e.stopPropagation()}>
-                        <RefreshCw className="h-4 w-4 mr-2" />
+                      <Button 
+                        variant="outline" 
+                        size="sm" 
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          loadAIInsights()
+                        }}
+                        disabled={loadingInsights}
+                      >
+                        <RefreshCw className={`h-4 w-4 mr-2 ${loadingInsights ? 'animate-spin' : ''}`} />
                         Atualizar
                       </Button>
                       {isResumoExpanded ? (
@@ -224,29 +276,30 @@ export default function CRMDashboard() {
               </CollapsibleTrigger>
               <CollapsibleContent>
                 <CardContent>
-                  <div className="space-y-4">
-                    <div className="p-4 bg-background/50 rounded-lg border border-border/50">
-                      <h4 className="font-medium text-sm mb-2 text-green-600">📈 Performance Destacada</h4>
-                      <p className="text-sm text-muted-foreground">
-                        A <strong>Equipe Digital</strong> superou a meta mensal em 6,3%, liderada por Pedro Santos.
-                        Recomendo replicar suas estratégias de vendas online para outras equipes.
-                      </p>
+                  {loadingInsights ? (
+                    <div className="flex items-center justify-center py-8">
+                      <RefreshCw className="h-8 w-8 animate-spin text-purple-500" />
+                      <span className="ml-3 text-muted-foreground">Analisando dados...</span>
                     </div>
-                    <div className="p-4 bg-background/50 rounded-lg border border-border/50">
-                      <h4 className="font-medium text-sm mb-2 text-orange-600">⚠️ Atenção Necessária</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Detectei 3 leads de alto valor sem follow-up há mais de 5 dias. Sugiro priorizar contato
-                        imediato para evitar perda de oportunidades.
-                      </p>
+                  ) : insightsError ? (
+                    <div className="p-4 bg-red-500/10 rounded-lg border border-red-500/20">
+                      <h4 className="font-medium text-sm mb-2 text-red-600">❌ Erro ao Carregar</h4>
+                      <p className="text-sm text-muted-foreground">{insightsError}</p>
                     </div>
-                    <div className="p-4 bg-background/50 rounded-lg border border-border/50">
-                      <h4 className="font-medium text-sm mb-2 text-blue-600">💡 Oportunidade</h4>
-                      <p className="text-sm text-muted-foreground">
-                        Identifiquei padrão de aumento de 23% nas vendas às terças-feiras. Considere concentrar
-                        campanhas e prospecção neste dia da semana.
-                      </p>
+                  ) : (
+                    <div className="space-y-4">
+                      {aiInsights.map((insight, index) => (
+                        <div key={index} className="p-4 bg-background/50 rounded-lg border border-border/50">
+                          <h4 className={`font-medium text-sm mb-2 ${getInsightColor(insight.type)}`}>
+                            {insight.title}
+                          </h4>
+                          <p className="text-sm text-muted-foreground">
+                            {insight.message}
+                          </p>
+                        </div>
+                      ))}
                     </div>
-                  </div>
+                  )}
                 </CardContent>
               </CollapsibleContent>
             </Card>
