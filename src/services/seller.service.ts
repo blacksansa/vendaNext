@@ -2,10 +2,18 @@ import Api from "@/lib/api"
 
 export interface SellerDTO {
   id: number | string
+  code?: string
   name?: string
-  salesAmount?: number
-  active?: boolean
-  email?: string
+  nickname?: string
+  commissionPercentage?: number
+  user?: {
+    id?: string
+    firstName?: string
+    lastName?: string
+    email?: string
+  }
+  userId?: string
+  updatedAt?: number
 }
 
 const sellerApi = new Api<SellerDTO, number | string>("/seller")
@@ -24,3 +32,5 @@ export const updateSeller = (id: number | string, data: Partial<SellerDTO>): Pro
 
 export const deleteSeller = (id: number | string): Promise<void> =>
   sellerApi.delete(id)
+
+export const fetchSellers = getSellers

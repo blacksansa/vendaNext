@@ -39,18 +39,20 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, MoreHorizontal, Edit, Trash2, Package, Users, Building2, Tag } from "lucide-react"
+import { Search, Plus, MoreHorizontal, Edit, Trash2, Package, Users, Building2, Tag, UserCog } from "lucide-react"
 import { createCustomer, getCustomers, getCustomerById, updateCustomer, deleteCustomer } from "@/lib/api.client"
 import { getProducts, createProduct, updateProduct, deleteProduct, Product } from "@/services/product.service"
 import { getProductGroups, ProductGroup } from "@/services/product-group.service"
 import { getPriceTags, createPriceTag, updatePriceTag, deletePriceTag, PriceTag } from "@/services/price-tag.service"
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, Supplier } from "@/services/supplier.service"
+import { getSellers, createSeller, updateSeller, deleteSeller, SellerDTO } from "@/services/seller.service"
 import { useToast } from "@/hooks/use-toast"
 import { Customer, CustomerListItem } from "@/lib/types"
 import { CustomerForm } from "@/components/cadastros/customer-form"
 import { ProductForm } from "@/components/cadastros/product-form"
 import { SupplierForm } from "@/components/cadastros/supplier-form"
 import { PriceTagForm } from "@/components/cadastros/price-tag-form"
+import { SellerForm } from "@/components/forms/SellerForm"
 
 const initialCustomerState = {
   name: "",
@@ -99,12 +101,14 @@ export default function CadastrosPage() {
   const [productSearchTerm, setProductSearchTerm] = useState("")
   const [priceTagSearchTerm, setPriceTagSearchTerm] = useState("")
   const [supplierSearchTerm, setSupplierSearchTerm] = useState("")
+  const [sellerSearchTerm, setSellerSearchTerm] = useState("")
   
   // View states - controla se mostra lista ou formulário
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showProductForm, setShowProductForm] = useState(false)
   const [showPriceTagForm, setShowPriceTagForm] = useState(false)
   const [showSupplierForm, setShowSupplierForm] = useState(false)
+  const [showSellerForm, setShowSellerForm] = useState(false)
   
   // Dialog states
   const [isClienteDialogOpen, setIsClienteDialogOpen] = useState(false)
@@ -119,29 +123,34 @@ export default function CadastrosPage() {
   const [isDeletePriceTagDialogOpen, setIsDeletePriceTagDialogOpen] = useState(false)
   const [isEditSupplierDialogOpen, setIsEditSupplierDialogOpen] = useState(false)
   const [isDeleteSupplierDialogOpen, setIsDeleteSupplierDialogOpen] = useState(false)
+  const [isDeleteSellerDialogOpen, setIsDeleteSellerDialogOpen] = useState(false)
   
   // Form states
   const [newCustomer, setNewCustomer] = useState(initialCustomerState)
   const [newProduct, setNewProduct] = useState(initialProductState)
   const [newPriceTag, setNewPriceTag] = useState<Partial<PriceTag>>(initialPriceTagState)
   const [newSupplier, setNewSupplier] = useState<Partial<Supplier>>(initialSupplierState)
+  const [newSeller, setNewSeller] = useState<Partial<SellerDTO>>({ code: "", name: "", commissionPercentage: 0 })
   
   // Edit states
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null)
   const [editingPriceTag, setEditingPriceTag] = useState<Partial<PriceTag> | null>(null)
   const [editingSupplier, setEditingSupplier] = useState<Partial<Supplier> | null>(null)
+  const [editingSeller, setEditingSeller] = useState<Partial<SellerDTO> | null>(null)
   
   // Delete states
   const [deletingCustomerId, setDeletingCustomerId] = useState<number | null>(null)
   const [deletingProductId, setDeletingProductId] = useState<number | null>(null)
   const [deletingPriceTagId, setDeletingPriceTagId] = useState<number | null>(null)
   const [deletingSupplierId, setDeletingSupplierId] = useState<number | null>(null)
+  const [deletingSellerId, setDeletingSellerId] = useState<number | null>(null)
   
   // Data states
   const [customers, setCustomers] = useState<CustomerListItem[]>([])
   const [products, setProducts] = useState<Product[]>([])
   const [suppliers, setSuppliers] = useState<Supplier[]>([])
+  const [sellers, setSellers] = useState<SellerDTO[]>([])
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([])
   const [priceTags, setPriceTags] = useState<PriceTag[]>([])
   
@@ -212,12 +221,27 @@ export default function CadastrosPage() {
     }
   }
 
+  const fetchSellers = async () => {
+    try {
+      const sellerData = await getSellers(sellerSearchTerm)
+      setSellers(sellerData)
+    } catch (error) {
+      console.error("Failed to fetch sellers:", error)
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar os vendedores.",
+        variant: "destructive",
+      })
+    }
+  }
+
   useEffect(() => {
     fetchCustomers()
     fetchProducts()
     fetchProductGroups()
     fetchPriceTags()
     fetchSuppliers()
+    fetchSellers()
   }, [])
 
   const handleCustomerInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -462,6 +486,59 @@ export default function CadastrosPage() {
     setIsDeleteSupplierDialogOpen(true)
   }
 
+  // Seller Handlers
+  const handleSaveSeller = async (sellerData: Partial<SellerDTO>) => {
+    try {
+      await createSeller(sellerData)
+      toast({ title: "Sucesso!", description: "Vendedor cadastrado com sucesso." })
+      setShowSellerForm(false)
+      setEditingSeller(null)
+      setNewSeller({ code: "", name: "", commissionPercentage: 0 })
+      fetchSellers()
+    } catch (error) {
+      console.error("Failed to create seller:", error)
+      toast({ title: "Erro", description: "Não foi possível cadastrar o vendedor.", variant: "destructive" })
+    }
+  }
+
+  const handleUpdateSeller = async (sellerData: Partial<SellerDTO>) => {
+    if (!editingSeller || !editingSeller.id) return
+    try {
+      await updateSeller(editingSeller.id, sellerData)
+      setShowSellerForm(false)
+      setEditingSeller(null)
+      toast({ title: "Sucesso!", description: "Vendedor atualizado com sucesso." })
+      fetchSellers()
+    } catch (error) {
+      console.error("Failed to update seller:", error)
+      toast({ title: "Erro ao atualizar vendedor", variant: "destructive" })
+    }
+  }
+
+  const handleDeleteSeller = async () => {
+    if (!deletingSellerId) return
+    try {
+      await deleteSeller(deletingSellerId)
+      setIsDeleteSellerDialogOpen(false)
+      setDeletingSellerId(null)
+      toast({ title: "Sucesso!", description: "Vendedor excluído com sucesso." })
+      fetchSellers()
+    } catch (error) {
+      console.error("Failed to delete seller:", error)
+      toast({ title: "Erro ao excluir vendedor", variant: "destructive" })
+    }
+  }
+
+  const openEditSellerDialog = (seller: SellerDTO) => {
+    setEditingSeller(seller)
+    setShowSellerForm(true)
+  }
+
+  const openDeleteSellerDialog = (id: number) => {
+    setDeletingSellerId(id)
+    setIsDeleteSellerDialogOpen(true)
+  }
+
   return (
     <SidebarInset>
       {/* Header */}
@@ -473,7 +550,7 @@ export default function CadastrosPage() {
 
       <div className="p-6">
         <Tabs defaultValue="clientes" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-4 lg:w-[600px]">
+          <TabsList className="grid w-full grid-cols-5 lg:w-[750px]">
             <TabsTrigger value="clientes">
               <Users className="h-4 w-4 mr-2" />
               Clientes
@@ -485,6 +562,10 @@ export default function CadastrosPage() {
             <TabsTrigger value="fornecedores">
               <Building2 className="h-4 w-4 mr-2" />
               Fornecedores
+            </TabsTrigger>
+            <TabsTrigger value="vendedores">
+              <UserCog className="h-4 w-4 mr-2" />
+              Vendedores
             </TabsTrigger>
             <TabsTrigger value="pricetags">
               <Tag className="h-4 w-4 mr-2" />
@@ -913,6 +994,131 @@ export default function CadastrosPage() {
               </Card>
             )}
           </TabsContent>
+
+          {/* Aba Vendedores */}
+          <TabsContent value="vendedores" className="space-y-4">
+            {!showSellerForm ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Vendedores</CardTitle>
+                      <CardDescription>Gerencie o cadastro de vendedores</CardDescription>
+                    </div>
+                    <Button
+                      onClick={() => {
+                        setEditingSeller(null)
+                        setNewSeller({ code: "", name: "", commissionPercentage: 0 })
+                        setShowSellerForm(true)
+                      }}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Vendedor
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="relative mb-4">
+                    <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      placeholder="Buscar vendedores..."
+                      value={sellerSearchTerm}
+                      onChange={(e) => setSellerSearchTerm(e.target.value)}
+                      className="pl-10"
+                    />
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Código</TableHead>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Usuário</TableHead>
+                        <TableHead>Comissão</TableHead>
+                        <TableHead className="text-right">Ações</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {sellers
+                        .filter(
+                          (seller) =>
+                            seller.name?.toLowerCase().includes(sellerSearchTerm.toLowerCase()) ||
+                            seller.code?.toLowerCase().includes(sellerSearchTerm.toLowerCase()) ||
+                            seller.user?.email?.toLowerCase().includes(sellerSearchTerm.toLowerCase())
+                        )
+                        .map((seller) => (
+                          <TableRow key={seller.id}>
+                            <TableCell>{seller.code}</TableCell>
+                            <TableCell>
+                              <div className="font-medium">{seller.name}</div>
+                              {seller.nickname && (
+                                <div className="text-sm text-muted-foreground">{seller.nickname}</div>
+                              )}
+                            </TableCell>
+                            <TableCell>
+                              {seller.user
+                                ? `${seller.user.firstName || ""} ${seller.user.lastName || ""}`.trim() ||
+                                  seller.user.email
+                                : "-"}
+                            </TableCell>
+                            <TableCell>
+                              {seller.commissionPercentage != null
+                                ? `${seller.commissionPercentage.toFixed(2)}%`
+                                : "-"}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" className="h-8 w-8 p-0">
+                                    <span className="sr-only">Abrir menu</span>
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => openEditSellerDialog(seller)}>
+                                    <Edit className="mr-2 h-4 w-4" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem
+                                    onClick={() => openDeleteSellerDialog(Number(seller.id))}
+                                    className="text-red-600"
+                                  >
+                                    <Trash2 className="mr-2 h-4 w-4" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{editingSeller ? "Editar" : "Novo"} Vendedor</CardTitle>
+                  <CardDescription>
+                    {editingSeller
+                      ? "Atualize os dados do vendedor"
+                      : "Cadastre um novo vendedor vinculando a um usuário"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <SellerForm
+                    seller={editingSeller || newSeller}
+                    onSave={editingSeller ? handleUpdateSeller : handleSaveSeller}
+                    onCancel={() => {
+                      setShowSellerForm(false)
+                      setEditingSeller(null)
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
         </Tabs>
       </div>
 
@@ -976,6 +1182,22 @@ export default function CadastrosPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteSupplier}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Seller Delete Dialog */}
+      <AlertDialog open={isDeleteSellerDialogOpen} onOpenChange={setIsDeleteSellerDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. Isso excluirá permanentemente o vendedor.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteSeller}>Continuar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
