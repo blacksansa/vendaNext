@@ -1,7 +1,5 @@
 export const NAVIGATION_ITEMS = [
   { title: "Painel", url: "/", icon: "Home", requiredRole: "manageDashboard" },
-  { title: "Clientes", url: "/customers", icon: "Users", requiredRole: "manageCustomers" },
-  { title: "Vendedores", url: "/vendedores", icon: "UserPlus", requiredRole: "manageSellers" },
   { title: "Painel Líderes", url: "/lideres", icon: "Crown", requiredRole: "manageTeams" },
   { title: "Grupos", url: "/grupos", icon: "Users", requiredRole: "manageUserGroups" },
   { title: "Funil de Vendas", url: "/pipeline", icon: "GitBranch", requiredRole: "managePipelines" },

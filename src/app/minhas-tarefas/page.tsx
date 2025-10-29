@@ -21,9 +21,7 @@ import {
 import { useState, useEffect } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/use-auth"
-import { getTasks } from "@/services/task-order-approval-invoice.service"
-import { getTeams } from "@/services/team.service"
-import { getSellers } from "@/services/seller.service"
+import { getMyTasks } from "@/services/task-order-approval-invoice.service"
 import { useToast } from "@/hooks/use-toast"
 
 export default function MinhasTarefas() {
@@ -39,15 +37,22 @@ export default function MinhasTarefas() {
   const [user, setUser] = useState<any>(null)
   
   useEffect(() => {
+    console.log("[minhas-tarefas] ============ DETECÇÃO DE USUÁRIO ============")
+    console.log("[minhas-tarefas] authUser:", authUser)
+    
     if (authUser) {
+      console.log("[minhas-tarefas] usando authUser do hook")
       setUser(authUser)
       return
     }
     
     try {
       const storedUser = localStorage.getItem('user') || localStorage.getItem('currentUser')
+      console.log("[minhas-tarefas] storedUser raw:", storedUser)
       if (storedUser) {
-        setUser(JSON.parse(storedUser))
+        const parsedUser = JSON.parse(storedUser)
+        console.log("[minhas-tarefas] storedUser parsed:", parsedUser)
+        setUser(parsedUser)
       }
     } catch (e) {
       console.warn("[minhas-tarefas] erro ao ler user", e)
@@ -55,6 +60,7 @@ export default function MinhasTarefas() {
   }, [authUser])
   
   const userId = user?.id || user?.sub || user?.userId || user?.email || null
+  console.log("[minhas-tarefas] userId final calculado:", userId, "de user:", user)
   
   // Carregar tarefas do backend
   useEffect(() => {
@@ -69,66 +75,30 @@ export default function MinhasTarefas() {
 
   async function loadTasks() {
     if (!userId) {
+      console.log("[minhas-tarefas] userId não definido, abortando carregamento")
       setLoading(false)
       return
     }
     
     setLoading(true)
     try {
-      console.log("[minhas-tarefas] carregando tarefas para userId:", userId)
+      console.log("[minhas-tarefas] ============ CARREGANDO TAREFAS ============")
+      console.log("[minhas-tarefas] userId:", userId)
+      console.log("[minhas-tarefas] user completo:", user)
       
-      // Buscar todas as tarefas
-      const allTasks = await getTasks("", 0, 100)
+      // Usar o endpoint dedicado que já filtra por usuário no backend
+      const minhasTarefas = await getMyTasks("", 0, 100)
       
-      // Buscar seller do usuário
-      const sellers = await getSellers("", 0, 100)
-      const mySeller = sellers.find((s: any) => String(s.user?.id ?? s.userId) === String(userId))
-      
-      // Buscar teams do seller
-      let myTeamIds: string[] = []
-      if (mySeller?.id) {
-        const teams = await getTeams("", 0, 100)
-        myTeamIds = teams
-          .filter((team) => {
-            const sellerIds = Array.isArray(team.sellers)
-              ? team.sellers.map((s: any) => String(s?.id ?? s))
-              : Array.isArray(team.sellerIds)
-              ? team.sellerIds.map((id) => String(id))
-              : []
-            return sellerIds.includes(String(mySeller.id))
-          })
-          .map((team) => String(team.id))
-      }
-      
-      console.log("[minhas-tarefas] mySeller:", mySeller?.id, "myTeamIds:", myTeamIds)
-      
-      // Filtrar tarefas atribuídas ao usuário ou ao grupo
-      const minhasTarefas = allTasks.filter((task: any) => {
-        // Tarefa atribuída diretamente ao usuário
-        const assignedToUserId = task.assignedTo?.id || task.assignedToId || task.userId
-        if (assignedToUserId && String(assignedToUserId) === String(userId)) {
-          return true
-        }
-        
-        // Tarefa atribuída ao seller
-        if (mySeller?.id && assignedToUserId && String(assignedToUserId) === String(mySeller.id)) {
-          return true
-        }
-        
-        // Tarefa atribuída ao grupo/team
-        const taskTeamId = task.teamId || task.groupId || (task.relatedEntity?.type === 'team' ? task.relatedEntity.id : null)
-        if (taskTeamId && myTeamIds.includes(String(taskTeamId))) {
-          return true
-        }
-        
-        return false
-      })
-      
-      console.log("[minhas-tarefas] total de tarefas:", allTasks.length, "minhas tarefas:", minhasTarefas.length)
+      console.log("[minhas-tarefas] ============ RESPOSTA DO BACKEND ============")
+      console.log("[minhas-tarefas] total de tarefas recebidas:", minhasTarefas.length)
+      console.log("[minhas-tarefas] tarefas recebidas:", JSON.stringify(minhasTarefas, null, 2))
       
       setTarefas(minhasTarefas)
     } catch (error: any) {
-      console.error("[minhas-tarefas] erro ao carregar", error)
+      console.error("[minhas-tarefas] ============ ERRO AO CARREGAR ============")
+      console.error("[minhas-tarefas] erro:", error)
+      console.error("[minhas-tarefas] erro.message:", error?.message)
+      console.error("[minhas-tarefas] erro.response:", error?.response)
       toast({
         title: "Erro ao carregar tarefas",
         description: error?.message ?? "Não foi possível carregar as tarefas",
@@ -150,6 +120,12 @@ export default function MinhasTarefas() {
   const tarefasPendentes = tarefas.filter((t) => !t.done && (!t.status || t.status === 'PENDING' || t.status === 'TODO'))
   const tarefasEmAndamento = tarefas.filter((t) => !t.done && (t.status === 'IN_PROGRESS' || t.status === 'DOING'))
   const tarefasConcluidas = tarefas.filter((t) => t.done || t.status === 'DONE' || t.status === 'COMPLETED')
+  
+  console.log("[minhas-tarefas] ============ FILTRAGEM DE TAREFAS ============")
+  console.log("[minhas-tarefas] total tarefas:", tarefas.length)
+  console.log("[minhas-tarefas] tarefasPendentes:", tarefasPendentes.length)
+  console.log("[minhas-tarefas] tarefasEmAndamento:", tarefasEmAndamento.length)
+  console.log("[minhas-tarefas] tarefasConcluidas:", tarefasConcluidas.length)
   
   const metricas = {
     totalTarefas: tarefas.length,

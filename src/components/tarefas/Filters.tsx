@@ -1,11 +1,7 @@
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Plus, Filter, Download } from "lucide-react";
+
+import { Filter } from "lucide-react";
 
 interface FiltersProps {
   filtroResponsavel: string;
@@ -48,69 +44,7 @@ export function Filters({ filtroResponsavel, setFiltroResponsavel, filtroPriorid
               <SelectItem value="baixa">Baixa</SelectItem>
             </SelectContent>
           </Select>
-          <div className="flex gap-2 ml-auto">
-            <Button variant="outline" size="sm">
-              <Download className="h-4 w-4 mr-2" />
-              Exportar
-            </Button>
-            <Dialog>
-              <DialogTrigger asChild>
-                <Button size="sm">
-                  <Plus className="h-4 w-4 mr-2" />
-                  Nova Tarefa
-                </Button>
-              </DialogTrigger>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle>Criar Nova Tarefa</DialogTitle>
-                  <DialogDescription>Atribua uma tarefa para um vendedor ou grupo específico</DialogDescription>
-                </DialogHeader>
-                <div className="grid gap-4 py-4">
-                  <div className="grid gap-2">
-                    <Label htmlFor="titulo">Título</Label>
-                    <Input id="titulo" placeholder="Digite o título da tarefa" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="descricao">Descrição</Label>
-                    <Textarea id="descricao" placeholder="Descreva a tarefa" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="responsavel">Responsável</Label>
-                    <Select>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione o responsável" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {responsaveis.map(r => <SelectItem key={r.id} value={r.id}>{r.nome}</SelectItem>)}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="grid gap-2">
-                      <Label htmlFor="prioridade">Prioridade</Label>
-                      <Select>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Prioridade" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="baixa">Baixa</SelectItem>
-                          <SelectItem value="media">Média</SelectItem>
-                          <SelectItem value="alta">Alta</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="grid gap-2">
-                      <Label htmlFor="prazo">Prazo</Label>
-                      <Input id="prazo" type="date" />
-                    </div>
-                  </div>
-                </div>
-                <DialogFooter>
-                  <Button type="submit">Criar Tarefa</Button>
-                </DialogFooter>
-              </DialogContent>
-            </Dialog>
-          </div>
+          {/* Export e Nova Tarefa removidos */}
         </div>
       </CardContent>
     </Card>

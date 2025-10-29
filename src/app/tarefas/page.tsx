@@ -114,9 +114,9 @@ export default function TarefasKanban() {
       description: data.description as string,
       priority: data.priority as string,
       dueDate: data.dueDate as string,
-      assigneeId: data.assigneeId as string,
-      teamId: data.teamId ? Number(data.teamId) : undefined,
-      customerId: data.customerId ? Number(data.customerId) : undefined,
+      assigneeId: (data.assigneeId && !String(data.assigneeId).startsWith("__none")) ? String(data.assigneeId) : undefined,
+      teamId: (data.teamId && !String(data.teamId).startsWith("__none")) ? Number(data.teamId) : undefined,
+      customerId: (data.customerId && !String(data.customerId).startsWith("__none")) ? Number(data.customerId) : undefined,
       status: 'PENDING',
     };
 
@@ -136,15 +136,28 @@ export default function TarefasKanban() {
   const allTasks = Object.values(tasks).flat();
   const hasTasks = allTasks.length > 0;
 
+  const totalTarefas = allTasks.length;
+  const concluidas = tasks.DONE?.length || 0;
+  const pendentes = tasks.PENDING?.length || 0;
+  const emAndamento = tasks.IN_PROGRESS?.length || 0;
+  const atrasadas = allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date() && t.status !== "DONE").length;
+
+  // Produtividade: % de tarefas concluídas sobre o total (1 casa decimal)
+  const produtividade =
+    totalTarefas === 0 ? 0 : Math.round((concluidas / totalTarefas) * 1000) / 10;
+
+  // Tempo médio (placeholder — calcule conforme seu modelo de datas)
+  const tempoMedio = allTasks.length === 0 ? 0 : 3.2;
+
   const metricas = {
-    totalTarefas: allTasks.length,
-    pendentes: tasks.PENDING?.length || 0,
-    emAndamento: tasks.IN_PROGRESS?.length || 0,
-    concluidas: tasks.DONE?.length || 0,
-    atrasadas: allTasks.filter(t => t.dueDate && new Date(t.dueDate) < new Date()).length,
-    produtividade: 78.5, // Mocked
-    tempoMedio: 3.2, // Mocked
-  }
+    totalTarefas,
+    pendentes,
+    emAndamento,
+    concluidas,
+    atrasadas,
+    produtividade,
+    tempoMedio,
+  };
 
   const responsaveis = allTasks.reduce((acc, task) => {
     if (task.assignee) {
@@ -174,7 +187,7 @@ export default function TarefasKanban() {
               <Separator orientation="vertical" className="mr-2 h-4" />
               <h1 className="text-lg font-semibold">Gerenciamento de Tarefas</h1>
           </div>
-          <Button onClick={() => setIsCreateDialogOpen(true)}>
+          <Button onClick={() => { fetchInitialData(); setIsCreateDialogOpen(true); }}>
               <Plus className="mr-2 h-4 w-4" />
               Nova Tarefa
           </Button>
@@ -257,9 +270,13 @@ export default function TarefasKanban() {
                     <SelectValue placeholder="Selecione um responsável" />
                   </SelectTrigger>
                   <SelectContent>
-                    {users.map(user => (
-                      <SelectItem key={user.id} value={user.id!}>{user.firstName} {user.lastName}</SelectItem>
-                    ))}
+                    {users.length === 0 ? (
+                      <SelectItem value="__none_user" disabled>Nenhum usuário encontrado</SelectItem>
+                    ) : (
+                      users.map(user => user.email ? (
+                          <SelectItem key={user.id || user.email} value={user.email}>{user.firstName} {user.lastName}</SelectItem>
+                        ) : null)
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -270,9 +287,13 @@ export default function TarefasKanban() {
                     <SelectValue placeholder="Selecione um time" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teams.map(team => (
-                      <SelectItem key={team.id} value={team.id!.toString()}>{team.name}</SelectItem>
-                    ))}
+                    {teams.length === 0 ? (
+                      <SelectItem value="__none_team" disabled>Nenhum time encontrado</SelectItem>
+                    ) : (
+                      teams.map(team => team.id ? (
+                        <SelectItem key={team.id} value={String(team.id)}>{team.name}</SelectItem>
+                      ) : null)
+                    )}
                   </SelectContent>
                 </Select>
               </div>
@@ -283,9 +304,13 @@ export default function TarefasKanban() {
                     <SelectValue placeholder="Selecione um cliente" />
                   </SelectTrigger>
                   <SelectContent>
-                    {customers.map(customer => (
-                      <SelectItem key={customer.id} value={customer.id!.toString()}>{customer.name}</SelectItem>
-                    ))}
+                    {customers.length === 0 ? (
+                      <SelectItem value="__none_customer" disabled>Nenhum cliente encontrado</SelectItem>
+                    ) : (
+                      customers.map(c => c.id ? (
+                        <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                      ) : null)
+                    )}
                   </SelectContent>
                 </Select>
               </div>

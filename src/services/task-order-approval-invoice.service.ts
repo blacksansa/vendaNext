@@ -8,6 +8,8 @@ const invoiceApi = new Api<Invoice, number>("/invoice")
 
 // Tasks
 export const getTasks = (term = "", page = 0, size = 20): Promise<Task[]> => taskApi.list(page, size, term)
+export const getMyTasks = (term = "", page = 0, size = 20): Promise<Task[]> => 
+  fetchData<Task[]>(`/task/my-tasks?t=${term}&page=${page}&size=${size}`, { method: "GET" })
 export const createTask = (data: Partial<Task>): Promise<Task> => taskApi.saveOrUpdate(data)
 export const updateTask = (id: number, data: Partial<Task>): Promise<Task> => taskApi.patch(id, data)
 export const deleteTask = (id: number): Promise<void> => taskApi.delete(id)
