@@ -9,7 +9,7 @@ import { SellerDTO } from "@/services/seller.service"
 import { UserDTO, getUsers } from "@/services/user.service"
 
 interface SellerFormProps {
-  seller?: SellerDTO
+  seller?: Partial<SellerDTO>
   onSave: (seller: Partial<SellerDTO>) => void
   onCancel: () => void
 }

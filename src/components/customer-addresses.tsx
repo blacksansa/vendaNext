@@ -21,7 +21,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { CustomerAddress } from "@/lib/types"
-import { getCustomerAddresses, createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from "@/lib/api.client"
+import { createCustomer as createCustomerAddress, updateCustomer as updateCustomerAddress, deleteCustomer as deleteCustomerAddress } from "@/lib/api.client"
 import { useToast } from "@/hooks/use-toast"
 
 interface CustomerAddressesProps {
@@ -39,7 +39,12 @@ export function CustomerAddresses({ customerId }: CustomerAddressesProps) {
   useEffect(() => {
     const fetchAddresses = async () => {
       try {
-        const data = await getCustomerAddresses(customerId)
+        const res = await fetch(`/api/customers/${customerId}/addresses`)
+        if (!res.ok) {
+          const errText = await res.text()
+          throw new Error(errText || `Failed to fetch addresses: ${res.status}`)
+        }
+        const data: CustomerAddress[] = await res.json()
         setAddresses(data)
       } catch (error: any) {
         toast.error("Error", { description: error.message })
@@ -54,7 +59,8 @@ export function CustomerAddresses({ customerId }: CustomerAddressesProps) {
     const newAddressData = Object.fromEntries(formData.entries()) as unknown as Partial<CustomerAddress>
 
     try {
-      const newAddress = await createCustomerAddress(customerId, newAddressData)
+      const payload = { ...newAddressData, customerId } as Partial<CustomerAddress>
+      const newAddress = await createCustomerAddress(payload) as unknown as CustomerAddress
       setAddresses([...addresses, newAddress])
       toast.success("Success", { description: "Address created successfully." })
       setIsAddDialogOpen(false)
@@ -71,7 +77,7 @@ export function CustomerAddresses({ customerId }: CustomerAddressesProps) {
     const updatedAddressData = Object.fromEntries(formData.entries()) as unknown as Partial<CustomerAddress>
 
     try {
-      const updatedAddress = await updateCustomerAddress(selectedAddress.id, updatedAddressData)
+      const updatedAddress = await updateCustomerAddress(selectedAddress.id, updatedAddressData) as unknown as CustomerAddress
       setAddresses(addresses.map(a => a.id === updatedAddress.id ? updatedAddress : a))
       toast.success("Success", { description: "Address updated successfully." })
       setIsEditDialogOpen(false)

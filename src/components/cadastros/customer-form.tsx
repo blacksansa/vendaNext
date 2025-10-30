@@ -56,11 +56,11 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
   }
 
   const addContact = () => {
-    const newContact: CustomerContact = {
+    const newContact = {
       type: { id: contactTypes[0]?.id || 1 },
       value: "",
       description: ""
-    }
+    } as unknown as CustomerContact
     setFormData(prev => ({
       ...prev,
       contacts: [...(prev.contacts || []), newContact]
@@ -84,7 +84,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
   }
 
   const addAddress = () => {
-    const newAddress: CustomerAddress = {
+    const newAddress = {
       type: { id: addressTypes[0]?.id || 1 },
       zipCode: "",
       address: "",
@@ -92,7 +92,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
       neighborhood: "",
       city: "",
       state: ""
-    }
+    } as unknown as CustomerAddress
     setFormData(prev => ({
       ...prev,
       addresses: [...(prev.addresses || []), newAddress]
@@ -216,8 +216,8 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                 <div className="grid grid-cols-12 gap-4">
                   <div className="col-span-3 space-y-2">
                     <Label>Tipo</Label>
-                    <Select
-                      value={contact.type?.id?.toString()}
+                      <Select
+                      value={(contact as any).type?.id?.toString()}
                       onValueChange={(value) => updateContact(index, "type", { id: parseInt(value) })}
                     >
                       <SelectTrigger>
@@ -235,7 +235,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-4 space-y-2">
                     <Label>Valor</Label>
                     <Input
-                      value={contact.value}
+                      value={(contact as any).value}
                       onChange={(e) => updateContact(index, "value", e.target.value)}
                       placeholder="Contato"
                     />
@@ -243,7 +243,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-4 space-y-2">
                     <Label>Descrição</Label>
                     <Input
-                      value={contact.description}
+                      value={(contact as any).description}
                       onChange={(e) => updateContact(index, "description", e.target.value)}
                       placeholder="Comercial, etc."
                     />
@@ -284,7 +284,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
               <CardContent className="pt-6 space-y-4">
                 <div className="flex justify-between">
                   <Select
-                    value={address.type?.id?.toString()}
+                    value={(address as any).type?.id?.toString()}
                     onValueChange={(value) => updateAddress(index, "type", { id: parseInt(value) })}
                   >
                     <SelectTrigger className="w-[200px]">
@@ -313,7 +313,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-1">
                     <Label>CEP</Label>
                     <Input
-                      value={address.zipCode}
+                      value={(address as any).zipCode}
                       onChange={(e) => updateAddress(index, "zipCode", e.target.value)}
                       placeholder="00000000"
                       maxLength={8}
@@ -322,7 +322,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-2">
                     <Label>Endereço</Label>
                     <Input
-                      value={address.address}
+                      value={(address as any).address}
                       onChange={(e) => updateAddress(index, "address", e.target.value)}
                       placeholder="Rua..."
                     />
@@ -330,7 +330,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-1">
                     <Label>Número</Label>
                     <Input
-                      value={address.number}
+                      value={(address as any).number}
                       onChange={(e) => updateAddress(index, "number", e.target.value)}
                       placeholder="123"
                     />
@@ -341,7 +341,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div>
                     <Label>Bairro</Label>
                     <Input
-                      value={address.neighborhood}
+                      value={(address as any).neighborhood}
                       onChange={(e) => updateAddress(index, "neighborhood", e.target.value)}
                       placeholder="Centro"
                     />
@@ -349,7 +349,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div>
                     <Label>Cidade</Label>
                     <Input
-                      value={address.city}
+                      value={(address as any).city}
                       onChange={(e) => updateAddress(index, "city", e.target.value)}
                       placeholder="São Paulo"
                     />
@@ -357,7 +357,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div>
                     <Label>UF</Label>
                     <Input
-                      value={address.state}
+                      value={(address as any).state}
                       onChange={(e) => updateAddress(index, "state", e.target.value.toUpperCase())}
                       placeholder="SP"
                       maxLength={2}

@@ -132,7 +132,7 @@ export default function GruposPage() {
     const vendedor = selecionado.vendedores?.[index]
     if (!vendedor) return
     if (confirm("Tem certeza que deseja remover este membro do grupo?")) {
-      await removerVendedor(selecionado.id, vendedor.id ?? vendedor.email ?? vendedor.nome)
+      await removerVendedor(selecionado.id, vendedor.id ?? vendedor.nome)
     }
   }
 
@@ -653,7 +653,7 @@ export default function GruposPage() {
                   <div className="grid gap-4">
                     <div className="grid gap-2">
                       <Label>Status do Grupo</Label>
-                      <Select defaultValue={selecionado.status} onValueChange={(v) => setSelecionado({ ...selecionado, status: v })}>
+                      <Select defaultValue={selecionado.status} onValueChange={(v) => setSelecionado({ ...selecionado, status: v as "ativo" | "inativo" | "pausado" })}>
                         <SelectTrigger>
                           <SelectValue />
                         </SelectTrigger>

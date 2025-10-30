@@ -54,9 +54,10 @@ export function ProductForm({ product, onSave, onCancel }: ProductFormProps) {
     setFormData(prev => ({ ...prev, [field]: value }))
   }
 
+  console.log("[ProductForm] formData atual:", formData)
+
   return (
     <div className="space-y-4">
-      {console.log("[ProductForm] formData atual:", formData)}
       <div className="grid grid-cols-2 gap-4">
         <div className="space-y-2">
           <Label htmlFor="code">Código *</Label>

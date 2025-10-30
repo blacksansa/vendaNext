@@ -129,7 +129,7 @@ class GrupoEventListener {
             name: event.grupo.nome,
             description: event.grupo.descricao,
             quota: event.grupo.metaMensal,
-            managerId: event.grupo.liderUserId,
+            managerId: event.grupo.liderUserId ?? undefined,
             active: event.grupo.status === "ativo",
           }
           await updateTeam(event.grupo.id as number, body)

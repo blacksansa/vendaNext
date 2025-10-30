@@ -64,11 +64,11 @@ export default function CRMDashboard() {
     { id: 4, titulo: "Ver Calendário", icone: "Calendar", url: "#", cor: "orange", requiredRole: "manageTasks" },
     { id: 5, titulo: "Ver Análises", icone: "BarChart3", url: "/analytics", cor: "red", requiredRole: "manageAnalytics" },
   ])
-  const [novaTarefa, setNovaTarefa] = useState({ titulo: "", icone: "Users", url: "", cor: "blue" })
-  const [editandoTarefa, setEditandoTarefa] = useState(null)
+  const [novaTarefa, setNovaTarefa] = useState({ titulo: "", icone: "Users", url: "", cor: "blue", requiredRole: "manageTasks" })
+  const [editandoTarefa, setEditandoTarefa] = useState<any>(null)
 
-  const getIcone = (nomeIcone) => {
-    const icones = {
+  const getIcone = (nomeIcone: string) => {
+    const icones: Record<string, any> = {
       Users,
       Phone,
       Mail,
@@ -86,26 +86,26 @@ export default function CRMDashboard() {
     if (novaTarefa.titulo.trim()) {
       const novaId = Math.max(...tarefasRapidas.map((t) => t.id)) + 1
       setTarefasRapidas([...tarefasRapidas, { ...novaTarefa, id: novaId }])
-      setNovaTarefa({ titulo: "", icone: "Users", url: "", cor: "blue" })
+      setNovaTarefa({ titulo: "", icone: "Users", url: "", cor: "blue", requiredRole: "manageTasks" })
     }
   }
 
-  const removerTarefaRapida = (id) => {
+  const removerTarefaRapida = (id: number) => {
     setTarefasRapidas(tarefasRapidas.filter((t) => t.id !== id))
   }
 
-  const editarTarefaRapida = (tarefa) => {
+  const editarTarefaRapida = (tarefa: any) => {
     setEditandoTarefa(tarefa)
-    setNovaTarefa({ titulo: tarefa.titulo, icone: tarefa.icone, url: tarefa.url, cor: tarefa.cor })
+    setNovaTarefa({ titulo: tarefa.titulo, icone: tarefa.icone, url: tarefa.url, cor: tarefa.cor, requiredRole: tarefa.requiredRole || "manageTasks" })
   }
 
   const salvarEdicao = () => {
-    if (novaTarefa.titulo.trim()) {
+    if (novaTarefa.titulo.trim() && editandoTarefa) {
       setTarefasRapidas(
         tarefasRapidas.map((t) => (t.id === editandoTarefa.id ? { ...editandoTarefa, ...novaTarefa } : t)),
       )
       setEditandoTarefa(null)
-      setNovaTarefa({ titulo: "", icone: "Users", url: "", cor: "blue" })
+      setNovaTarefa({ titulo: "", icone: "Users", url: "", cor: "blue", requiredRole: "manageTasks" })
     }
   }
 
@@ -811,7 +811,7 @@ export default function CRMDashboard() {
                                   size="sm"
                                   onClick={() => {
                                     setEditandoTarefa(null)
-                                    setNovaTarefa({ titulo: "", icone: "Users", url: "", cor: "blue" })
+                                    setNovaTarefa({ titulo: "", icone: "Users", url: "", cor: "blue", requiredRole: "manageTasks" })
                                   }}
                                 >
                                   Cancelar
@@ -866,10 +866,10 @@ export default function CRMDashboard() {
             </CardHeader>
             <CardContent className="space-y-3">
               {tarefasRapidas
-                .filter(tarefa => roles.includes(tarefa.requiredRole))
+                .filter(tarefa => roles?.includes(tarefa.requiredRole))
                 .map((tarefa) => {
                   const IconeComponent = getIcone(tarefa.icone)
-                  const TarefaButton = ({ children, ...props }) => (
+                  const TarefaButton = ({ children, ...props }: any) => (
                     <Button className="w-full justify-start bg-transparent" variant="outline" {...props}>
                       {children}
                     </Button>

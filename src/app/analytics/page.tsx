@@ -128,7 +128,7 @@ export default function AnalyticsPage() {
 
     const totalOpportunities = filteredOpportunities.length
 
-    const closedWon = filteredOpportunities.filter(opp => opp.status === "CLOSED_WON").length
+    const closedWon = filteredOpportunities.filter(opp => opp.status === "WON").length
     const conversionRate = totalOpportunities > 0 ? (closedWon / totalOpportunities) * 100 : 0
 
     const avgDealSize = totalOpportunities > 0 ? totalRevenue / totalOpportunities : 0
@@ -251,7 +251,7 @@ export default function AnalyticsPage() {
         console.log("[analytics] Loaded", teamsData.length, "teams")
 
         setOpportunities(oppsData)
-        setTeams(teamsData)
+        setTeams(teamsData as Team[])
       } catch (error) {
         console.error("[analytics] Error loading data:", error)
       } finally {

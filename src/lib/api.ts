@@ -1,5 +1,5 @@
 
-import api from "./api-instance";
+import apiInstance from "./api-instance";
 import {
   Customer,
   CustomerListItem,
@@ -9,6 +9,8 @@ import {
   Stage,
   Opportunity
 } from "./types";
+
+export { default as api } from "./api-instance";
 
 export async function fetchData<T>(
   endpoint: string,
@@ -23,7 +25,7 @@ export async function fetchData<T>(
   }
   
   try {
-    const response = await api.request<T>({
+    const response = await apiInstance.request<T>({
       url: endpoint,
       method: options.method || 'GET',
       data: options.body,

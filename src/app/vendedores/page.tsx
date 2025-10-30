@@ -265,15 +265,15 @@ export default function VendedoresPage() {
   const alternarStatus = (id: string) => {
     const current = vendedores.find((v) => v.id === id)
     const novo = current?.status === "ativo" ? "inativo" : "ativo"
-    // setQueryData uses object form in v5
-    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+    // use queryKey array form
+    queryClient.setQueryData<Vendedor[] | undefined>(["sellers"], (old = []) =>
       old.map((v) => (v.id === id ? { ...v, status: novo } : v))
     )
     updateSellerMutation.mutate({ id, data: { active: novo === "ativo" } })
   }
 
   const atualizarMeta = (id: string, novaMeta: number) => {
-    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+    queryClient.setQueryData<Vendedor[] | undefined>(["sellers"], (old = []) =>
       old.map((v) => (v.id === id ? { ...v, meta: novaMeta } : v))
     )
     updateSellerMutation.mutate({ id, data: { quota: novaMeta } })
@@ -285,11 +285,11 @@ export default function VendedoresPage() {
   })
 
   const excluirVendedor = (id: string) => {
-    // getQueryData uses object form
-    const previous = queryClient.getQueryData<Vendedor[]>({ queryKey: ["sellers"] })
-    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) => old.filter((v) => v.id !== id))
+    // use queryKey array form
+    const previous = queryClient.getQueryData<Vendedor[]>(["sellers"])
+    queryClient.setQueryData<Vendedor[] | undefined>(["sellers"], (old = []) => old.filter((v) => v.id !== id))
     deleteSellerMutation.mutate(id, {
-      onError: () => queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, previous),
+      onError: () => queryClient.setQueryData<Vendedor[] | undefined>(["sellers"], previous),
     })
   }
 
@@ -311,8 +311,8 @@ export default function VendedoresPage() {
   }
 
   const adicionarVendedorAoGrupo = (vendedorId: string, grupoId: string) => {
-    // setQueryData uses object form
-    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+    // use queryKey array form
+    queryClient.setQueryData<Vendedor[] | undefined>(["sellers"], (old = []) =>
       old.map((v) => (v.id === vendedorId ? { ...v, grupoId } : v))
     )
     updateSellerMutation.mutate({ id: vendedorId, data: { groupId: grupoId } })
@@ -326,7 +326,7 @@ export default function VendedoresPage() {
   }
 
   const removerVendedorDoGrupo = (vendedorId: string, grupoId: string) => {
-    queryClient.setQueryData<Vendedor[] | undefined>({ queryKey: ["sellers"] }, (old = []) =>
+    queryClient.setQueryData<Vendedor[] | undefined>(["sellers"], (old = []) =>
       old.map((v) => (v.id === vendedorId ? { ...v, grupoId: undefined } : v))
     )
     updateSellerMutation.mutate({ id: vendedorId, data: { groupId: null } })

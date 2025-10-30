@@ -148,6 +148,10 @@ export interface CustomerTag extends AbstractCodeNameEntity {
     // Adicionar campos da entidade CustomerTag
 }
 
+export interface CustomerGroup extends AbstractCodeNameEntity {
+    // Adicionar campos da entidade CustomerGroup
+}
+
 export interface UserGroup {
   id: string;
   name?: string;

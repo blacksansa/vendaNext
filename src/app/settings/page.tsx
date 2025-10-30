@@ -31,10 +31,9 @@ import {
   Trash2,
   AlertTriangle,
 } from "lucide-react"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from 'sonner'
 
 export default function SettingsPage() {
-  const { toast } = useToast()
   const [showPassword, setShowPassword] = useState(false)
   const [profileImage, setProfileImage] = useState("/professional-avatar.png")
   const [isLoading, setIsLoading] = useState(false)
@@ -44,8 +43,7 @@ export default function SettingsPage() {
     // Simular salvamento
     await new Promise((resolve) => setTimeout(resolve, 1000))
     setIsLoading(false)
-    toast({
-      title: "Configurações salvas",
+    toast.success("Configurações salvas", {
       description: `As configurações de ${section} foram atualizadas com sucesso.`,
     })
   }

@@ -10,34 +10,41 @@ interface KanbanCardProps {
 }
 
 export function KanbanCard({ tarefa }: KanbanCardProps) {
+  // Map priority values from the Task type to labels and styles
+  const priority = tarefa.priority;
+  const priorityLabel =
+    priority === "HIGH" ? "Alta" : priority === "MEDIUM" ? "Média" : "Baixa";
+  const priorityBorderClass =
+    priority === "HIGH"
+      ? "border-l-red-500"
+      : priority === "MEDIUM"
+      ? "border-l-yellow-500"
+      : "border-l-green-500";
+  const badgeVariant =
+    priority === "HIGH" ? "destructive" : priority === "MEDIUM" ? "secondary" : "outline";
+
   return (
-    <Card key={tarefa.id} className={`border-l-4 ${tarefa.priority === 'Alta' ? 'border-l-red-500' : tarefa.priority === 'Média' ? 'border-l-yellow-500' : 'border-l-green-500'} hover:shadow-md transition-shadow`}>
+    <Card key={tarefa.id} className={`border-l-4 ${priorityBorderClass} hover:shadow-md transition-shadow`}>
       <CardContent className="p-4">
         <div className="space-y-3">
           <div className="flex items-start justify-between">
             <h4 className="font-medium text-sm leading-tight">{tarefa.title}</h4>
             <Badge
-              variant={
-                tarefa.priority === "Alta"
-                  ? "destructive"
-                  : tarefa.priority === "Média"
-                    ? "secondary"
-                    : "outline"
-              }
+              variant={badgeVariant}
               className="text-xs shrink-0"
             >
-              {tarefa.priority}
+              {priorityLabel}
             </Badge>
           </div>
           <p className="text-xs text-muted-foreground leading-relaxed">{tarefa.description}</p>
           <div className="flex items-center gap-2">
             <Avatar className="h-6 w-6">
               <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                {tarefa.assignee?.firstName?.charAt(0)}{tarefa.assignee?.lastName?.charAt(0)}
+                {((tarefa as any).assignee?.firstName?.charAt(0) ?? "")}{((tarefa as any).assignee?.lastName?.charAt(0) ?? "")}
               </AvatarFallback>
             </Avatar>
-            <span className="text-xs text-muted-foreground">{tarefa.assignee?.firstName} {tarefa.assignee?.lastName}</span>
-            {tarefa.team && <Badge variant="outline" className="text-xs ml-auto">{tarefa.team.name}</Badge>}
+            <span className="text-xs text-muted-foreground">{((tarefa as any).assignee?.firstName) ?? ""} {((tarefa as any).assignee?.lastName) ?? ""}</span>
+            {(tarefa as any).team && <Badge variant="outline" className="text-xs ml-auto">{(tarefa as any).team.name}</Badge>}
           </div>
           <div className="flex items-center justify-between text-xs text-muted-foreground">
             <div className="flex items-center gap-1">

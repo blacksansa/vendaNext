@@ -34,10 +34,10 @@ async function fetchData<T>(
   endpoint: string,
   options: RequestInit = {}
 ): Promise<T> {
-  const headers: Record<string, string> = {
+  const headers = {
     "Content-Type": "application/json",
-    ...options.headers,
-  };
+    ...(options.headers || {}),
+  } as Record<string, string>;
 
   const response = await fetch(`${API_BASE_URL}${endpoint}`, {
     ...options,

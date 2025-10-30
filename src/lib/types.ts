@@ -83,6 +83,7 @@ export interface Seller extends AbstractCodeNameEntity {
 export interface Team extends AbstractCodeNameEntity {
   active: boolean;
   sellers?: Seller[];
+  managerId?: string;
 }
 
 export interface Pipeline extends AbstractCodeNameEntity {
@@ -269,6 +270,7 @@ export interface Task extends AbstractFullEntity {
   description?: string;
   dueDate?: number; // timestamp
   done?: boolean;
+  status?: string;
   priority?: "LOW" | "MEDIUM" | "HIGH";
   assignedTo?: User;
   relatedEntity?: { type: string; id: number | string } | null;
@@ -352,5 +354,6 @@ export interface CustomerListItem {
   active?: boolean;
   outstandingBalance?: number; // saldo em aberto, se disponível
   city?: string;
-  createdAt?: number; //
+  createdAt?: number;
+  companyName?: string;
 }

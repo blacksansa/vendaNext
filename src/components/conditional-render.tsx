@@ -22,7 +22,7 @@ export function ConditionalRender({
 
   if (!user) return fallback
 
-  const isVisible = isComponentVisible(user.role, componentId, page)
+  const isVisible = isComponentVisible(user.role ?? "", componentId, page)
 
   return isVisible ? <>{children}</> : <>{fallback}</>
 }
@@ -33,5 +33,5 @@ export function useComponentVisibility(componentId: string, page = "dashboard") 
 
   if (!user) return false
 
-  return isComponentVisible(user.role, componentId, page)
+  return isComponentVisible(user.role ?? "", componentId, page)
 }

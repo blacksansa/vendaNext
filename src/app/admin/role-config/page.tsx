@@ -13,7 +13,7 @@ export default function RoleConfigPage() {
   const [selectedRole, setSelectedRole] = useState<string>("admin")
 
   return (
-    <RoleGuard module="usuarios" action="edit">
+    <RoleGuard requiredRole="manageUsers">
       <div className="container mx-auto p-6">
         <div className="mb-6">
           <h1 className="text-3xl font-bold">Configuração de Roles</h1>

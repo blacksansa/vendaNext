@@ -42,7 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Search, Plus, MoreHorizontal, Phone, Mail, Edit, Trash2, Filter, Download } from "lucide-react"
 import { getCustomers, createCustomer, updateCustomer, deleteCustomer } from "@/lib/api.client"
 import { Customer, CustomerListItem } from "@/lib/types"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from 'sonner'
 
 const initialNewCustomerState = {
   name: "",
@@ -60,7 +60,6 @@ export default function CustomersPage() {
   const [newCustomer, setNewCustomer] = useState(initialNewCustomerState)
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
   const [deletingCustomerId, setDeletingCustomerId] = useState<number | null>(null)
-  const { toast } = useToast()
 
   const fetchCustomers = async () => {
     try {
@@ -68,7 +67,7 @@ export default function CustomersPage() {
       setCustomers(data)
     } catch (error) {
       console.error("Failed to fetch customers:", error)
-      toast({ title: "Erro ao buscar clientes", variant: "destructive" })
+      toast.error("Erro ao buscar clientes")
     }
   }
 
@@ -88,11 +87,11 @@ export default function CustomersPage() {
       })
       setIsAddDialogOpen(false)
       setNewCustomer(initialNewCustomerState)
-      toast({ title: "Sucesso!", description: "Cliente adicionado com sucesso." })
+      toast.success("Cliente adicionado com sucesso.", { description: "Sucesso!" })
       fetchCustomers() // Refresh list
     } catch (error) {
       console.error("Failed to create customer:", error)
-      toast({ title: "Erro ao criar cliente", variant: "destructive" })
+      toast.error("Erro ao criar cliente")
     }
   }
 
@@ -102,11 +101,11 @@ export default function CustomersPage() {
       await updateCustomer(editingCustomer.id, editingCustomer)
       setIsEditDialogOpen(false)
       setEditingCustomer(null)
-      toast({ title: "Sucesso!", description: "Cliente atualizado com sucesso." })
+      toast.success("Cliente atualizado com sucesso.", { description: "Sucesso!" })
       fetchCustomers() // Refresh list
     } catch (error) {
       console.error("Failed to update customer:", error)
-      toast({ title: "Erro ao atualizar cliente", variant: "destructive" })
+      toast.error("Erro ao atualizar cliente")
     }
   }
 
@@ -116,11 +115,11 @@ export default function CustomersPage() {
       await deleteCustomer(deletingCustomerId)
       setIsDeleteDialogOpen(false)
       setDeletingCustomerId(null)
-      toast({ title: "Sucesso!", description: "Cliente excluído com sucesso." })
+      toast.success("Cliente excluído com sucesso.", { description: "Sucesso!" })
       fetchCustomers() // Refresh list
     } catch (error) {
       console.error("Failed to delete customer:", error)
-      toast({ title: "Erro ao excluir cliente", variant: "destructive" })
+      toast.error("Erro ao excluir cliente")
     }
   }
 
@@ -148,7 +147,7 @@ export default function CustomersPage() {
     return matchesSearch && matchesStatus
   })
 
-  const getStatusVariant = (active: boolean) => {
+  const getStatusVariant = (active?: boolean) => {
     return active ? "default" : "secondary"
   }
 

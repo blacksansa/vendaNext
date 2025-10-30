@@ -78,7 +78,7 @@ export const createInvoice = (payload: Partial<InvoiceDTO>) =>
  * Update invoice (uses saveOrUpdate with id)
  */
 export const updateInvoice = (id: number | string, payload: Partial<InvoiceDTO>) =>
-  invoiceApi.saveOrUpdate({ ...payload, id })
+  invoiceApi.saveOrUpdate({ ...payload, id: Number(id) })
 
 /**
  * Delete invoice

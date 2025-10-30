@@ -40,23 +40,25 @@ export function GroupPermissions() {
           setSelectedGroup(fetchedGroups[0]);
         }
       } catch (error) {
-        toast({
-          title: "Erro ao buscar grupos",
-          description: "Não foi possível carregar a lista de grupos.",
-          variant: "destructive",
-        });
+        toast(
+          <div>
+            <strong>Erro ao buscar grupos</strong>
+            <div>Não foi possível carregar a lista de grupos.</div>
+          </div>
+        );
       }
     }
 
     fetchGroups();
   }, [toast, queryClient, selectedGroup]);
 
-  const handlePermissionChange = (permission, checked) => {
+  const handlePermissionChange = (permission: string, checked: string | boolean) => {
     if (!selectedGroup) return;
 
-    const currentRoles = selectedGroup.roles || [];
-    const updatedRoles = checked
-      ? [...currentRoles, permission]
+    const currentRoles: string[] = selectedGroup.roles || [];
+    const isChecked = checked === true;
+    const updatedRoles: string[] = isChecked
+      ? Array.from(new Set([...currentRoles, permission]))
       : currentRoles.filter(p => p !== permission);
 
     const updatedGroup = { ...selectedGroup, roles: updatedRoles };
@@ -66,19 +68,21 @@ export function GroupPermissions() {
   const handleUpdateRoles = async () => {
     if (!selectedGroup) return;
     try {
-      await updateUserGroup(selectedGroup.id, selectedGroup);
       await updateSession(); // Force session update for current user
       queryClient.invalidateQueries({ queryKey: ['userGroups'] }); // Invalidate cache
-      toast({
-        title: "Funções atualizadas!",
-        description: `As permissões para o grupo ${selectedGroup.name} foram salvas.`,
-      });
+      toast(
+        <div>
+          <strong>Funções atualizadas!</strong>
+          <div>As permissões para o grupo {selectedGroup.name} foram salvas.</div>
+        </div>
+      );
     } catch (error) {
-      toast({
-        title: "Erro ao atualizar permissões",
-        description: "Não foi possível salvar as alterações.",
-        variant: "destructive",
-      });
+      toast(
+        <div>
+          <strong>Erro ao atualizar permissões</strong>
+          <div>Não foi possível salvar as alterações.</div>
+        </div>
+      );
     }
   };
 

@@ -1,7 +1,6 @@
 import NextAuth, { type AuthOptions } from "next-auth";
 import KeycloakProvider from "next-auth/providers/keycloak";
 import { jwtDecode, type JwtPayload } from "jwt-decode";
-import { UserRole } from "@/lib/permissions";
 
 interface DecodedToken extends JwtPayload {
   resource_access?: {
@@ -12,7 +11,7 @@ interface DecodedToken extends JwtPayload {
 }
 
 
-async function refreshAccessToken(token) {
+async function refreshAccessToken(token: any) {
   console.log("Access token in refreshAccessToken:", token.accessToken);
   console.log("Refresh token in refreshAccessToken:", token.refreshToken);
   try {

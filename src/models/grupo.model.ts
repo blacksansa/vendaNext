@@ -76,7 +76,9 @@ class GrupoModel {
 
   subscribe(listener: (state: GrupoState) => void) {
     this.listeners.add(listener)
-    return () => this.listeners.delete(listener)
+    return () => {
+      this.listeners.delete(listener)
+    }
   }
 
   private notifyListeners() {
@@ -324,7 +326,6 @@ class GrupoModel {
         active: true,
         code: this.resolveTeamCode({}, novoGrupo.nome),
         sellerIds: [] as Array<number>,
-        sellers: [] as Array<{ id: number }>,
       }
       const res = await createTeam(body)
       this.toast?.({ title: "Grupo criado com sucesso" })
@@ -376,7 +377,6 @@ class GrupoModel {
           : (typeof raw?.active === "boolean" ? raw.active : grupo.status === "ativo"),
       code: typeof overrides?.code !== "undefined" ? overrides!.code! : this.resolveTeamCode(raw, grupo.nome, grupo.id),
       sellerIds,
-      sellers: this.buildSellersObjects(sellerIds),
     }
   }
 

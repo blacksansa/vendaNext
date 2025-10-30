@@ -22,7 +22,7 @@ import { useState, useEffect } from "react"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useAuth } from "@/hooks/use-auth"
 import { getMyTasks, updateTask } from "@/services/task-order-approval-invoice.service"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from 'sonner'
 import {
   DndContext,
   DragEndEvent,
@@ -38,7 +38,6 @@ import { useSortable } from "@dnd-kit/sortable"
 
 export default function MinhasTarefas() {
   const { user: authUser, loading: authLoading } = useAuth()
-  const { toast } = useToast()
   
   const [filtroStatus, setFiltroStatus] = useState("todas")
   const [filtroPrioridade, setFiltroPrioridade] = useState("todas")
@@ -101,11 +100,7 @@ export default function MinhasTarefas() {
       setTarefas(minhasTarefas)
     } catch (error: any) {
       console.error("Erro ao carregar tarefas:", error)
-      toast({
-        title: "Erro ao carregar tarefas",
-        description: error?.message ?? "Não foi possível carregar as tarefas",
-        variant: "destructive",
-      })
+      toast.error(error?.message ?? "Não foi possível carregar as tarefas", { description: "Erro ao carregar tarefas" })
       setTarefas([])
     } finally {
       setLoading(false)
@@ -127,21 +122,14 @@ export default function MinhasTarefas() {
       // Depois fazer a requisição ao backend
       await updateTask(taskId, { status: newStatus })
       
-      toast({
-        title: "Status atualizado",
-        description: "O status da tarefa foi alterado com sucesso",
-      })
+      toast.success("O status da tarefa foi alterado com sucesso", { description: "Status atualizado" })
     } catch (error: any) {
       console.error("Erro ao atualizar status:", error)
       
       // Rollback: reverter para o estado anterior
       setTarefas(backupTarefas)
       
-      toast({
-        title: "Erro ao atualizar status",
-        description: error?.message ?? "Não foi possível atualizar o status da tarefa",
-        variant: "destructive",
-      })
+      toast.error(error?.message ?? "Não foi possível atualizar o status da tarefa", { description: "Erro ao atualizar status" })
     }
   }
 

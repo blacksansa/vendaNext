@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query"
-import { fetchUsers } from "../services/user.service"
+import { getUsers } from "../services/user.service"
 
 export function useUsersModel() {
   const { data: users = [], isLoading, isError } = useQuery({
     queryKey: ["users"],
-    queryFn: () => fetchUsers("", 0, 100),
+    queryFn: () => getUsers("", 0, 100),
   })
 
   const getUserName = (user: any): string => {

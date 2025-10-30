@@ -1,3 +1,5 @@
+export type UserRole = "admin" | "manager" | "team_leader" | "seller" | "user" | "viewer";
+
 export const NAVIGATION_ITEMS = [
   { title: "Painel", url: "/", icon: "Home", requiredRole: "manageDashboard" },
   { title: "Painel Líderes", url: "/lideres", icon: "Crown", requiredRole: "manageTeams" },
@@ -12,6 +14,32 @@ export const NAVIGATION_ITEMS = [
   { title: "Relatórios", url: "/relatorios", icon: "FileText", requiredRole: "manageReports" },
   { title: "Usuários", url: "/usuarios", icon: "Shield", requiredRole: "manageUsers" },
 ]
+
+export interface ComponentConfig {
+  id: string
+  name: string
+  description: string
+  requiredPermissions: {
+    module: string
+    action: string
+  }[]
+}
+
+export const DASHBOARD_COMPONENTS: ComponentConfig[] = [
+  {
+    id: "overview-cards",
+    name: "Cards de Visão Geral",
+    description: "Métricas principais do dashboard",
+    requiredPermissions: [{ module: "dashboard", action: "view" }],
+  },
+]
+
+export const ROLE_PERMISSIONS: Record<string, any[]> = {
+  admin: [
+    { module: "dashboard", actions: ["view", "edit"] },
+    { module: "customers", actions: ["view", "create", "edit", "delete"] },
+  ],
+}
 
 export function hasPermission(userRoles: string[] = [], requiredRole: string): boolean {
   return userRoles.includes(requiredRole);

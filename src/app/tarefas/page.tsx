@@ -58,7 +58,17 @@ export default function TarefasKanban() {
       setTasks(tasksByStatus);
       setUsers(fetchedUsers || []);
       setTeams(fetchedTeams || []);
-      setCustomers(fetchedCustomers || []);
+      setCustomers(((fetchedCustomers || []) as any[]).map(c => ({
+        ...c,
+        code: (c as any).code ?? '',
+        updatedAt: (c as any).updatedAt ?? new Date().toISOString(),
+        deletedAt: (c as any).deletedAt ?? null,
+        // ensure required fields have a defined type to match Customer
+        active: (c as any).active ?? false,
+        outstandingBalance: (c as any).outstandingBalance ?? 0,
+        city: (c as any).city ?? '',
+        createdAt: (c as any).createdAt ?? new Date().toISOString(),
+      })) as Customer[]);
 
     } catch (err: any) {
       console.error(err);
@@ -109,12 +119,25 @@ export default function TarefasKanban() {
     const formData = new FormData(event.currentTarget);
     const data = Object.fromEntries(formData.entries());
 
-    const newTask: Partial<Task> = {
+    // narrow & validate priority to the Task priority union and convert dueDate to a timestamp
+    const rawPriority = (data.priority as string) ?? "";
+    const allowedPriorities = ['LOW', 'MEDIUM', 'HIGH'] as const;
+    const priority = allowedPriorities.includes(rawPriority as any)
+      ? (rawPriority as typeof allowedPriorities[number])
+      : undefined;
+
+    const dueDateTimestamp = data.dueDate
+      ? new Date(String(data.dueDate)).getTime()
+      : undefined;
+
+    const newTask: Partial<Task> & { teamId?: number; customerId?: number } = {
       title: data.title as string,
       description: data.description as string,
-      priority: data.priority as string,
-      dueDate: data.dueDate as string,
-      assigneeId: (data.assigneeId && !String(data.assigneeId).startsWith("__none")) ? String(data.assigneeId) : undefined,
+      priority,
+      dueDate: dueDateTimestamp,
+      assignedTo: (data.assigneeId && !String(data.assigneeId).startsWith("__none"))
+        ? users.find(u => String(u.id) === String(data.assigneeId) || u.email === String(data.assigneeId))
+        : undefined,
       teamId: (data.teamId && !String(data.teamId).startsWith("__none")) ? Number(data.teamId) : undefined,
       customerId: (data.customerId && !String(data.customerId).startsWith("__none")) ? Number(data.customerId) : undefined,
       status: 'PENDING',
@@ -160,20 +183,21 @@ export default function TarefasKanban() {
   };
 
   const responsaveis = allTasks.reduce((acc, task) => {
-    if (task.assignee) {
-        const assigneeName = `${task.assignee.firstName} ${task.assignee.lastName}`;
+    if (task.assignedTo) {
+        const assigneeName = `${task.assignedTo.firstName} ${task.assignedTo.lastName}`;
         if (!acc.find(r => r.nome === assigneeName)) {
-            acc.push({ id: task.assignee.id!, nome: assigneeName, tipo: 'vendedor', tarefas: 0, concluidas: 0 });
+            acc.push({ id: String(task.assignedTo.id), nome: assigneeName, tipo: 'vendedor', tarefas: 0, concluidas: 0 });
         }
     }
-    if (task.team) {
-        if (!acc.find(r => r.nome === task.team!.name)) {
-            acc.push({ id: task.team.id!.toString(), nome: task.team.name!, tipo: 'grupo', tarefas: 0, concluidas: 0 });
+    const team = (task as any).team;
+    if (team) {
+        if (!acc.find(r => r.nome === team.name)) {
+            acc.push({ id: team.id!.toString(), nome: team.name!, tipo: 'grupo', tarefas: 0, concluidas: 0 });
         }
     }
     return acc;
   }, [] as { id: string; nome: string; tipo: string; tarefas: number; concluidas: number }[]).map(r => {
-    const userTasks = allTasks.filter(t => t.assignee?.id === r.id || t.team?.id.toString() === r.id);
+    const userTasks = allTasks.filter(t => (t.assignedTo?.id ? String(t.assignedTo!.id) : undefined) === r.id || ((t as any).team?.id ? String((t as any).team.id) : undefined) === r.id);
     r.tarefas = userTasks.length;
     r.concluidas = userTasks.filter(t => t.status === 'DONE').length;
     return r;

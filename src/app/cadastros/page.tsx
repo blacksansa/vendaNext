@@ -46,7 +46,7 @@ import { getProductGroups, ProductGroup } from "@/services/product-group.service
 import { getPriceTags, createPriceTag, updatePriceTag, deletePriceTag, PriceTag } from "@/services/price-tag.service"
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, Supplier } from "@/services/supplier.service"
 import { getSellers, createSeller, updateSeller, deleteSeller, SellerDTO } from "@/services/seller.service"
-import { useToast } from "@/hooks/use-toast"
+import { toast } from 'sonner'
 import { Customer, CustomerListItem } from "@/lib/types"
 import { CustomerForm } from "@/components/cadastros/customer-form"
 import { ProductForm } from "@/components/cadastros/product-form"
@@ -154,7 +154,6 @@ export default function CadastrosPage() {
   const [productGroups, setProductGroups] = useState<ProductGroup[]>([])
   const [priceTags, setPriceTags] = useState<PriceTag[]>([])
   
-  const { toast } = useToast()
 
   const fetchCustomers = async () => {
     try {
@@ -162,11 +161,7 @@ export default function CadastrosPage() {
       setCustomers(customerData)
     } catch (error) {
       console.error("Failed to fetch customers:", error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os clientes.",
-        variant: "destructive",
-      })
+      toast.error("Não foi possível carregar os clientes.", { description: "Erro" })
     }
   }
 
@@ -176,11 +171,7 @@ export default function CadastrosPage() {
       setProducts(productData)
     } catch (error) {
       console.error("Failed to fetch products:", error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os produtos.",
-        variant: "destructive",
-      })
+      toast.error("Não foi possível carregar os produtos.", { description: "Erro" })
     }
   }
 
@@ -199,11 +190,7 @@ export default function CadastrosPage() {
       setPriceTags(priceTagData)
     } catch (error) {
       console.error("Failed to fetch price tags:", error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar as tabelas de preço.",
-        variant: "destructive",
-      })
+      toast.error("Não foi possível carregar as tabelas de preço.", { description: "Erro" })
     }
   }
 
@@ -213,11 +200,7 @@ export default function CadastrosPage() {
       setSuppliers(supplierData)
     } catch (error) {
       console.error("Failed to fetch suppliers:", error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os fornecedores.",
-        variant: "destructive",
-      })
+      toast.error("Não foi possível carregar os fornecedores.", { description: "Erro" })
     }
   }
 
@@ -227,11 +210,7 @@ export default function CadastrosPage() {
       setSellers(sellerData)
     } catch (error) {
       console.error("Failed to fetch sellers:", error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível carregar os vendedores.",
-        variant: "destructive",
-      })
+      toast.error("Não foi possível carregar os vendedores.", { description: "Erro" })
     }
   }
 
@@ -256,21 +235,14 @@ export default function CadastrosPage() {
   const handleSaveCustomer = async (customerData: Partial<Customer>) => {
     try {
       await createCustomer(customerData)
-      toast({
-        title: "Sucesso!",
-        description: "Cliente cadastrado com sucesso.",
-      })
+      toast.success("Cliente cadastrado com sucesso.", { description: "Sucesso!" })
       setShowCustomerForm(false)
       setEditingCustomer(null)
       setNewCustomer(initialCustomerState)
       fetchCustomers()
     } catch (error) {
       console.error("Failed to create customer:", error)
-      toast({
-        title: "Erro",
-        description: "Não foi possível cadastrar o cliente. Tente novamente.",
-        variant: "destructive",
-      })
+      toast.error("Não foi possível cadastrar o cliente. Tente novamente.", { description: "Erro" })
     }
   }
 
@@ -280,11 +252,11 @@ export default function CadastrosPage() {
       await updateCustomer(editingCustomer.id, customerData)
       setShowCustomerForm(false)
       setEditingCustomer(null)
-      toast({ title: "Sucesso!", description: "Cliente atualizado com sucesso." })
+      toast.success("Cliente atualizado com sucesso.", { description: "Sucesso!" })
       fetchCustomers()
     } catch (error) {
       console.error("Failed to update customer:", error)
-      toast({ title: "Erro ao atualizar cliente", variant: "destructive" })
+      toast.error("Erro ao atualizar cliente")
     }
   }
 
@@ -294,11 +266,11 @@ export default function CadastrosPage() {
       await deleteCustomer(deletingCustomerId)
       setIsDeleteDialogOpen(false)
       setDeletingCustomerId(null)
-      toast({ title: "Sucesso!", description: "Cliente excluído com sucesso." })
+      toast.success("Cliente excluído com sucesso.", { description: "Sucesso!" })
       fetchCustomers()
     } catch (error) {
       console.error("Failed to delete customer:", error)
-      toast({ title: "Erro ao excluir cliente", variant: "destructive" })
+      toast.error("Erro ao excluir cliente")
     }
   }
 
@@ -308,7 +280,7 @@ export default function CadastrosPage() {
       setEditingCustomer(fullCustomer)
       setShowCustomerForm(true)
     } catch (error) {
-      toast({ title: "Erro", description: "Não foi possível carregar os dados do cliente." })
+      toast.success("Não foi possível carregar os dados do cliente.", { description: "Erro" })
     }
   }
 
@@ -326,14 +298,14 @@ export default function CadastrosPage() {
   const handleSaveProduct = async (productData: Partial<Product>) => {
     try {
       await createProduct(productData)
-      toast({ title: "Sucesso!", description: "Produto cadastrado com sucesso." })
+      toast.success("Produto cadastrado com sucesso.", { description: "Sucesso!" })
       setShowProductForm(false)
       setEditingProduct(null)
       setNewProduct(initialProductState)
       fetchProducts()
     } catch (error) {
       console.error("Failed to create product:", error)
-      toast({ title: "Erro", description: "Não foi possível cadastrar o produto.", variant: "destructive" })
+      toast.error("Não foi possível cadastrar o produto.", { description: "Erro" })
     }
   }
 
@@ -343,11 +315,11 @@ export default function CadastrosPage() {
       await updateProduct(editingProduct.id, productData)
       setShowProductForm(false)
       setEditingProduct(null)
-      toast({ title: "Sucesso!", description: "Produto atualizado com sucesso." })
+      toast.success("Produto atualizado com sucesso.", { description: "Sucesso!" })
       fetchProducts()
     } catch (error) {
       console.error("Failed to update product:", error)
-      toast({ title: "Erro ao atualizar produto", variant: "destructive" })
+      toast.error("Erro ao atualizar produto")
     }
   }
 
@@ -357,11 +329,11 @@ export default function CadastrosPage() {
       await deleteProduct(deletingProductId)
       setIsDeleteProductDialogOpen(false)
       setDeletingProductId(null)
-      toast({ title: "Sucesso!", description: "Produto excluído com sucesso." })
+      toast.success("Produto excluído com sucesso.", { description: "Sucesso!" })
       fetchProducts()
     } catch (error) {
       console.error("Failed to delete product:", error)
-      toast({ title: "Erro ao excluir produto", variant: "destructive" })
+      toast.error("Erro ao excluir produto")
     }
   }
 
@@ -384,14 +356,14 @@ export default function CadastrosPage() {
   const handleSavePriceTag = async (priceTagData: Partial<PriceTag>) => {
     try {
       await createPriceTag(priceTagData)
-      toast({ title: "Sucesso!", description: "Tabela de preço cadastrada com sucesso." })
+      toast.success("Tabela de preço cadastrada com sucesso.", { description: "Sucesso!" })
       setShowPriceTagForm(false)
       setEditingPriceTag(null)
       setNewPriceTag(initialPriceTagState)
       fetchPriceTags()
     } catch (error) {
       console.error("Failed to create price tag:", error)
-      toast({ title: "Erro", description: "Não foi possível cadastrar a tabela de preço.", variant: "destructive" })
+      toast.error("Não foi possível cadastrar a tabela de preço.", { description: "Erro" })
     }
   }
 
@@ -401,11 +373,11 @@ export default function CadastrosPage() {
       await updatePriceTag(editingPriceTag.id, priceTagData)
       setShowPriceTagForm(false)
       setEditingPriceTag(null)
-      toast({ title: "Sucesso!", description: "Tabela de preço atualizada com sucesso." })
+      toast.success("Tabela de preço atualizada com sucesso.", { description: "Sucesso!" })
       fetchPriceTags()
     } catch (error) {
       console.error("Failed to update price tag:", error)
-      toast({ title: "Erro ao atualizar tabela de preço", variant: "destructive" })
+      toast.error("Erro ao atualizar tabela de preço")
     }
   }
 
@@ -415,11 +387,11 @@ export default function CadastrosPage() {
       await deletePriceTag(deletingPriceTagId)
       setIsDeletePriceTagDialogOpen(false)
       setDeletingPriceTagId(null)
-      toast({ title: "Sucesso!", description: "Tabela de preço excluída com sucesso." })
+      toast.success("Tabela de preço excluída com sucesso.", { description: "Sucesso!" })
       fetchPriceTags()
     } catch (error) {
       console.error("Failed to delete price tag:", error)
-      toast({ title: "Erro ao excluir tabela de preço", variant: "destructive" })
+      toast.error("Erro ao excluir tabela de preço")
     }
   }
 
@@ -437,14 +409,14 @@ export default function CadastrosPage() {
   const handleSaveSupplier = async (supplierData: Partial<Supplier>) => {
     try {
       await createSupplier(supplierData)
-      toast({ title: "Sucesso!", description: "Fornecedor cadastrado com sucesso." })
+      toast.success("Fornecedor cadastrado com sucesso.", { description: "Sucesso!" })
       setShowSupplierForm(false)
       setEditingSupplier(null)
       setNewSupplier(initialSupplierState)
       fetchSuppliers()
     } catch (error) {
       console.error("Failed to create supplier:", error)
-      toast({ title: "Erro", description: "Não foi possível cadastrar o fornecedor.", variant: "destructive" })
+      toast.error("Não foi possível cadastrar o fornecedor.", { description: "Erro" })
     }
   }
 
@@ -454,11 +426,11 @@ export default function CadastrosPage() {
       await updateSupplier(editingSupplier.id, supplierData)
       setShowSupplierForm(false)
       setEditingSupplier(null)
-      toast({ title: "Sucesso!", description: "Fornecedor atualizado com sucesso." })
+      toast.success("Fornecedor atualizado com sucesso.", { description: "Sucesso!" })
       fetchSuppliers()
     } catch (error) {
       console.error("Failed to update supplier:", error)
-      toast({ title: "Erro ao atualizar fornecedor", variant: "destructive" })
+      toast.error("Erro ao atualizar fornecedor")
     }
   }
 
@@ -468,11 +440,11 @@ export default function CadastrosPage() {
       await deleteSupplier(deletingSupplierId)
       setIsDeleteSupplierDialogOpen(false)
       setDeletingSupplierId(null)
-      toast({ title: "Sucesso!", description: "Fornecedor excluído com sucesso." })
+      toast.success("Fornecedor excluído com sucesso.", { description: "Sucesso!" })
       fetchSuppliers()
     } catch (error) {
       console.error("Failed to delete supplier:", error)
-      toast({ title: "Erro ao excluir fornecedor", variant: "destructive" })
+      toast.error("Erro ao excluir fornecedor")
     }
   }
 
@@ -492,14 +464,14 @@ export default function CadastrosPage() {
       console.log("[Cadastros] criando seller com dados:", sellerData)
       const created = await createSeller(sellerData)
       console.log("[Cadastros] seller criado:", created)
-      toast({ title: "Sucesso!", description: "Vendedor cadastrado com sucesso." })
+      toast.success("Vendedor cadastrado com sucesso.", { description: "Sucesso!" })
       setShowSellerForm(false)
       setEditingSeller(null)
       setNewSeller({ code: "", name: "", commissionPercentage: 0 })
       fetchSellers()
     } catch (error) {
       console.error("Failed to create seller:", error)
-      toast({ title: "Erro", description: "Não foi possível cadastrar o vendedor.", variant: "destructive" })
+      toast.error("Não foi possível cadastrar o vendedor.", { description: "Erro" })
     }
   }
 
@@ -511,11 +483,11 @@ export default function CadastrosPage() {
       console.log("[Cadastros] seller atualizado:", updated)
       setShowSellerForm(false)
       setEditingSeller(null)
-      toast({ title: "Sucesso!", description: "Vendedor atualizado com sucesso." })
+      toast.success("Vendedor atualizado com sucesso.", { description: "Sucesso!" })
       fetchSellers()
     } catch (error) {
       console.error("Failed to update seller:", error)
-      toast({ title: "Erro ao atualizar vendedor", variant: "destructive" })
+      toast.error("Erro ao atualizar vendedor")
     }
   }
 
@@ -525,11 +497,11 @@ export default function CadastrosPage() {
       await deleteSeller(deletingSellerId)
       setIsDeleteSellerDialogOpen(false)
       setDeletingSellerId(null)
-      toast({ title: "Sucesso!", description: "Vendedor excluído com sucesso." })
+      toast.success("Vendedor excluído com sucesso.", { description: "Sucesso!" })
       fetchSellers()
     } catch (error) {
       console.error("Failed to delete seller:", error)
-      toast({ title: "Erro ao excluir vendedor", variant: "destructive" })
+      toast.error("Erro ao excluir vendedor")
     }
   }
 

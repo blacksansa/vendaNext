@@ -156,14 +156,15 @@ export default function OrdensPage() {
   const [currentUser] = useState<CurrentUser>(() => {
     // Tentar pegar do authUser primeiro
     if (authUser) {
-      const role = authUser.groups?.includes('admin') || authUser.groups?.includes('gerente') 
+      const groups = (authUser as any).groups || []
+      const role = groups.includes('admin') || groups.includes('gerente') 
         ? 'admin' 
-        : authUser.groups?.includes('manager') || authUser.groups?.includes('lider')
+        : groups.includes('manager') || groups.includes('lider')
         ? 'manager'
         : 'seller'
       
       return {
-        id: authUser.id || authUser.sub || authUser.email || "u-1",
+        id: authUser.id || (authUser as any).sub || authUser.email || "u-1",
         name: authUser.name || authUser.email || "Usuário",
         role
       }
@@ -274,7 +275,8 @@ export default function OrdensPage() {
         status: order.status as any, // model converte para enum do backend
         notes: order.notes,
         approverIds: approverId ? [approverId] : undefined, // envia aprovador
-        items: order.products.map((p) => ({
+        items: order.products.map((p, index) => ({
+          id: `temp-${index}`,
           productId: p.id,
           description: p.name,
           quantity: p.quantity,
@@ -304,7 +306,7 @@ export default function OrdensPage() {
       console.debug("[OrdensPage] updating invoice via invoiceModel", id, payload)
       if (payload.status === "aprovada") {
         const approverNum = Number(payload.approverId)
-        return await invoiceModel.approve(id, Number.isFinite(approverNum) ? approverNum : undefined)
+        return await invoiceModel.approve(id, Number.isFinite(approverNum) ? String(approverNum) : undefined)
       }
       const uiPartial: Partial<InvoiceUI> = {
         status: payload.status as any,

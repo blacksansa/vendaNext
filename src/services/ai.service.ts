@@ -18,7 +18,7 @@ class AIService {
     try {
       const response = await api.get<AIInsightsResponse>("/ai/dashboard-insights");
       console.log("[AIService] Insights recebidos:", response);
-      return response;
+      return response.data;
     } catch (error) {
       console.error("[AIService] Erro ao buscar insights:", error);
       throw error;

@@ -211,10 +211,8 @@ export default function AprovacoesPage() {
       console.warn("[aprovacoes] timeout ao carregar invoices")
       setLoading(false)
       setOrders([]) // Mostrar lista vazia em vez de infinito
-      toast({
-        title: "Tempo esgotado",
-        description: "A requisição demorou muito. Clique em 'Atualizar' para tentar novamente.",
-        variant: "destructive",
+      toast.error("A requisição demorou muito. Clique em 'Atualizar' para tentar novamente.", {
+        description: "Tempo esgotado"
       })
     }, 10000) // 10 segundos
     
@@ -303,10 +301,8 @@ export default function AprovacoesPage() {
       })
       clearTimeout(timeoutId)
       setOrders([]) // Limpar em caso de erro
-      toast({
-        title: "Erro ao carregar aprovações",
-        description: error?.message ?? "Não foi possível carregar as aprovações pendentes. Verifique o console para mais detalhes.",
-        variant: "destructive",
+      toast.error(error?.message ?? "Não foi possível carregar as aprovações pendentes. Verifique o console para mais detalhes.", {
+        description: "Erro ao carregar aprovações"
       })
     } finally {
       clearTimeout(timeoutId)
@@ -352,9 +348,8 @@ export default function AprovacoesPage() {
       // Aprovar via model
       await invoiceModel.approve(selectedOrder.id, String(currentUserId))
       
-      toast({
-        title: "Ordem aprovada",
-        description: `Ordem ${selectedOrder.orderNumber} foi aprovada com sucesso`,
+      toast.success(`Ordem ${selectedOrder.orderNumber} foi aprovada com sucesso`, {
+        description: "Ordem aprovada"
       })
       
       // Recarregar lista
@@ -366,10 +361,8 @@ export default function AprovacoesPage() {
       setSelectedOrder(null)
     } catch (error) {
       console.error("[aprovacoes] erro ao aprovar", error)
-      toast({
-        title: "Erro ao aprovar",
-        description: "Não foi possível aprovar a ordem",
-        variant: "destructive",
+      toast.error("Não foi possível aprovar a ordem", {
+        description: "Erro ao aprovar"
       })
     } finally {
       setProcessing(false)
@@ -378,10 +371,8 @@ export default function AprovacoesPage() {
 
   const handleRejectOrder = async () => {
     if (!selectedOrder || !rejectionReason) {
-      toast({
-        title: "Motivo obrigatório",
-        description: "Informe o motivo da rejeição",
-        variant: "destructive",
+      toast.error("Informe o motivo da rejeição", {
+        description: "Motivo obrigatório"
       })
       return
     }
@@ -396,9 +387,8 @@ export default function AprovacoesPage() {
         notes: `${selectedOrder.notes ?? ""}\n\nREJEITADA: ${rejectionReason}`.trim(),
       })
       
-      toast({
-        title: "Ordem rejeitada",
-        description: `Ordem ${selectedOrder.orderNumber} foi rejeitada`,
+      toast.success(`Ordem ${selectedOrder.orderNumber} foi rejeitada`, {
+        description: "Ordem rejeitada"
       })
       
       // Recarregar lista
@@ -410,10 +400,8 @@ export default function AprovacoesPage() {
       setSelectedOrder(null)
     } catch (error) {
       console.error("[aprovacoes] erro ao rejeitar", error)
-      toast({
-        title: "Erro ao rejeitar",
-        description: "Não foi possível rejeitar a ordem",
-        variant: "destructive",
+      toast.error("Não foi possível rejeitar a ordem", {
+        description: "Erro ao rejeitar"
       })
     } finally {
       setProcessing(false)

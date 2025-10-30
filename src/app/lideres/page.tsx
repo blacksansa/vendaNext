@@ -171,7 +171,10 @@ export default function DashboardLideresPage() {
           // Calculate total sales from won opportunities
           const totalVendas = teamOpportunities
             .filter(o => o.status === "WON")
-            .reduce((sum, o) => sum + (o.value || 0), 0)
+            .reduce((sum, o) => {
+              const oppValue = o.items?.reduce((s, item) => s + ((item as any).quantity || 0) * ((item as any).price || 0), 0) || 0
+              return sum + oppValue
+            }, 0)
           
           const ticketMedio = oportunidadesGanhas > 0 ? totalVendas / oportunidadesGanhas : 0
           

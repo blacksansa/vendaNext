@@ -22,7 +22,7 @@ import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { CustomerContact, ContactType } from "@/lib/types"
-import { getCustomerContacts, createCustomerContact, updateCustomerContact, deleteCustomerContact, getContactTypes } from "@/lib/api.client"
+import { createCustomer as createCustomerContact, updateCustomer as updateCustomerContact, deleteCustomer as deleteCustomerContact } from "@/lib/api.client"
 import { useToast } from "@/hooks/use-toast"
 
 interface CustomerContactsProps {
@@ -41,7 +41,12 @@ export function CustomerContacts({ customerId }: CustomerContactsProps) {
   useEffect(() => {
     const fetchContacts = async () => {
       try {
-        const data = await getCustomerContacts(customerId)
+        const res = await fetch(`/api/customers/${customerId}/contacts`)
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(text || res.statusText)
+        }
+        const data = await res.json() as CustomerContact[]
         setContacts(data)
       } catch (error: any) {
         toast.error("Error", { description: error.message })
@@ -53,7 +58,12 @@ export function CustomerContacts({ customerId }: CustomerContactsProps) {
   useEffect(() => {
     const fetchContactTypes = async () => {
       try {
-        const data = await getContactTypes()
+        const res = await fetch(`/api/contact-types`)
+        if (!res.ok) {
+          const text = await res.text()
+          throw new Error(text || res.statusText)
+        }
+        const data = (await res.json()) as ContactType[]
         setContactTypes(data)
       } catch (error: any) {
         toast.error("Error", { description: error.message })
@@ -68,7 +78,8 @@ export function CustomerContacts({ customerId }: CustomerContactsProps) {
     const newContactData = Object.fromEntries(formData.entries()) as unknown as Partial<CustomerContact>
 
     try {
-      const newContact = await createCustomerContact(customerId, newContactData)
+      const payload = { customerId, ...newContactData }
+      const newContact = await createCustomerContact(payload) as unknown as CustomerContact
       setContacts([...contacts, newContact])
       toast.success("Success", { description: "Contact created successfully." })
       setIsAddDialogOpen(false)
@@ -85,8 +96,8 @@ export function CustomerContacts({ customerId }: CustomerContactsProps) {
     const updatedContactData = Object.fromEntries(formData.entries()) as unknown as Partial<CustomerContact>
 
     try {
-      const updatedContact = await updateCustomerContact(selectedContact.id, updatedContactData)
-      setContacts(contacts.map(c => c.id === updatedContact.id ? updatedContact : c))
+      const updatedContact = await updateCustomerContact(selectedContact.id, updatedContactData) as unknown as CustomerContact
+      setContacts(prev => prev.map(c => c.id === updatedContact.id ? updatedContact : c))
       toast.success("Success", { description: "Contact updated successfully." })
       setIsEditDialogOpen(false)
       setSelectedContact(null)

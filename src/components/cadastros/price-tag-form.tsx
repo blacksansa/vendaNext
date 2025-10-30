@@ -107,7 +107,8 @@ export function PriceTagForm({ priceTag, onSave, onCancel }: PriceTagFormProps) 
     p.code?.toLowerCase().includes(productSearchTerm.toLowerCase())
   )
 
-  const getProductName = (productId: number) => {
+  const getProductName = (productId?: number) => {
+    if (productId === undefined || productId === null) return "Produto não encontrado"
     const product = products.find(p => p.id === productId)
     return product?.name || "Produto não encontrado"
   }

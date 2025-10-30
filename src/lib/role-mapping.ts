@@ -1,4 +1,4 @@
-import { UserRole } from "./permissions";
+type UserRole = "admin" | "manager" | "team_leader" | "viewer";
 
 export const aplicationRoles: Record<string, UserRole> = {
     manageUsers: "admin",

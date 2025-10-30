@@ -63,10 +63,22 @@ const iconMap = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { toggleSidebar, state } = useSidebar()
-  const { user, roles, loading } = useAuth()
+  const { user, roles: authRoles, loading } = useAuth()
 
-  const visibleNavigation = getVisibleNavigation(roles)
-  const canAddCustomer = hasPermission(roles, "manageCustomers")
+  // Normaliza possíveis formatos de role(s):
+  // - authRoles pode ser array ou string
+  // - user.role pode existir como string
+  // - user.roles pode existir como array
+  const rolesList: string[] = (() => {
+    if (Array.isArray(authRoles)) return authRoles
+    if (typeof authRoles === "string" && authRoles !== "") return [authRoles]
+    if (Array.isArray((user as any)?.roles)) return (user as any).roles
+    if (typeof (user as any)?.role === "string" && (user as any).role !== "") return [(user as any).role]
+    return []
+  })()
+
+  const visibleNavigation = getVisibleNavigation(rolesList)
+  const canAddCustomer = hasPermission(rolesList, "manageCustomers")
 
   if (loading) {
     return null // ou um skeleton loader
@@ -140,7 +152,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
           </SidebarGroup>
         )}
 
-        {hasPermission(roles, "manageSettings") && (
+        {hasPermission(rolesList, "manageSettings") && (
           <SidebarGroup className="mt-auto">
             <SidebarGroupContent>
               <SidebarMenu>
