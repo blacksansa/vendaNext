@@ -4,17 +4,88 @@ export interface Product {
   id?: number
   code: string
   name: string
-  ncm?: string
-  unity?: { id: number; name?: string }
-  group?: { id: number; name?: string }
-  supplier?: string
+  
+  // Campos básicos
+  branch?: string
+  type?: string
+  itemCode?: string
+  measurements?: string
+  productClassification?: string
+  
+  // Quantidade e embalagem
+  packagingQuantity?: number
   packaging?: string
-  active?: boolean
-  tags?: Array<{ id: number }>
-  // Campos adicionais (podem não existir no backend ainda)
+  
+  // Campos fiscais
+  ncm?: string
+  tipiSpecies?: string
+  exNcm?: string
+  exNbm?: string
+  issServiceCode?: string
+  freeZoneImport?: boolean
+  
+  // Alíquotas
+  icmsRate?: number
+  ipiRate?: number
+  issRate?: number
+  
+  // Preços e custos
+  salePrice?: number
+  standardCost?: number
   price?: number
+  
+  // Frete e franquia
+  freightCategory?: string
+  franchiseLine?: string
+  
+  // Estoque
   stockQuantity?: number
   minStock?: number
+  defaultWarehouse?: string
+  addressControl?: string
+  tracking?: string
+  outputRequest?: string
+  entryRequest?: string
+  securityStockFormula?: string
+  
+  // Estrutura
+  structureBase?: string
+  appropriation?: string
+  
+  // Padrões fiscais
+  standardTs?: string
+  standardTe?: string
+  
+  // Datas
+  flRepDate?: Date | string
+  lastPurchase?: Date | string
+  
+  // Status e controle
+  blocked?: boolean
+  active?: boolean
+  photo?: string
+  
+  // Unidades de medida
+  secondUnitMeasure?: string
+  
+  // Pesos
+  netWeight?: number
+  grossWeight?: number
+  
+  // Conversão
+  conversionFactor?: number
+  conversionType?: string
+  alternative?: string
+  
+  // Outros
+  orderReturn?: boolean
+  complexity?: string
+  supplier?: string
+  
+  // Relacionamentos
+  unity?: { id: number; name?: string }
+  group?: { id: number; name?: string }
+  tags?: Array<{ id: number }>
 }
 
 const productApi = new Api<Product, number>("/product")

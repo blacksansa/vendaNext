@@ -39,10 +39,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, MoreHorizontal, Edit, Trash2, Package, Users, Building2, Tag, UserCog } from "lucide-react"
+import { Search, Plus, MoreHorizontal, Edit, Trash2, Package, Users, Building2, Tag, UserCog, Layers } from "lucide-react"
 import { createCustomer, getCustomers, getCustomerById, updateCustomer, deleteCustomer } from "@/lib/api.client"
 import { getProducts, createProduct, updateProduct, deleteProduct, Product } from "@/services/product.service"
-import { getProductGroups, ProductGroup } from "@/services/product-group.service"
+import { getProductGroups, createProductGroup, updateProductGroup, deleteProductGroup, ProductGroup } from "@/services/product-group.service"
 import { getPriceTags, createPriceTag, updatePriceTag, deletePriceTag, PriceTag } from "@/services/price-tag.service"
 import { getSuppliers, createSupplier, updateSupplier, deleteSupplier, Supplier } from "@/services/supplier.service"
 import { getSellers, createSeller, updateSeller, deleteSeller, SellerDTO } from "@/services/seller.service"
@@ -50,6 +50,7 @@ import { toast } from 'sonner'
 import { Customer, CustomerListItem } from "@/lib/types"
 import { CustomerForm } from "@/components/cadastros/customer-form"
 import { ProductForm } from "@/components/cadastros/product-form"
+import { ProductGroupForm } from "@/components/cadastros/product-group-form"
 import { SupplierForm } from "@/components/cadastros/supplier-form"
 import { PriceTagForm } from "@/components/cadastros/price-tag-form"
 import { SellerForm } from "@/components/forms/SellerForm"
@@ -99,6 +100,7 @@ const initialSupplierState: Partial<Supplier> = {
 export default function CadastrosPage() {
   const [searchTerm, setSearchTerm] = useState("")
   const [productSearchTerm, setProductSearchTerm] = useState("")
+  const [productGroupSearchTerm, setProductGroupSearchTerm] = useState("")
   const [priceTagSearchTerm, setPriceTagSearchTerm] = useState("")
   const [supplierSearchTerm, setSupplierSearchTerm] = useState("")
   const [sellerSearchTerm, setSellerSearchTerm] = useState("")
@@ -106,6 +108,7 @@ export default function CadastrosPage() {
   // View states - controla se mostra lista ou formulário
   const [showCustomerForm, setShowCustomerForm] = useState(false)
   const [showProductForm, setShowProductForm] = useState(false)
+  const [showProductGroupForm, setShowProductGroupForm] = useState(false)
   const [showPriceTagForm, setShowPriceTagForm] = useState(false)
   const [showSupplierForm, setShowSupplierForm] = useState(false)
   const [showSellerForm, setShowSellerForm] = useState(false)
@@ -119,6 +122,8 @@ export default function CadastrosPage() {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
   const [isEditProductDialogOpen, setIsEditProductDialogOpen] = useState(false)
   const [isDeleteProductDialogOpen, setIsDeleteProductDialogOpen] = useState(false)
+  const [isEditProductGroupDialogOpen, setIsEditProductGroupDialogOpen] = useState(false)
+  const [isDeleteProductGroupDialogOpen, setIsDeleteProductGroupDialogOpen] = useState(false)
   const [isEditPriceTagDialogOpen, setIsEditPriceTagDialogOpen] = useState(false)
   const [isDeletePriceTagDialogOpen, setIsDeletePriceTagDialogOpen] = useState(false)
   const [isEditSupplierDialogOpen, setIsEditSupplierDialogOpen] = useState(false)
@@ -128,6 +133,7 @@ export default function CadastrosPage() {
   // Form states
   const [newCustomer, setNewCustomer] = useState(initialCustomerState)
   const [newProduct, setNewProduct] = useState(initialProductState)
+  const [newProductGroup, setNewProductGroup] = useState<Partial<ProductGroup>>({ code: "", name: "" })
   const [newPriceTag, setNewPriceTag] = useState<Partial<PriceTag>>(initialPriceTagState)
   const [newSupplier, setNewSupplier] = useState<Partial<Supplier>>(initialSupplierState)
   const [newSeller, setNewSeller] = useState<Partial<SellerDTO>>({ code: "", name: "", commissionPercentage: 0 })
@@ -135,6 +141,7 @@ export default function CadastrosPage() {
   // Edit states
   const [editingCustomer, setEditingCustomer] = useState<Partial<Customer> | null>(null)
   const [editingProduct, setEditingProduct] = useState<Partial<Product> | null>(null)
+  const [editingProductGroup, setEditingProductGroup] = useState<Partial<ProductGroup> | null>(null)
   const [editingPriceTag, setEditingPriceTag] = useState<Partial<PriceTag> | null>(null)
   const [editingSupplier, setEditingSupplier] = useState<Partial<Supplier> | null>(null)
   const [editingSeller, setEditingSeller] = useState<Partial<SellerDTO> | null>(null)
@@ -142,6 +149,7 @@ export default function CadastrosPage() {
   // Delete states
   const [deletingCustomerId, setDeletingCustomerId] = useState<number | null>(null)
   const [deletingProductId, setDeletingProductId] = useState<number | null>(null)
+  const [deletingProductGroupId, setDeletingProductGroupId] = useState<number | null>(null)
   const [deletingPriceTagId, setDeletingPriceTagId] = useState<number | null>(null)
   const [deletingSupplierId, setDeletingSupplierId] = useState<number | null>(null)
   const [deletingSellerId, setDeletingSellerId] = useState<number | null>(null)
@@ -347,6 +355,59 @@ export default function CadastrosPage() {
     setIsDeleteProductDialogOpen(true)
   }
 
+  // ProductGroup Handlers
+  const handleSaveProductGroup = async (groupData: Partial<ProductGroup>) => {
+    try {
+      await createProductGroup(groupData)
+      toast.success("Grupo cadastrado com sucesso.", { description: "Sucesso!" })
+      setShowProductGroupForm(false)
+      setEditingProductGroup(null)
+      setNewProductGroup({ code: "", name: "" })
+      fetchProductGroups()
+    } catch (error) {
+      console.error("Failed to create product group:", error)
+      toast.error("Não foi possível cadastrar o grupo.", { description: "Erro" })
+    }
+  }
+
+  const handleUpdateProductGroup = async (groupData: Partial<ProductGroup>) => {
+    if (!editingProductGroup || !editingProductGroup.id) return
+    try {
+      await updateProductGroup(editingProductGroup.id, groupData)
+      setShowProductGroupForm(false)
+      setEditingProductGroup(null)
+      toast.success("Grupo atualizado com sucesso.", { description: "Sucesso!" })
+      fetchProductGroups()
+    } catch (error) {
+      console.error("Failed to update product group:", error)
+      toast.error("Erro ao atualizar grupo")
+    }
+  }
+
+  const handleDeleteProductGroup = async () => {
+    if (!deletingProductGroupId) return
+    try {
+      await deleteProductGroup(deletingProductGroupId)
+      setIsDeleteProductGroupDialogOpen(false)
+      setDeletingProductGroupId(null)
+      toast.success("Grupo excluído com sucesso.", { description: "Sucesso!" })
+      fetchProductGroups()
+    } catch (error) {
+      console.error("Failed to delete product group:", error)
+      toast.error("Erro ao excluir grupo")
+    }
+  }
+
+  const openEditProductGroupDialog = (group: ProductGroup) => {
+    setEditingProductGroup(group)
+    setShowProductGroupForm(true)
+  }
+
+  const openDeleteProductGroupDialog = (id: number) => {
+    setDeletingProductGroupId(id)
+    setIsDeleteProductGroupDialogOpen(true)
+  }
+
   // PriceTag Handlers
   const handlePriceTagInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target
@@ -526,7 +587,7 @@ export default function CadastrosPage() {
 
       <div className="p-6">
         <Tabs defaultValue="clientes" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-5 lg:w-[750px]">
+          <TabsList className="grid w-full grid-cols-6 lg:w-[900px]">
             <TabsTrigger value="clientes">
               <Users className="h-4 w-4 mr-2" />
               Clientes
@@ -534,6 +595,10 @@ export default function CadastrosPage() {
             <TabsTrigger value="produtos">
               <Package className="h-4 w-4 mr-2" />
               Produtos
+            </TabsTrigger>
+            <TabsTrigger value="grupos">
+              <Layers className="h-4 w-4 mr-2" />
+              Grupos
             </TabsTrigger>
             <TabsTrigger value="fornecedores">
               <Building2 className="h-4 w-4 mr-2" />
@@ -754,6 +819,112 @@ export default function CadastrosPage() {
                     onCancel={() => {
                       setShowProductForm(false)
                       setEditingProduct(null)
+                    }}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>
+
+          {/* Aba Grupos de Produtos */}
+          <TabsContent value="grupos" className="space-y-4">
+            {!showProductGroupForm ? (
+              <Card>
+                <CardHeader>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <CardTitle>Grupos de Produtos</CardTitle>
+                      <CardDescription>Gerencie os grupos de produtos</CardDescription>
+                    </div>
+                    <Button onClick={() => {
+                      setEditingProductGroup(null)
+                      setNewProductGroup({ code: "", name: "" })
+                      setShowProductGroupForm(true)
+                    }}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      Novo Grupo
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  <div className="mb-4">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                      <Input 
+                        placeholder="Buscar grupos..." 
+                        className="pl-10"
+                        value={productGroupSearchTerm}
+                        onChange={(e) => setProductGroupSearchTerm(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Código</TableHead>
+                        <TableHead>Nome</TableHead>
+                        <TableHead>Marca</TableHead>
+                        <TableHead>Segmento</TableHead>
+                        <TableHead className="w-[50px]"></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {productGroups
+                        .filter(group => 
+                          group.name?.toLowerCase().includes(productGroupSearchTerm.toLowerCase()) ||
+                          group.code?.toLowerCase().includes(productGroupSearchTerm.toLowerCase())
+                        )
+                        .map((group) => (
+                          <TableRow key={group.id}>
+                            <TableCell className="font-medium">{group.code}</TableCell>
+                            <TableCell>{group.name}</TableCell>
+                            <TableCell>{group.brandDescription || "-"}</TableCell>
+                            <TableCell>{group.segment || "-"}</TableCell>
+                            <TableCell>
+                              <DropdownMenu>
+                                <DropdownMenuTrigger asChild>
+                                  <Button variant="ghost" size="sm">
+                                    <MoreHorizontal className="h-4 w-4" />
+                                  </Button>
+                                </DropdownMenuTrigger>
+                                <DropdownMenuContent align="end">
+                                  <DropdownMenuLabel>Ações</DropdownMenuLabel>
+                                  <DropdownMenuItem onClick={() => openEditProductGroupDialog(group)}>
+                                    <Edit className="h-4 w-4 mr-2" />
+                                    Editar
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                  <DropdownMenuItem 
+                                    className="text-destructive"
+                                    onClick={() => openDeleteProductGroupDialog(group.id!)}
+                                  >
+                                    <Trash2 className="h-4 w-4 mr-2" />
+                                    Excluir
+                                  </DropdownMenuItem>
+                                </DropdownMenuContent>
+                              </DropdownMenu>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>{editingProductGroup ? "Editar" : "Novo"} Grupo de Produtos</CardTitle>
+                  <CardDescription>
+                    {editingProductGroup ? "Atualize os dados do grupo" : "Cadastre um novo grupo de produtos"}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <ProductGroupForm
+                    productGroup={editingProductGroup || newProductGroup}
+                    onSave={editingProductGroup ? handleUpdateProductGroup : handleSaveProductGroup}
+                    onCancel={() => {
+                      setShowProductGroupForm(false)
+                      setEditingProductGroup(null)
                     }}
                   />
                 </CardContent>
@@ -1126,6 +1297,22 @@ export default function CadastrosPage() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteProduct}>Continuar</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ProductGroup Delete Dialog */}
+      <AlertDialog open={isDeleteProductGroupDialogOpen} onOpenChange={setIsDeleteProductGroupDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Você tem certeza?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Essa ação não pode ser desfeita. Isso excluirá permanentemente o grupo de produtos.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteProductGroup}>Continuar</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>

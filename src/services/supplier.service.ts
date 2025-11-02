@@ -25,8 +25,44 @@ export interface Supplier {
   code: string
   name: string
   companyName?: string
+  tradeName?: string
+  branch?: string
+  store?: string
+  municipalityCode?: string
+  poBox?: string
+  supplierType?: string
   cnpj?: string
+  cnpj2?: string
+  rg?: string
   document?: string
+  ddd?: string
+  ddi?: string
+  phone?: string
+  fax?: string
+  stateRegistration?: string
+  municipalRegistration?: string
+  stateRegistration2?: string
+  contactPerson?: string
+  bank?: string
+  agencyCode?: string
+  agencyDvCnab?: string
+  checkingAccount?: string
+  accountDvCnab?: string
+  swift?: string
+  nature?: string
+  transport?: string
+  priority?: string
+  risk?: string
+  paymentCondition?: string
+  creditLimit?: number
+  largestPurchase?: number
+  averageDelay?: number
+  largestBalance?: number
+  lastPurchaseDate?: string
+  purchaseCount?: number
+  firstPurchaseDate?: string
+  duplicatesBalance?: number
+  accountingAccount?: string
   observation?: string
   region?: string
   latitude?: number

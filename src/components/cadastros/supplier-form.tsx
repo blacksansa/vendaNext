@@ -23,8 +23,44 @@ export function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) 
     code: "",
     name: "",
     companyName: "",
+    tradeName: "",
+    branch: "",
+    store: "",
+    municipalityCode: "",
+    poBox: "",
+    supplierType: "",
     cnpj: "",
+    cnpj2: "",
+    rg: "",
     document: "",
+    ddd: "",
+    ddi: "",
+    phone: "",
+    fax: "",
+    stateRegistration: "",
+    municipalRegistration: "",
+    stateRegistration2: "",
+    contactPerson: "",
+    bank: "",
+    agencyCode: "",
+    agencyDvCnab: "",
+    checkingAccount: "",
+    accountDvCnab: "",
+    swift: "",
+    nature: "",
+    transport: "",
+    priority: "",
+    risk: "",
+    paymentCondition: "",
+    creditLimit: 0,
+    largestPurchase: 0,
+    averageDelay: 0,
+    largestBalance: 0,
+    lastPurchaseDate: "",
+    purchaseCount: 0,
+    firstPurchaseDate: "",
+    duplicatesBalance: 0,
+    accountingAccount: "",
     observation: "",
     active: true,
     addresses: [],
@@ -120,28 +156,40 @@ export function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) 
       <Tabs defaultValue="basic">
         <TabsList>
           <TabsTrigger value="basic">Dados Básicos</TabsTrigger>
+          <TabsTrigger value="documents">Documentos</TabsTrigger>
+          <TabsTrigger value="banking">Dados Bancários</TabsTrigger>
+          <TabsTrigger value="commercial">Dados Comerciais</TabsTrigger>
           <TabsTrigger value="contacts">Contatos</TabsTrigger>
           <TabsTrigger value="addresses">Endereços</TabsTrigger>
         </TabsList>
 
         <TabsContent value="basic" className="space-y-4">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="code">Código *</Label>
               <Input
                 id="code"
                 value={formData.code}
                 onChange={(e) => handleInputChange("code", e.target.value)}
-                placeholder="CLI-001"
+                placeholder="FOR-001"
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="name">Nome *</Label>
+              <Label htmlFor="branch">Filial</Label>
               <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => handleInputChange("name", e.target.value)}
-                placeholder="João Silva"
+                id="branch"
+                value={formData.branch}
+                onChange={(e) => handleInputChange("branch", e.target.value)}
+                placeholder="Filial"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="store">Loja</Label>
+              <Input
+                id="store"
+                value={formData.store}
+                onChange={(e) => handleInputChange("store", e.target.value)}
+                placeholder="Loja"
               />
             </div>
           </div>
@@ -157,25 +205,45 @@ export function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) 
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="cnpj">CNPJ</Label>
+              <Label htmlFor="tradeName">Nome Fantasia</Label>
               <Input
-                id="cnpj"
-                value={formData.cnpj}
-                onChange={(e) => handleInputChange("cnpj", e.target.value)}
-                placeholder="00000000000000"
-                maxLength={14}
+                id="tradeName"
+                value={formData.tradeName}
+                onChange={(e) => handleInputChange("tradeName", e.target.value)}
+                placeholder="Nome Fantasia"
               />
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="document">CPF / RG</Label>
+              <Label htmlFor="name">Nome *</Label>
               <Input
-                id="document"
-                value={formData.document}
-                onChange={(e) => handleInputChange("document", e.target.value)}
-                placeholder="00000000000"
+                id="name"
+                value={formData.name}
+                onChange={(e) => handleInputChange("name", e.target.value)}
+                placeholder="João Silva"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="supplierType">Tipo</Label>
+              <Input
+                id="supplierType"
+                value={formData.supplierType}
+                onChange={(e) => handleInputChange("supplierType", e.target.value)}
+                placeholder="Tipo do fornecedor"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="contactPerson">Contato</Label>
+              <Input
+                id="contactPerson"
+                value={formData.contactPerson}
+                onChange={(e) => handleInputChange("contactPerson", e.target.value)}
+                placeholder="Nome do contato"
               />
             </div>
             <div className="space-y-2">
@@ -198,6 +266,364 @@ export function SupplierForm({ supplier, onSave, onCancel }: SupplierFormProps) 
               placeholder="Informações adicionais..."
               rows={3}
             />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="documents" className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="cnpj">CNPJ/CPF</Label>
+              <Input
+                id="cnpj"
+                value={formData.cnpj}
+                onChange={(e) => handleInputChange("cnpj", e.target.value)}
+                placeholder="00000000000000"
+                maxLength={14}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cnpj2">CNPJ/CPF - 2</Label>
+              <Input
+                id="cnpj2"
+                value={formData.cnpj2}
+                onChange={(e) => handleInputChange("cnpj2", e.target.value)}
+                placeholder="00000000000000"
+                maxLength={14}
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="rg">RG/Ced. Estr.</Label>
+              <Input
+                id="rg"
+                value={formData.rg}
+                onChange={(e) => handleInputChange("rg", e.target.value)}
+                placeholder="RG ou Cédula Estrangeira"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="document">CPF / RG</Label>
+              <Input
+                id="document"
+                value={formData.document}
+                onChange={(e) => handleInputChange("document", e.target.value)}
+                placeholder="00000000000"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="stateRegistration">Ins. Estadual</Label>
+              <Input
+                id="stateRegistration"
+                value={formData.stateRegistration}
+                onChange={(e) => handleInputChange("stateRegistration", e.target.value)}
+                placeholder="Inscrição Estadual"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="municipalRegistration">Ins. Municipal</Label>
+              <Input
+                id="municipalRegistration"
+                value={formData.municipalRegistration}
+                onChange={(e) => handleInputChange("municipalRegistration", e.target.value)}
+                placeholder="Inscrição Municipal"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stateRegistration2">Insc. Est. - 2</Label>
+              <Input
+                id="stateRegistration2"
+                value={formData.stateRegistration2}
+                onChange={(e) => handleInputChange("stateRegistration2", e.target.value)}
+                placeholder="Inscrição Estadual 2"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="municipalityCode">Cód. Município</Label>
+              <Input
+                id="municipalityCode"
+                value={formData.municipalityCode}
+                onChange={(e) => handleInputChange("municipalityCode", e.target.value)}
+                placeholder="Código do município"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="poBox">Caixa Postal</Label>
+              <Input
+                id="poBox"
+                value={formData.poBox}
+                onChange={(e) => handleInputChange("poBox", e.target.value)}
+                placeholder="Caixa Postal"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-4 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="ddi">DDI</Label>
+              <Input
+                id="ddi"
+                value={formData.ddi}
+                onChange={(e) => handleInputChange("ddi", e.target.value)}
+                placeholder="55"
+                maxLength={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="ddd">DDD</Label>
+              <Input
+                id="ddd"
+                value={formData.ddd}
+                onChange={(e) => handleInputChange("ddd", e.target.value)}
+                placeholder="11"
+                maxLength={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Telefone</Label>
+              <Input
+                id="phone"
+                value={formData.phone}
+                onChange={(e) => handleInputChange("phone", e.target.value)}
+                placeholder="999999999"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="fax">FAX</Label>
+              <Input
+                id="fax"
+                value={formData.fax}
+                onChange={(e) => handleInputChange("fax", e.target.value)}
+                placeholder="FAX"
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="banking" className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="bank">Banco</Label>
+              <Input
+                id="bank"
+                value={formData.bank}
+                onChange={(e) => handleInputChange("bank", e.target.value)}
+                placeholder="Nome do banco"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="swift">Swift</Label>
+              <Input
+                id="swift"
+                value={formData.swift}
+                onChange={(e) => handleInputChange("swift", e.target.value)}
+                placeholder="Código SWIFT"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="agencyCode">Cód. Agência</Label>
+              <Input
+                id="agencyCode"
+                value={formData.agencyCode}
+                onChange={(e) => handleInputChange("agencyCode", e.target.value)}
+                placeholder="Código da agência"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="agencyDvCnab">DV Ag Cnab</Label>
+              <Input
+                id="agencyDvCnab"
+                value={formData.agencyDvCnab}
+                onChange={(e) => handleInputChange("agencyDvCnab", e.target.value)}
+                placeholder="DV"
+                maxLength={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="checkingAccount">Cta Corrente</Label>
+              <Input
+                id="checkingAccount"
+                value={formData.checkingAccount}
+                onChange={(e) => handleInputChange("checkingAccount", e.target.value)}
+                placeholder="Conta corrente"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="accountDvCnab">DV Cta Cnab</Label>
+              <Input
+                id="accountDvCnab"
+                value={formData.accountDvCnab}
+                onChange={(e) => handleInputChange("accountDvCnab", e.target.value)}
+                placeholder="DV"
+                maxLength={5}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="accountingAccount">C. Contábil</Label>
+              <Input
+                id="accountingAccount"
+                value={formData.accountingAccount}
+                onChange={(e) => handleInputChange("accountingAccount", e.target.value)}
+                placeholder="Conta contábil"
+              />
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="commercial" className="space-y-4">
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="nature">Natureza</Label>
+              <Input
+                id="nature"
+                value={formData.nature}
+                onChange={(e) => handleInputChange("nature", e.target.value)}
+                placeholder="Natureza"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="transport">Transp.</Label>
+              <Input
+                id="transport"
+                value={formData.transport}
+                onChange={(e) => handleInputChange("transport", e.target.value)}
+                placeholder="Transportadora"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="paymentCondition">Cond. Pagto</Label>
+              <Input
+                id="paymentCondition"
+                value={formData.paymentCondition}
+                onChange={(e) => handleInputChange("paymentCondition", e.target.value)}
+                placeholder="Condição de pagamento"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="priority">Prioridade</Label>
+              <Input
+                id="priority"
+                value={formData.priority}
+                onChange={(e) => handleInputChange("priority", e.target.value)}
+                placeholder="Prioridade"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="risk">Risco</Label>
+              <Input
+                id="risk"
+                value={formData.risk}
+                onChange={(e) => handleInputChange("risk", e.target.value)}
+                placeholder="Risco"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="creditLimit">Lim. Crédito</Label>
+              <Input
+                id="creditLimit"
+                type="number"
+                step="0.01"
+                value={formData.creditLimit}
+                onChange={(e) => handleInputChange("creditLimit", parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="largestPurchase">Maior Compra</Label>
+              <Input
+                id="largestPurchase"
+                type="number"
+                step="0.01"
+                value={formData.largestPurchase}
+                onChange={(e) => handleInputChange("largestPurchase", parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="largestBalance">Maior Saldo</Label>
+              <Input
+                id="largestBalance"
+                type="number"
+                step="0.01"
+                value={formData.largestBalance}
+                onChange={(e) => handleInputChange("largestBalance", parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="duplicatesBalance">Saldo de Duplicatas</Label>
+              <Input
+                id="duplicatesBalance"
+                type="number"
+                step="0.01"
+                value={formData.duplicatesBalance}
+                onChange={(e) => handleInputChange("duplicatesBalance", parseFloat(e.target.value) || 0)}
+                placeholder="0.00"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="purchaseCount">Nro Compras</Label>
+              <Input
+                id="purchaseCount"
+                type="number"
+                value={formData.purchaseCount}
+                onChange={(e) => handleInputChange("purchaseCount", parseInt(e.target.value) || 0)}
+                placeholder="0"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="averageDelay">Média Atraso</Label>
+              <Input
+                id="averageDelay"
+                type="number"
+                value={formData.averageDelay}
+                onChange={(e) => handleInputChange("averageDelay", parseInt(e.target.value) || 0)}
+                placeholder="Dias"
+              />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="firstPurchaseDate">Data da Primeira</Label>
+              <Input
+                id="firstPurchaseDate"
+                type="date"
+                value={formData.firstPurchaseDate}
+                onChange={(e) => handleInputChange("firstPurchaseDate", e.target.value)}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="lastPurchaseDate">Últ. Compra</Label>
+              <Input
+                id="lastPurchaseDate"
+                type="date"
+                value={formData.lastPurchaseDate}
+                onChange={(e) => handleInputChange("lastPurchaseDate", e.target.value)}
+              />
+            </div>
           </div>
         </TabsContent>
 

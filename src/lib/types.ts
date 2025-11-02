@@ -71,6 +71,82 @@ export interface Customer extends AbstractCodeNameEntity {
   contacts?: CustomerContact[];
   team?: Team;
   tags?: CustomerTag[];
+  
+  // Novos campos de identificação
+  branch?: string;
+  store?: string;
+  personType?: string; // F ou J
+  tradeName?: string;
+  stateRegistration?: string;
+  municipalRegistration?: string;
+  nature?: string;
+  
+  // Campos de contato
+  phone?: string;
+  phone2?: string;
+  phone3?: string;
+  fax?: string;
+  telex?: string;
+  ddd?: string;
+  ddi?: string;
+  
+  // Campos de endereço
+  street?: string;
+  streetComplement?: string;
+  neighborhood?: string;
+  city?: string;
+  cityCode?: string;
+  state?: string;
+  stateName?: string;
+  zipCode?: string;
+  country?: string;
+  countryBacen?: string;
+  locality?: string;
+  
+  // Campos de cobrança
+  billingAddress?: string;
+  billingCity?: string;
+  billingNeighborhood?: string;
+  billingZipCode?: string;
+  billingState?: string;
+  
+  // Campos comerciais
+  salesGroup?: string;
+  taxGroup?: string;
+  commercialPartner?: string;
+  mainSegment?: string;
+  route?: string;
+  customerNiche?: string;
+  contractType?: string;
+  commissionPercentage?: number;
+  accountingAccount?: string;
+  addressType?: string;
+  
+  // Novos campos adicionais
+  streetNumber?: string;
+  poBox?: string; // Caixa Postal
+  cnpj2?: string; // CNPJ/CPF - 2
+  rgCedEstrangeira?: string; // RG/Ced. Estr.
+  stateRegistration2?: string; // Insc. Est. - 2
+  contactPerson?: string; // Contato
+  bank?: string; // Banco
+  agencyCode?: string; // Cód. Agência
+  agencyDV?: string; // DV Ag Cnab
+  checkingAccount?: string; // Cta Corrente
+  accountDV?: string; // DV Cta Cnab
+  swift?: string; // Swift
+  transport?: string; // Transp.
+  priority?: string; // Prioridade
+  risk?: string; // Risco
+  paymentCondition?: string; // Cond. Pagto
+  largestPurchase?: number; // Maior Compra
+  averageDelay?: number; // Média Atraso
+  largestBalance?: number; // Maior Saldo
+  lastPurchaseDate?: number; // Últ. Compra (timestamp)
+  purchaseCount?: number; // Nro Compras
+  firstPurchaseDate?: number; // Data da Primeira (timestamp)
+  duplicatesBalance?: number; // Saldo de Duplicatas
+  supplierAccountingAccount?: string; // C. Contábil fornecedor
 }
 
 export interface Seller extends AbstractCodeNameEntity {
