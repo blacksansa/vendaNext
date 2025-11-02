@@ -21,7 +21,7 @@ import {
 import { Label } from "@/components/ui/label"
 import { Input } from "@/components/ui/input"
 import { CustomerAddress } from "@/lib/types"
-import { createCustomer as createCustomerAddress, updateCustomer as updateCustomerAddress, deleteCustomer as deleteCustomerAddress } from "@/lib/api.client"
+import { createCustomerAddress, updateCustomerAddress, deleteCustomerAddress } from "@/lib/api.client"
 import { useToast } from "@/hooks/use-toast"
 
 interface CustomerAddressesProps {

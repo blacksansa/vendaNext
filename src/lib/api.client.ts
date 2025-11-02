@@ -2,6 +2,7 @@ import Api, { fetchData } from "./api";
 import {
   Customer,
   CustomerListItem,
+  CustomerAddress,
   Team,
   User,
   Seller,
@@ -146,6 +147,7 @@ const receivableTypeApi = new Api<ReceivableType, number>("/receivable-type");
 const unitApi = new Api<Unit, number>("/unit");
 const approvalApi = new Api<Approval, number>("/approval");
 const invoiceApi = new Api<Invoice, number>("/invoice");
+const customerAddressApi = new Api<CustomerAddress, number>("/customer-address");
 
 // --------------------
 // --- Clientes (Customer) --- (mantido)
@@ -163,6 +165,11 @@ export const getCustomerInvoiceItemCount = (id: number, term: string = "", start
 export const getCustomerInvoiceItemList = (id: number, page: number = 0, size: number = 20, term: string = "", startDate?: Date, endDate?: Date): Promise<InvoiceItem[]> => customerApi.invoiceItemList(id, page, size, term, startDate, endDate);
 export const getAiCustomerCentralLast = (id: number): Promise<AiCustomerCentral> => customerApi.aiCustomerCentralLast(id);
 export const createAiCustomerCentral = (id: number): Promise<AiCustomerCentral> => customerApi.aiCustomerCentralCreate(id);
+
+// --- Customer Addresses (CustomerAddress) ---
+export const createCustomerAddress = (addressData: Partial<CustomerAddress>): Promise<CustomerAddress> => customerAddressApi.saveOrUpdate(addressData);
+export const updateCustomerAddress = (id: number, addressData: Partial<CustomerAddress>): Promise<CustomerAddress> => customerAddressApi.saveOrUpdate({ ...addressData, id });
+export const deleteCustomerAddress = (id: number): Promise<void> => customerAddressApi.delete(id);
 
 // --- Teams / Groups (Team) ---
 export const getTeams = (term: string = "", page: number = 0, size: number = 20): Promise<Team[]> => teamApi.list(page, size, term);
