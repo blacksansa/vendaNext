@@ -235,7 +235,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-4 space-y-2">
                     <Label>Valor</Label>
                     <Input
-                      value={(contact as any).value}
+                      value={(contact as any).value || ""}
                       onChange={(e) => updateContact(index, "value", e.target.value)}
                       placeholder="Contato"
                     />
@@ -243,7 +243,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-4 space-y-2">
                     <Label>Descrição</Label>
                     <Input
-                      value={(contact as any).description}
+                      value={(contact as any).description || ""}
                       onChange={(e) => updateContact(index, "description", e.target.value)}
                       placeholder="Comercial, etc."
                     />
@@ -313,7 +313,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-1">
                     <Label>CEP</Label>
                     <Input
-                      value={(address as any).zipCode}
+                      value={(address as any).zipCode || ""}
                       onChange={(e) => updateAddress(index, "zipCode", e.target.value)}
                       placeholder="00000000"
                       maxLength={8}
@@ -322,7 +322,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-2">
                     <Label>Endereço</Label>
                     <Input
-                      value={(address as any).address}
+                      value={(address as any).address || ""}
                       onChange={(e) => updateAddress(index, "address", e.target.value)}
                       placeholder="Rua..."
                     />
@@ -330,7 +330,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div className="col-span-1">
                     <Label>Número</Label>
                     <Input
-                      value={(address as any).number}
+                      value={(address as any).number || ""}
                       onChange={(e) => updateAddress(index, "number", e.target.value)}
                       placeholder="123"
                     />
@@ -341,7 +341,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div>
                     <Label>Bairro</Label>
                     <Input
-                      value={(address as any).neighborhood}
+                      value={(address as any).neighborhood || ""}
                       onChange={(e) => updateAddress(index, "neighborhood", e.target.value)}
                       placeholder="Centro"
                     />
@@ -349,7 +349,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div>
                     <Label>Cidade</Label>
                     <Input
-                      value={(address as any).city}
+                      value={(address as any).city || ""}
                       onChange={(e) => updateAddress(index, "city", e.target.value)}
                       placeholder="São Paulo"
                     />
@@ -357,7 +357,7 @@ export function CustomerForm({ customer, onSave, onCancel }: CustomerFormProps) 
                   <div>
                     <Label>UF</Label>
                     <Input
-                      value={(address as any).state}
+                      value={(address as any).state || ""}
                       onChange={(e) => updateAddress(index, "state", e.target.value.toUpperCase())}
                       placeholder="SP"
                       maxLength={2}
