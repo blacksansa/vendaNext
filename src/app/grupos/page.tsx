@@ -29,6 +29,7 @@ export default function GruposPage() {
   const { user } = useAuth()
 
   // -> Presentation-only: UI state (dialogs, form values)
+  const [dialogoCriarAberto, setDialogoCriarAberto] = useState(false)
   const [dialogoEditarAberto, setDialogoEditarAberto] = useState(false)
   const [dialogoGerenciarAberto, setDialogoGerenciarAberto] = useState(false)
   const [dialogoAdicionarMembroAberto, setDialogoAdicionarMembroAberto] = useState(false)
@@ -80,7 +81,7 @@ export default function GruposPage() {
       liderUserId: novoGrupo.lider || null, // Will be converted to string in model
     })
     setNovoGrupo({ nome: "", lider: "", descricao: "", metaMensal: "" })
-    setDialogoEditarAberto(false)
+    setDialogoCriarAberto(false)
   }
 
   const handleSalvarEdicaoGrupo = async () => {
@@ -169,7 +170,7 @@ export default function GruposPage() {
                 : `Gerencie seu grupo: ${gruposFiltrados[0]?.nome || "Nenhum grupo atribuído"}`}
             </p>
           </div>
-          <Dialog open={dialogoEditarAberto} onOpenChange={setDialogoEditarAberto}>
+          <Dialog open={dialogoCriarAberto} onOpenChange={setDialogoCriarAberto}>
             <DialogTrigger asChild>
               <Button>
                 <Plus className="mr-2 h-4 w-4" />
