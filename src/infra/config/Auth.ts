@@ -98,11 +98,21 @@ export const authOptions: AuthOptions = {
 
       const refreshedToken = await refreshAccessToken(token);
       if (refreshedToken.error) {
-        return null;
+        // Token refresh failed - mark as error but don't return null
+        return { ...token, error: "RefreshAccessTokenError" };
       }
       return { ...token, ...refreshedToken };
     },
     async session({ session, token }) {
+      // If token refresh failed, return empty session to force re-login
+      if (token?.error === "RefreshAccessTokenError") {
+        return { ...session, error: "RefreshAccessTokenError" };
+      }
+      
+      if (!token) {
+        return session;
+      }
+      
       session.accessToken = token.accessToken;
       session.refreshToken = token.refreshToken;
       session.expiresAt = token.expiresAt;

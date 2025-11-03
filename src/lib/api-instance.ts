@@ -30,6 +30,15 @@ async function resolveToken(): Promise<string | null> {
         const r = await fetch("/api/auth/session", { credentials: "include" })
         if (r.ok) {
           const json = await r.json()
+          
+          // Check if token refresh failed
+          if (json?.error === "RefreshAccessTokenError") {
+            console.warn("Token refresh failed. Please login again.")
+            // Redirect to sign in page
+            window.location.href = "/api/auth/signin"
+            return null
+          }
+          
           // Check multiple possible locations for the token
           const t = json?.accessToken || json?.token || json?.user?.accessToken
           if (t) {
@@ -84,6 +93,11 @@ api.interceptors.response.use(
   (err) => {
     if (err.response?.status === 401) {
       console.error("401 Unauthorized:", err.config?.url, err.response?.data)
+      // If we get a 401 and we're in the browser, redirect to login
+      if (typeof window !== "undefined") {
+        console.warn("Session expired. Redirecting to login...")
+        window.location.href = "/api/auth/signin"
+      }
     }
     if (err.response?.status === 400) {
       console.error("400 Bad Request:", err.config?.url, err.response?.data)
