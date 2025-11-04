@@ -1,17 +1,19 @@
 "use client"
 
-import { useSession } from "next-auth/react";
+import { useSession } from "@/contexts/session-context"
 
 export function useAuth() {
-  const { data: session, status } = useSession();
+  const { user, status, signOut } = useSession()
 
-  const loading = status === "loading";
-  const isAuthenticated = status === "authenticated";
+  const loading = status === "loading"
+  const isAuthenticated = status === "authenticated"
 
   return {
-    user: session?.user,
-    roles: session?.roles,
+    user,
+    roles: user?.roles,
+    role: user?.role,
     loading,
     isAuthenticated,
-  };
+    signOut,
+  }
 }

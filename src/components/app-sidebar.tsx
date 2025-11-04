@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import type * as React from "react"
 import {
   BarChart3,
@@ -20,6 +21,7 @@ import {
   ListTodo,
   ShoppingCart,
   GitBranch,
+  Loader2,
 } from "lucide-react"
 
 import {
@@ -41,7 +43,6 @@ import { Badge } from "@/components/ui/badge"
 import { ThemeToggle } from "@/components/theme-toggle"
 import Link from "next/link"
 import { useAuth } from "@/hooks/use-auth"
-import { signOut } from "next-auth/react"
 import { getVisibleNavigation, hasPermission } from "@/lib/permissions"
 
 const iconMap = {
@@ -63,7 +64,8 @@ const iconMap = {
 
 export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
   const { toggleSidebar, state } = useSidebar()
-  const { user, roles: authRoles, loading } = useAuth()
+  const { user, roles: authRoles, loading, signOut } = useAuth()
+  const [isLoggingOut, setIsLoggingOut] = useState(false)
 
   // Normaliza possíveis formatos de role(s):
   // - authRoles pode ser array ou string
@@ -79,6 +81,16 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
 
   const visibleNavigation = getVisibleNavigation(rolesList)
   const canAddCustomer = hasPermission(rolesList, "manageCustomers")
+
+  const handleLogout = async () => {
+    setIsLoggingOut(true)
+    try {
+      await signOut()
+    } catch (error) {
+      console.error('Erro ao fazer logout:', error)
+      setIsLoggingOut(false)
+    }
+  }
 
   if (loading) {
     return null // ou um skeleton loader
@@ -173,7 +185,7 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
       <SidebarFooter>
         <SidebarMenu>
           <SidebarMenuItem>
-            <SidebarMenuButton onClick={() => signOut()}>
+            <SidebarMenuButton onClick={handleLogout} disabled={isLoggingOut}>
               <Avatar className="h-6 w-6">
                 <AvatarImage src={user?.image || "/placeholder.svg"} />
                 <AvatarFallback>
@@ -184,7 +196,11 @@ export function AppSidebar({ ...props }: React.ComponentProps<typeof Sidebar>) {
                 </AvatarFallback>
               </Avatar>
               <span className="truncate">{user?.name}</span>
-              <LogOut className="ml-auto h-4 w-4" />
+              {isLoggingOut ? (
+                <Loader2 className="ml-auto h-4 w-4 animate-spin" />
+              ) : (
+                <LogOut className="ml-auto h-4 w-4" />
+              )}
             </SidebarMenuButton>
           </SidebarMenuItem>
           <SidebarMenuItem>

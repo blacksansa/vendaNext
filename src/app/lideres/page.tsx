@@ -230,7 +230,7 @@ export default function DashboardLideresPage() {
     }
     
     loadData()
-  }, [userKeycloakId, authLoading, isAdmin, user])
+  }, [userKeycloakId, authLoading, isAdmin]) // Removido 'user' das dependências
 
   const formatarMoeda = (valor: number) => {
     return new Intl.NumberFormat("pt-BR", {

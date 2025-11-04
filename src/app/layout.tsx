@@ -17,7 +17,8 @@ export const metadata: Metadata = {
 
 import { Providers } from "./providers"
 
-import { AuthGuard } from "@/components/auth-guard";
+import { AuthGuard } from "@/components/auth-guard"
+import { ConditionalSidebar } from "@/components/conditional-sidebar"
 
 export default function RootLayout({
   children,
@@ -31,10 +32,9 @@ export default function RootLayout({
           <Suspense fallback={<div>Carregando...</div>}>
             <Providers>
               <AuthGuard>
-                <SidebarProvider>
-                  <AppSidebar />
-                  <main className="flex-1">{children}</main>
-                </SidebarProvider>
+                <ConditionalSidebar>
+                  {children}
+                </ConditionalSidebar>
               </AuthGuard>
             </Providers>
           </Suspense>

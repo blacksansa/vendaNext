@@ -1,7 +1,7 @@
 "use client"
 
 import { createContext, useContext, useEffect, useState, ReactNode, useRef } from 'react'
-import { useSession } from 'next-auth/react'
+import { useSession } from '@/contexts/session-context'
 
 type EventCallback = (data: any) => void
 
@@ -27,12 +27,13 @@ interface WebSocketProviderProps {
 }
 
 export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
-  const { data: session, status } = useSession()
+  const { session, status } = useSession()
   const [socket, setSocket] = useState<WebSocket | null>(null)
   const [isConnected, setIsConnected] = useState(false)
   const eventListeners = useRef<Map<string, Set<EventCallback>>>(new Map())
   const reconnectTimeoutRef = useRef<NodeJS.Timeout>()
   const reconnectAttemptsRef = useRef(0)
+  const isConnectingRef = useRef(false)
   const maxReconnectAttempts = 10
 
   const connectWebSocket = () => {
@@ -41,6 +42,20 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
       console.log('[WebSocket] Aguardando autenticação...')
       return
     }
+
+    // Evitar múltiplas conexões simultâneas
+    if (isConnectingRef.current) {
+      console.log('[WebSocket] Já está conectando, ignorando...')
+      return
+    }
+
+    // Se já existe um socket conectado, não criar outro
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      console.log('[WebSocket] Socket já está conectado, ignorando...')
+      return
+    }
+
+    isConnectingRef.current = true
 
     // URL do backend WebSocket
     const baseUrl = url || process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8080'
@@ -58,29 +73,22 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
         console.log('[WebSocket] Conectado ao servidor')
         setIsConnected(true)
         reconnectAttemptsRef.current = 0
+        isConnectingRef.current = false
       }
 
       ws.onclose = () => {
         console.log('[WebSocket] Desconectado do servidor')
         setIsConnected(false)
         setSocket(null)
+        isConnectingRef.current = false
         
-        // Tentar reconectar
-        if (reconnectAttemptsRef.current < maxReconnectAttempts) {
-          const delay = Math.min(1000 * Math.pow(2, reconnectAttemptsRef.current), 30000)
-          console.log(`[WebSocket] Tentando reconectar em ${delay}ms (tentativa ${reconnectAttemptsRef.current + 1}/${maxReconnectAttempts})`)
-          
-          reconnectTimeoutRef.current = setTimeout(() => {
-            reconnectAttemptsRef.current++
-            connectWebSocket()
-          }, delay)
-        } else {
-          console.error('[WebSocket] Número máximo de tentativas de reconexão atingido')
-        }
+        // NÃO reconectar automaticamente para evitar loop infinito
+        console.log('[WebSocket] Conexão fechada')
       }
 
       ws.onerror = (error) => {
         console.error('[WebSocket] Erro de conexão:', error)
+        isConnectingRef.current = false
       }
 
       ws.onmessage = (event) => {
@@ -112,12 +120,26 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
       setSocket(ws)
     } catch (error) {
       console.error('[WebSocket] Erro ao criar conexão:', error)
+      isConnectingRef.current = false
     }
   }
 
   useEffect(() => {
+    // Evitar reconexões desnecessárias
+    if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+      console.log('[WebSocket] Socket já está ativo, não reconectando')
+      return
+    }
+
+    // Evitar se já está tentando conectar
+    if (isConnectingRef.current) {
+      console.log('[WebSocket] Já está tentando conectar, aguardando...')
+      return
+    }
+
     // Só tentar conectar quando estiver autenticado
     if (status === 'authenticated' && session?.accessToken) {
+      console.log('[WebSocket] Iniciando conexão...')
       connectWebSocket()
     }
 
@@ -126,11 +148,13 @@ export function WebSocketProvider({ children, url }: WebSocketProviderProps) {
       if (reconnectTimeoutRef.current) {
         clearTimeout(reconnectTimeoutRef.current)
       }
-      if (socket) {
+      if (socket && (socket.readyState === WebSocket.OPEN || socket.readyState === WebSocket.CONNECTING)) {
+        console.log('[WebSocket] Fechando conexão no cleanup')
         socket.close()
+        isConnectingRef.current = false
       }
     }
-  }, [url, status, session?.accessToken])
+  }, [status]) // Removido session?.accessToken e url das dependências
 
   const send = (message: string) => {
     if (socket && socket.readyState === WebSocket.OPEN) {

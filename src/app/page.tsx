@@ -52,7 +52,6 @@ import { aiService, AIInsight } from "@/services/ai.service"
 
 export default function CRMDashboard() {
   const { user, roles } = useAuth()
-  console.log("Current roles:", roles);
   const [isResumoExpanded, setIsResumoExpanded] = useState(true)
   const [aiInsights, setAiInsights] = useState<AIInsight[]>([])
   const [loadingInsights, setLoadingInsights] = useState(false)

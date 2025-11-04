@@ -262,7 +262,7 @@ export default function AnalyticsPage() {
     if (user?.email) {
       loadData()
     }
-  }, [user?.email, roles])
+  }, [user?.email]) // Removido 'roles' das dependências
 
   if (loading) {
     return (
