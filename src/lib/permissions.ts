@@ -2,8 +2,8 @@ export type UserRole = "admin" | "manager" | "team_leader" | "seller" | "user" |
 
 export const NAVIGATION_ITEMS = [
   { title: "Painel", url: "/", icon: "Home", requiredRole: "manageDashboard" },
-  { title: "Painel Líderes", url: "/lideres", icon: "Crown", requiredRole: "manageTeams" },
-  { title: "Grupos", url: "/grupos", icon: "Users", requiredRole: "manageUserGroups" },
+  { title: "Painel Líderes", url: "/lideres", icon: "Crown", requiredRole: "LeaderBoard" },
+  { title: "Grupos", url: "/grupos", icon: "Users", requiredRole: "manageTeams" },
   { title: "Funil de Vendas", url: "/pipeline", icon: "GitBranch", requiredRole: "managePipelines" },
   { title: "Análises", url: "/analytics", icon: "BarChart3", requiredRole: "manageAnalytics" },
   { title: "Tarefas", url: "/tarefas", icon: "Kanban", requiredRole: "manageTasks" },

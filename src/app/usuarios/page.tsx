@@ -1,5 +1,5 @@
 "use client"
-import { useSession } from "next-auth/react";
+import { useSession } from "@/contexts/session-context";
 import Loading from "./loading";
 import { useEffect, useState } from "react"
 import { getUsers, createUser, updateUser, deleteUser, resetPassword as resetPasswordApi, getUserGroups, addUserToGroup, removeUserFromGroup, createSeller, getSellers, deleteSeller } from "@/lib/api.client" // { changed code }
@@ -59,7 +59,24 @@ interface NewUser {
 
 export default function UsuariosPage() {
   const queryClient = useQueryClient();
-  const { data: session, update } = useSession();
+  const { session, status } = useSession();
+  
+  // Aguarda autenticação
+  if (status === 'loading') {
+    return <Loading />
+  }
+  
+  // Verificar permissão
+  if (status === 'authenticated' && !session?.user?.roles?.includes('manageUsers')) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Acesso Negado</h1>
+          <p className="text-muted-foreground">Você não tem permissão para acessar esta página.</p>
+        </div>
+      </div>
+    )
+  }
   const [users, setUsers] = useState<User[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)

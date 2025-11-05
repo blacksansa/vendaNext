@@ -42,13 +42,17 @@ export default function LoginPage() {
       const expiresAt = Date.now() + tokens.expires_in * 1000
       localStorage.setItem("expires_at", expiresAt.toString())
 
-      // Redireciona para a página principal
-      router.push("/")
-      router.refresh()
+      // Dispara evento de storage para sincronizar entre componentes
+      window.dispatchEvent(new Event('storage'))
+
+      // Aguarda um momento para garantir que o localStorage foi atualizado
+      await new Promise(resolve => setTimeout(resolve, 100))
+
+      // Redireciona para a página principal com reload forçado
+      window.location.href = "/"
     } catch (err: any) {
       console.error("Erro no login:", err)
       setError(err.message || "Email ou senha inválidos. Verifique suas credenciais.")
-    } finally {
       setIsLoading(false)
     }
   }

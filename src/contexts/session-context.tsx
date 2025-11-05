@@ -1,6 +1,6 @@
 'use client'
 
-import { createContext, useContext, useEffect, useState, useCallback } from 'react'
+import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react'
 import { jwtDecode } from 'jwt-decode'
 import { keycloakRefreshToken, keycloakLogout } from '@/lib/keycloak-auth'
 
@@ -56,13 +56,13 @@ interface DecodedToken {
       roles: string[]
     }
   }
-  job?: string[]
   [key: string]: any
 }
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [status, setStatus] = useState<'loading' | 'authenticated' | 'unauthenticated'>('loading')
+  const isRefreshing = useRef(false)
 
   const loadSession = useCallback(() => {
     try {
@@ -79,18 +79,35 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       // Decodifica o token para obter informações do usuário
       const decoded = jwtDecode<DecodedToken>(accessToken)
       
+      console.log('🔐 TOKEN DECODIFICADO:', {
+        sub: decoded.sub,
+        email: decoded.email,
+        name: decoded.name,
+        resource_access: decoded.resource_access
+      })
+      
       // Extrai roles do token
       const clientId = process.env.NEXT_PUBLIC_KEYCLOAK_CLIENT_ID || process.env.KEYCLOAK_ID || 'vendaplus'
       const clientRoles = decoded.resource_access?.[clientId]?.roles || []
       
-      // Determina role de alto nível
+      console.log('🎭 ROLES EXTRAÍDOS:', {
+        clientId,
+        clientRoles,
+        allResourceAccess: decoded.resource_access
+      })
+      
+      // Determina role de alto nível baseado em permissões Keycloak
       let role: 'admin' | 'manager' | 'seller' = 'seller'
-      const jobGroup = decoded.job?.[0]
-      if (jobGroup === 'Administradores') {
+      if (clientRoles.includes('manageUsers')) {
         role = 'admin'
-      } else if (jobGroup === 'Gerentes') {
+      } else if (clientRoles.includes('manageTeams')) {
         role = 'manager'
       }
+      
+      console.log('👤 ROLE DETERMINADO:', {
+        role,
+        basedOnRoles: clientRoles
+      })
 
       const user: User = {
         id: decoded.sub,
@@ -117,7 +134,37 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   }, [])
 
+  const signOut = useCallback(async () => {
+    try {
+      const refreshToken = localStorage.getItem('refresh_token')
+      if (refreshToken) {
+        await keycloakLogout(refreshToken)
+      }
+    } catch (error) {
+      console.error('Erro ao fazer logout no Keycloak:', error)
+    } finally {
+      // Limpa localStorage
+      localStorage.removeItem('access_token')
+      localStorage.removeItem('refresh_token')
+      localStorage.removeItem('id_token')
+      localStorage.removeItem('expires_at')
+      
+      setSession(null)
+      setStatus('unauthenticated')
+      
+      // Força redirect com window.location para garantir limpeza
+      window.location.href = '/login'
+    }
+  }, [])
+
   const refreshSession = useCallback(async () => {
+    // Previne múltiplos refreshes simultâneos
+    if (isRefreshing.current) {
+      return
+    }
+    
+    isRefreshing.current = true
+    
     try {
       const refreshToken = localStorage.getItem('refresh_token')
       if (!refreshToken) {
@@ -135,44 +182,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       localStorage.setItem('expires_at', expiresAt.toString())
 
       // Recarrega sessão
-      loadSession()
+      await loadSession()
     } catch (error) {
       console.error('Erro ao atualizar sessão:', error)
       await signOut()
-    }
-  }, [loadSession])
-
-  const signOut = useCallback(async () => {
-    try {
-      console.log('[Logout] Iniciando logout...')
-      
-      const refreshToken = localStorage.getItem('refresh_token')
-      if (refreshToken) {
-        console.log('[Logout] Fazendo logout no Keycloak...')
-        await keycloakLogout(refreshToken)
-      } else {
-        console.log('[Logout] Nenhum refresh token encontrado')
-      }
-    } catch (error) {
-      console.error('[Logout] Erro ao fazer logout no Keycloak:', error)
     } finally {
-      console.log('[Logout] Limpando sessão local...')
-      
-      // Limpa localStorage
-      localStorage.removeItem('access_token')
-      localStorage.removeItem('refresh_token')
-      localStorage.removeItem('id_token')
-      localStorage.removeItem('expires_at')
-      
-      setSession(null)
-      setStatus('unauthenticated')
-      
-      console.log('[Logout] Redirecionando para login...')
-      
-      // Redireciona para login
-      window.location.href = '/login'
+      isRefreshing.current = false
     }
-  }, [])
+  }, [loadSession, signOut])
 
   // Carrega sessão na inicialização
   useEffect(() => {
@@ -191,42 +208,31 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener('storage', handleStorageChange)
   }, [loadSession])
 
-  // Auto-refresh antes do token expirar
+  // Monitor de expiração do token (simplificado)
   useEffect(() => {
-    if (status !== 'authenticated' || !session) return
+    if (!session?.expiresAt) return
 
-    let timeoutId: NodeJS.Timeout
-    let isRefreshing = false
-
-    const scheduleRefresh = () => {
-      if (isRefreshing) return
-
-      const now = Date.now()
-      const timeUntilExpiry = session.expiresAt - now
+    const checkExpiration = () => {
+      const timeUntilExpiry = session.expiresAt - Date.now()
       
-      // Se já expirou ou falta menos de 1 minuto, não agenda
-      if (timeUntilExpiry <= 60 * 1000) return
-
-      // Agenda refresh para 5 minutos antes de expirar
-      const refreshTime = Math.max(timeUntilExpiry - (5 * 60 * 1000), 60 * 1000)
+      // Se faltam menos de 2 minutos, faz refresh
+      if (timeUntilExpiry < 120000 && timeUntilExpiry > 0) {
+        console.log('🔄 Token expirando em breve, fazendo refresh...')
+        refreshSession()
+      }
       
-      console.log(`⏰ Refresh agendado para daqui ${Math.round(refreshTime / 1000)}s`)
-      
-      timeoutId = setTimeout(async () => {
-        if (isRefreshing) return
-        isRefreshing = true
-        console.log('🔄 Fazendo refresh do token...')
-        await refreshSession()
-        isRefreshing = false
-      }, refreshTime)
+      // Se já expirou, faz logout
+      if (timeUntilExpiry <= 0) {
+        console.log('⏰ Token expirado, fazendo logout...')
+        signOut()
+      }
     }
 
-    scheduleRefresh()
-
-    return () => {
-      if (timeoutId) clearTimeout(timeoutId)
-    }
-  }, [status, session?.expiresAt, refreshSession])
+    // Checa a cada 5 minutos (não checa imediatamente)
+    const intervalId = setInterval(checkExpiration, 300000)
+    
+    return () => clearInterval(intervalId)
+  }, [session?.expiresAt, refreshSession, signOut])
 
   const value: SessionContextType = {
     session,

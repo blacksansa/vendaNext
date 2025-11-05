@@ -74,18 +74,13 @@ export const authOptions: AuthOptions = {
           // Extract user ID from the token (sub is the Keycloak user ID)
           token.userId = decodedToken.sub;
 
-          // Determine high-level role from 'job' claim
-          const jobGroup = (decodedToken as any).job?.[0];
-          if (jobGroup === 'Administradores') {
+          // Determine high-level role from Keycloak roles
+          if (clientRoles?.includes('manageUsers')) {
             token.role = 'admin';
-          } else if (jobGroup === 'Gerentes') {
+          } else if (clientRoles?.includes('manageTeams')) {
             token.role = 'manager';
-          } else if (jobGroup === 'Lideres') {
-            token.role = 'team_leader';
-          } else if (jobGroup === 'Vendedores') {
-            token.role = 'seller';
           } else {
-            token.role = 'user'; // Default role
+            token.role = 'seller';
           }
         }
 

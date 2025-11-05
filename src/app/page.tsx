@@ -359,7 +359,7 @@ export default function CRMDashboard() {
           </Card>
         </div>
 
-        <RoleGuard requiredRole="manageUserGroups">
+        <RoleGuard requiredRole="manageTeams">
           <Card className="mb-6">
             <CardHeader>
               <div className="flex items-center justify-between">

@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import { useAuth } from "@/hooks/use-auth"
+import { useSession } from "@/contexts/session-context"
 import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -64,6 +65,8 @@ interface TeamWithMetrics extends TeamDTO {
 
 export default function DashboardLideresPage() {
   const { user, roles, loading: authLoading } = useAuth()
+  const { session, status } = useSession()
+  
   const [periodoSelecionado, setPeriodoSelecionado] = useState("mes")
   const [grupoSelecionado, setGrupoSelecionado] = useState("todos")
   const [teams, setTeams] = useState<TeamWithMetrics[]>([])
@@ -75,13 +78,6 @@ export default function DashboardLideresPage() {
 
   // Get the Keycloak UUID from the user session
   const userKeycloakId = (user as any)?.id // This is the UUID from Keycloak (sub claim)
-  
-  console.log("[lideres] ============ USER IDENTIFICATION ============")
-  console.log("[lideres] user object:", user)
-  console.log("[lideres] userKeycloakId (UUID):", userKeycloakId)
-  console.log("[lideres] user.email:", user?.email)
-  console.log("[lideres] isAdmin:", isAdmin)
-  console.log("[lideres] isLeader:", isLeader)
 
   // Filter teams based on user role
   // Admin sees all teams
@@ -105,18 +101,8 @@ export default function DashboardLideresPage() {
           return seller === userKeycloakId || seller === user?.email
         })
         
-        console.log(`[lideres] Team ${team.name}: isManager=${isManager}, isSeller=${isSeller}, managerId=${team.managerId}, userKeycloakId=${userKeycloakId}`)
-        
         return isManager || isSeller
       })
-
-  console.log("[lideres] ============ GRUPOS PERMITIDOS ============")
-  console.log("[lideres] isAdmin:", isAdmin)
-  console.log("[lideres] user email:", user?.email)
-  console.log("[lideres] userKeycloakId:", userKeycloakId)
-  console.log("[lideres] total teams:", teams.length)
-  console.log("[lideres] gruposPermitidos:", gruposPermitidos.length)
-  console.log("[lideres] gruposPermitidos data:", gruposPermitidos)
 
   useEffect(() => {
     async function loadData() {
@@ -124,12 +110,6 @@ export default function DashboardLideresPage() {
       
       try {
         setLoading(true)
-        console.log("[lideres] ============ LOADING DATA ============")
-        console.log("[lideres] User:", user?.email)
-        console.log("[lideres] User Keycloak UUID:", userKeycloakId)
-        console.log("[lideres] Roles:", roles)
-        console.log("[lideres] Is Admin:", isAdmin)
-        console.log("[lideres] Is Leader:", isLeader)
         
         // Load all teams
         const allTeams = await getTeams("", 0, 100)

@@ -10,19 +10,19 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
 } from "@/components/ui/sidebar"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/contexts/session-context"
 import { getVisibleNavigation } from "@/lib/permissions"
 import * as Icons from "lucide-react"
 
 export function AppSidebar() {
-  const { data: session } = useSession()
-  const user = session?.user as any
+  const { session } = useSession()
+  const user = session?.user
 
   // Normaliza roles/role (pode vir como string ou array, ou campo `role`)
   const rolesList: string[] = (() => {
-    if (Array.isArray(user?.roles)) return user.roles
-    if (typeof user?.roles === "string" && user.roles !== "") return [user.roles]
-    if (typeof user?.role === "string" && user.role !== "") return [user.role]
+    if (Array.isArray(user?.roles)) return user.roles as string[]
+    if (typeof user?.roles === "string") return [user.roles]
+    if (user?.role) return [user.role]
     return []
   })()
 

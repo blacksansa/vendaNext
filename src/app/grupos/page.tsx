@@ -23,11 +23,25 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, Trash2 } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
+import { useSession } from "@/contexts/session-context"
 import { useGruposModel } from "@/models/grupo.model"
 
 export default function GruposPage() {
   const { user } = useAuth()
-
+  const { session, status } = useSession()
+  
+  // Verificar permissão
+  if (status === 'authenticated' && !session?.user?.roles?.includes('manageTeams')) {
+    return (
+      <div className="flex h-screen items-center justify-center">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold mb-2">Acesso Negado</h1>
+          <p className="text-muted-foreground">Você não tem permissão para acessar esta página.</p>
+        </div>
+      </div>
+    )
+  }
+  
   // -> Presentation-only: UI state (dialogs, form values)
   const [dialogoCriarAberto, setDialogoCriarAberto] = useState(false)
   const [dialogoEditarAberto, setDialogoEditarAberto] = useState(false)
@@ -199,9 +213,11 @@ export default function GruposPage() {
                       <SelectValue placeholder="Selecione um líder" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="1">João Silva</SelectItem>
-                      <SelectItem value="2">Maria Oliveira</SelectItem>
-                      <SelectItem value="3">Carlos Santos</SelectItem>
+                      {gerentes.map((gerente) => (
+                        <SelectItem key={gerente.id} value={String(gerente.id)}>
+                          {gerente.nome}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

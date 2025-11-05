@@ -238,16 +238,11 @@ export default function AnalyticsPage() {
     const loadData = async () => {
       try {
         setLoading(true)
-        console.log("[analytics] ============ LOADING DATA ============")
-        console.log("[analytics] User:", user?.email)
-        console.log("[analytics] Roles:", roles)
 
         const [oppsData, teamsData] = await Promise.all([
           getOpportunities(),
           getTeams(),
         ])
-
-        console.log("[analytics] Loaded", oppsData.length, "opportunities")
         console.log("[analytics] Loaded", teamsData.length, "teams")
 
         setOpportunities(oppsData)

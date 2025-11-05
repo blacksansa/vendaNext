@@ -9,7 +9,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { NAVIGATION_ITEMS } from '@/lib/permissions';
 import { useToast } from "@/hooks/use-toast";
 import { useQueryClient } from "@tanstack/react-query";
-import { useSession } from "next-auth/react";
+import { useSession } from "@/contexts/session-context";
 import { ShieldCheck, Save } from 'lucide-react';
 import { getUserGroups, updateUserGroup } from '@/lib/api.client';
 
@@ -18,9 +18,10 @@ const allPermissions = NAVIGATION_ITEMS.map(item => item.requiredRole).filter((v
 export function GroupPermissions() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { update: updateSession } = useSession();
+  const { refreshSession } = useSession();
   const [groups, setGroups] = useState<any[]>([]);
   const [selectedGroup, setSelectedGroup] = useState<any | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     async function fetchGroups() {
@@ -40,12 +41,7 @@ export function GroupPermissions() {
           setSelectedGroup(fetchedGroups[0]);
         }
       } catch (error) {
-        toast(
-          <div>
-            <strong>Erro ao buscar grupos</strong>
-            <div>Não foi possível carregar a lista de grupos.</div>
-          </div>
-        );
+        toast.error("Não foi possível carregar a lista de grupos.");
       }
     }
 
@@ -67,22 +63,23 @@ export function GroupPermissions() {
 
   const handleUpdateRoles = async () => {
     if (!selectedGroup) return;
+    setIsSaving(true);
     try {
-      await updateSession(); // Force session update for current user
+      // Atualiza o grupo no backend com as novas roles
+      await updateUserGroup(selectedGroup.id, {
+        name: selectedGroup.name,
+        roles: selectedGroup.roles || []
+      });
+      
+      await refreshSession(); // Force session update for current user
       queryClient.invalidateQueries({ queryKey: ['userGroups'] }); // Invalidate cache
-      toast(
-        <div>
-          <strong>Funções atualizadas!</strong>
-          <div>As permissões para o grupo {selectedGroup.name} foram salvas.</div>
-        </div>
-      );
+      
+      toast.success(`As permissões para o grupo ${selectedGroup.name} foram salvas.`);
     } catch (error) {
-      toast(
-        <div>
-          <strong>Erro ao atualizar permissões</strong>
-          <div>Não foi possível salvar as alterações.</div>
-        </div>
-      );
+      console.error('Erro ao atualizar permissões:', error);
+      toast.error("Não foi possível salvar as alterações.");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -128,9 +125,9 @@ export function GroupPermissions() {
               ))}
             </SelectContent>
           </Select>
-          <Button onClick={handleUpdateRoles} className="py-6 px-6 text-base">
+          <Button onClick={handleUpdateRoles} disabled={isSaving} className="py-6 px-6 text-base">
             <Save className="mr-2 h-5 w-5" />
-            Salvar Permissões
+            {isSaving ? "Salvando..." : "Salvar Permissões"}
           </Button>
         </div>
 

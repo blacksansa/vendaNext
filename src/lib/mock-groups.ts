@@ -8,7 +8,6 @@ export const mockGroups = [
       'manageCustomers',
       'manageSellers',
       'manageTeams',
-      'manageUserGroups',
       'managePipelines',
       'manageAnalytics',
       'manageTasks',
