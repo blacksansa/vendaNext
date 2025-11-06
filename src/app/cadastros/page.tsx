@@ -294,7 +294,7 @@ export default function CadastrosPage() {
 
   const openDeleteDialog = (id: number) => {
     setDeletingCustomerId(id)
-    setIsDeleteDialogOpen(true)
+    setTimeout(() => setIsDeleteDialogOpen(true), 0)
   }
 
   // Product Handlers
@@ -352,7 +352,7 @@ export default function CadastrosPage() {
 
   const openDeleteProductDialog = (id: number) => {
     setDeletingProductId(id)
-    setIsDeleteProductDialogOpen(true)
+    setTimeout(() => setIsDeleteProductDialogOpen(true), 0)
   }
 
   // ProductGroup Handlers
@@ -405,7 +405,7 @@ export default function CadastrosPage() {
 
   const openDeleteProductGroupDialog = (id: number) => {
     setDeletingProductGroupId(id)
-    setIsDeleteProductGroupDialogOpen(true)
+    setTimeout(() => setIsDeleteProductGroupDialogOpen(true), 0)
   }
 
   // PriceTag Handlers
@@ -463,7 +463,7 @@ export default function CadastrosPage() {
 
   const openDeletePriceTagDialog = (id: number) => {
     setDeletingPriceTagId(id)
-    setIsDeletePriceTagDialogOpen(true)
+    setTimeout(() => setIsDeletePriceTagDialogOpen(true), 0)
   }
 
   // Supplier Handlers
@@ -516,7 +516,7 @@ export default function CadastrosPage() {
 
   const openDeleteSupplierDialog = (id: number) => {
     setDeletingSupplierId(id)
-    setIsDeleteSupplierDialogOpen(true)
+    setTimeout(() => setIsDeleteSupplierDialogOpen(true), 0)
   }
 
   // Seller Handlers
@@ -573,7 +573,7 @@ export default function CadastrosPage() {
 
   const openDeleteSellerDialog = (id: number) => {
     setDeletingSellerId(id)
-    setIsDeleteSellerDialogOpen(true)
+    setTimeout(() => setIsDeleteSellerDialogOpen(true), 0)
   }
 
   return (
