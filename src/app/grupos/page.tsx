@@ -19,6 +19,16 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, Trash2 } from "lucide-react"
@@ -49,6 +59,9 @@ export default function GruposPage() {
   const [dialogoAdicionarMembroAberto, setDialogoAdicionarMembroAberto] = useState(false)
   const [dialogoEditarMembroAberto, setDialogoEditarMembroAberto] = useState(false)
   const [salvandoGrupo, setSalvandoGrupo] = useState(false)
+
+  const [dialogoRemoverGrupoAberto, setDialogoRemoverGrupoAberto] = useState(false)
+  const [grupoParaRemover, setGrupoParaRemover] = useState<any | null>(null)
 
   const [novoGrupo, setNovoGrupo] = useState({
     nome: "",
@@ -388,10 +401,9 @@ export default function GruposPage() {
                         variant="outline"
                         size="sm"
                         className="text-red-600"
-                        onClick={async () => {
-                          if (confirm("Tem certeza que deseja remover este grupo? Essa ação não pode ser desfeita.")) {
-                            await deletarGrupo(grupo.id)
-                          }
+                        onClick={() => {
+                          setGrupoParaRemover(grupo)
+                          setDialogoRemoverGrupoAberto(true)
                         }}
                       >
                         <Trash2 className="h-4 w-4 mr-1" />
@@ -800,6 +812,32 @@ export default function GruposPage() {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+
+        <AlertDialog open={dialogoRemoverGrupoAberto} onOpenChange={setDialogoRemoverGrupoAberto}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Remover grupo</AlertDialogTitle>
+              <AlertDialogDescription>
+                Essa ação não pode ser desfeita. Isso removerá permanentemente o grupo {grupoParaRemover?.nome}.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancelar</AlertDialogCancel>
+              <AlertDialogAction
+                className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                onClick={async () => {
+                  if (grupoParaRemover) {
+                    await deletarGrupo(grupoParaRemover.id)
+                    setDialogoRemoverGrupoAberto(false)
+                    setGrupoParaRemover(null)
+                  }
+                }}
+              >
+                Remover
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       </div>
     </SidebarInset>
 
