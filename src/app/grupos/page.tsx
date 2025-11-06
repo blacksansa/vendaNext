@@ -31,7 +31,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, Trash2 } from "lucide-react"
+import { Users, Plus, Settings, Target, TrendingUp, Edit, Crown, Trash2, Kanban } from "lucide-react"
 import { useAuth } from "@/hooks/use-auth"
 import { useSession } from "@/contexts/session-context"
 import { useGruposModel } from "@/models/grupo.model"
@@ -396,6 +396,10 @@ export default function GruposPage() {
                       <Button variant="outline" size="sm" onClick={() => handleGerenciarGrupo(grupo)}>
                         <Settings className="h-4 w-4 mr-1" />
                         Gerenciar
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => (window.location.href = `/grupos/pipelines?teamId=${grupo.id}`)}>
+                        <Kanban className="h-4 w-4 mr-1" />
+                        Pipeline
                       </Button>
                       <Button
                         variant="outline"

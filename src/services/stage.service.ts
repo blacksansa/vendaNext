@@ -23,7 +23,10 @@ export const getStageById = (id: number): Promise<StageDTO> =>
 export const getStagesByPipeline = async (pipelineId: number): Promise<StageDTO[]> => {
   try {
     const allStages = await stageApi.list(0, 100, "")
-    return allStages.filter(stage => stage.pipelineId === pipelineId || stage.pipeline?.id === pipelineId)
+    return allStages.filter((stage: any) => {
+      const pid = stage.pipelineId ?? stage.pipeline_id ?? stage.pipeline?.id
+      return Number(pid) === Number(pipelineId)
+    })
   } catch (error) {
     console.error("[stage] error fetching by pipeline", error)
     return []

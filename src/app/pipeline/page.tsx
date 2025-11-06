@@ -48,46 +48,22 @@ import { getOpportunities, updateOpportunity, createOpportunity } from "@/servic
 import { getTeams } from "@/services/team.service"
 import { getSellers } from "@/services/seller.service"
 import { listCustomers, createCustomer } from "@/services/customer.service"
+import { getPipelines } from "@/services/pipeline.service"
+import { getStagesByPipeline } from "@/services/stage.service"
 import { Customer, Stage } from "@/lib/types"
 import { toast } from 'sonner'
 import { DndContext, DragEndEvent, DragOverEvent, DragStartEvent, closestCorners, PointerSensor, useSensor, useSensors, DragOverlay, useDroppable } from "@dnd-kit/core"
 import { useSortable, SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 
-const pipelineStages = [
-  {
-    id: 1,
-    name: "Leads / Captura",
-    color: "bg-blue-500",
-    deals: 15,
-    value: 0,
-    description: "Leads que entraram via formulários, magnet ou outros canais",
-  },
-  {
-    id: 2,
-    name: "Nutrição / Pré-venda",
-    color: "bg-yellow-500",
-    deals: 10,
-    value: 0,
-    description: "Leads não prontos para comprar, em processo de nutrição",
-  },
-  {
-    id: 3,
-    name: "Oportunidade / Conversão",
-    color: "bg-orange-500",
-    deals: 7,
-    value: 85000,
-    description: "Leads quentes prontos para compra",
-  },
-  {
-    id: 4,
-    name: "Cliente / Pós-venda",
-    color: "bg-green-500",
-    deals: 12,
-    value: 145000,
-    description: "Clientes que já compraram",
-  },
-]
+function colorFromStage(color?: any) {
+  if (typeof color === 'number') {
+    const hex = '#' + (color >>> 0).toString(16).padStart(6, '0').slice(-6)
+    return hex
+  }
+  if (typeof color === 'string') return color
+  return '#666'
+}
 
 // Componente de Coluna Droppable
 function DroppableColumn({ stage, children }: any) {
@@ -152,6 +128,11 @@ export default function PipelinePage() {
   const [customers, setCustomers] = useState<any[]>([])
   const [creatingOpportunity, setCreatingOpportunity] = useState(false)
   
+  // Pipelines por grupos (times)
+  const [pipelines, setPipelines] = useState<any[]>([])
+  const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(null)
+  const [stages, setStages] = useState<any[]>([])
+  
   // Form states
   const [newOppData, setNewOppData] = useState({
     customerName: "",
@@ -186,6 +167,54 @@ export default function PipelinePage() {
   }, [authUser])
   
   const userId = user?.id || user?.sub || user?.userId || user?.email || null
+  
+  // Carregar pipelines e etapas do backend (por grupo)
+  useEffect(() => {
+    (async () => {
+      try {
+        const pls = await getPipelines("", 0, 100)
+        setPipelines(pls)
+        let selectedId: number | null = pls[0]?.id ?? null
+        try {
+          const params = new URLSearchParams(window.location.search)
+          const qpPipelineId = params.get('pipelineId')
+          const qpTeamId = params.get('teamId')
+          if (qpPipelineId) {
+            const pid = Number(qpPipelineId)
+            if (pls.some(p => p.id === pid)) selectedId = pid
+          } else if (qpTeamId) {
+            const tid = Number(qpTeamId)
+            const found = pls.find(p => Number(p.team?.id) === Number(tid))
+            if (found) selectedId = found.id
+          }
+        } catch {}
+        setSelectedPipelineId(selectedId)
+        if (selectedId) {
+          const st = await getStagesByPipeline(selectedId)
+          setStages(st)
+        } else {
+          setStages([])
+        }
+      } catch (e) {
+        console.error('[pipeline] erro ao carregar pipelines/etapas', e)
+        setPipelines([])
+        setStages([])
+      }
+    })()
+  }, [])
+  
+  useEffect(() => {
+    if (!selectedPipelineId) return
+    ;(async () => {
+      try {
+        const st = await getStagesByPipeline(selectedPipelineId)
+        setStages(st)
+      } catch (e) {
+        console.error('[pipeline] erro ao carregar etapas do pipeline', e)
+        setStages([])
+      }
+    })()
+  }, [selectedPipelineId])
   
   // Carregar oportunidades do backend
   useEffect(() => {
@@ -254,13 +283,13 @@ export default function PipelinePage() {
   }))
   
   // Atualizar métricas com dados reais
-  const realPipelineStages = pipelineStages.map(stage => ({
+  const realStages = stages.map((stage: any) => ({
     ...stage,
     deals: deals.filter(d => d.stage === stage.id).length,
     value: deals.filter(d => d.stage === stage.id).reduce((sum, d) => sum + d.value, 0),
   }))
 
-  const totalValue = realPipelineStages.reduce((sum, stage) => sum + stage.value, 0)
+  const totalValue = realStages.reduce((sum: number, stage: any) => sum + (stage.value || 0), 0)
   const totalDeals = deals.length
   const leadsNeedingAttention = deals.filter((d) => d.daysSinceContact > 3).length
 
@@ -388,11 +417,17 @@ export default function PipelinePage() {
         customer = await createCustomer(customerData)
       }
 
-      // Criar oportunidade com item padrão
+      if (!stages.length) {
+        toast.error("Nenhuma etapa configurada para o pipeline selecionado.", { description: "Defina as etapas do pipeline" })
+        setCreatingOpportunity(false)
+        return
+      }
+
+      // Criar oportunidade com primeira etapa do pipeline selecionado
       const newOpp = await createOpportunity({
         customer: { id: customer.id } as Customer,
         status: "OPEN",
-        stage: { id: 1 } as Stage,
+        stage: { id: stages[0].id } as Stage,
         contactDate: Date.now(),
         items: [
           {
@@ -434,7 +469,21 @@ export default function PipelinePage() {
             {loading ? "Carregando..." : !userId ? "Faça login para visualizar" : "Gerencie leads, oportunidades e clientes em um só lugar"}
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          {pipelines.length > 0 && (
+            <Select value={selectedPipelineId?.toString() || undefined} onValueChange={(v) => setSelectedPipelineId(Number(v))}>
+              <SelectTrigger className="w-[240px]">
+                <SelectValue placeholder="Selecione o pipeline" />
+              </SelectTrigger>
+              <SelectContent>
+                {pipelines.map((p: any) => (
+                  <SelectItem key={p.id} value={String(p.id)}>
+                    {p.name}{p.team?.name ? ` — ${p.team.name}` : ''}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           {!loading && !authLoading && userId && (
             <Button onClick={loadOpportunities} variant="outline" size="sm">
               Atualizar
@@ -515,23 +564,23 @@ export default function PipelinePage() {
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Leads Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">Leads (Novos)</CardTitle>
             <Target className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pipelineStages[0].deals + pipelineStages[1].deals}</div>
-            <p className="text-xs text-muted-foreground">Captura + Nutrição</p>
+            <div className="text-2xl font-bold">{deals.filter((d) => d.status === 'novo').length}</div>
+            <p className="text-xs text-muted-foreground">Status Novo</p>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Clientes Ativos</CardTitle>
+            <CardTitle className="text-sm font-medium">Clientes (Ativos)</CardTitle>
             <CheckCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{pipelineStages[3].deals}</div>
-            <p className="text-xs text-muted-foreground">Pós-venda ativo</p>
+            <div className="text-2xl font-bold">{deals.filter((d) => d.status === 'ativo').length}</div>
+            <p className="text-xs text-muted-foreground">Status Ativo</p>
           </CardContent>
         </Card>
       </div>
@@ -555,7 +604,7 @@ export default function PipelinePage() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">Todas as etapas</SelectItem>
-              {pipelineStages.map((stage) => (
+              {stages.map((stage: any) => (
                 <SelectItem key={stage.id} value={stage.id.toString()}>
                   {stage.name}
                 </SelectItem>
@@ -590,7 +639,7 @@ export default function PipelinePage() {
             onDragEnd={handleDragEnd}
           >
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            {pipelineStages.map((stage) => {
+            {stages.map((stage: any) => {
               const stageDeals = getDealsByStage(stage.id)
               const dealIds = stageDeals.map(d => d.id.toString())
               
@@ -599,14 +648,14 @@ export default function PipelinePage() {
                   <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
                       <CardTitle className="text-sm font-medium flex items-center gap-2">
-                        <div className={`w-3 h-3 rounded-full ${stage.color}`} />
+                        <div className="w-3 h-3 rounded-full" style={{ backgroundColor: colorFromStage((stage as any).color) }} />
                         {stage.name}
                       </CardTitle>
                       <Badge variant="secondary">{stageDeals.length}</Badge>
                     </div>
-                    <CardDescription className="text-xs">{stage.description}</CardDescription>
-                    {stage.value > 0 && (
-                      <p className="text-sm font-semibold text-green-600">R$ {stage.value.toLocaleString()}</p>
+                    <CardDescription className="text-xs">{(stage as any).description || ''}</CardDescription>
+                    {stageDeals.reduce((sum, d) => sum + d.value, 0) > 0 && (
+                      <p className="text-sm font-semibold text-green-600">R$ {stageDeals.reduce((sum, d) => sum + d.value, 0).toLocaleString()}</p>
                     )}
                   </CardHeader>
                   <CardContent className="space-y-3">
@@ -888,7 +937,7 @@ export default function PipelinePage() {
                             <h4 className="font-semibold">{deal.client}</h4>
                             <Badge className={getPriorityColor(deal.priority)}>{deal.priority}</Badge>
                             {getStatusBadge(deal.status)}
-                            <Badge variant="outline">{pipelineStages.find((s) => s.id === deal.stage)?.name}</Badge>
+                            <Badge variant="outline">{stages.find((s: any) => s.id === deal.stage)?.name}</Badge>
                           </div>
 
                           <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-sm text-muted-foreground">
