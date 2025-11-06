@@ -74,7 +74,7 @@ export default function DashboardLideresPage() {
   const [loading, setLoading] = useState(true)
 
   const isAdmin = roles?.includes("admin")
-  const isLeader = roles?.includes("leader") || roles?.includes("lider")
+  const isLeader = roles?.includes("LeaderBoard") || roles?.includes("leader") || roles?.includes("lider")
 
   // Get the Keycloak UUID from the user session
   const userKeycloakId = (user as any)?.id // This is the UUID from Keycloak (sub claim)
