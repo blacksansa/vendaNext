@@ -282,63 +282,31 @@ export function UsuariosPageClient({
     }
   };
 
-  const handleGroupAssignment = async (user: User, groupId: string, checked: boolean) => {
-    console.log('[group-assignment] User:', user.id, 'Group:', groupId, 'Checked:', checked);
+  // Switch user to a single group (no accumulation)
+  const handleGroupAssignment = async (user: User, groupId: string, _checked: boolean) => {
+    console.log('[group-assignment] switch User:', user.id, 'to Group:', groupId);
     setStatus(user.id!, 'loading');
-    
-    // Store original groups for rollback
+
     const originalGroups = user.groups || [];
     const group = userGroups.find(g => g.id === groupId);
-    
-    if (!group) {
-      console.error('[group-assignment] Group not found:', groupId);
-      setStatus(user.id!, 'error');
-      return;
-    }
-    
-    // Optimistic update
-    let newGroups;
-    if (checked) {
-      console.log('[group-assignment] Adding group optimistically:', group.name);
-      newGroups = [...originalGroups, group];
-    } else {
-      console.log('[group-assignment] Removing group optimistically:', group.name);
-      newGroups = originalGroups.filter(g => g.id !== groupId);
-    }
-    
-    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, groups: newGroups } : u));
-    
-    // Update admin count if needed
-    if (group.name === 'Administradores') {
-      if (checked) {
-        setAdminUsers(prev => prev + 1);
-      } else {
-        setAdminUsers(prev => prev - 1);
-      }
-    }
-    
+    if (!group) { setStatus(user.id!, 'error'); return }
+
+    // Optimistic: set only the selected group
+    setUsers(prev => prev.map(u => u.id === user.id ? { ...u, groups: [group] } : u));
+
     try {
-      console.log('[group-assignment] Calling API');
-      if (checked) {
-        await addUserToGroup(groupId, user.id!);
-      } else {
-        await removeUserFromGroup(groupId, user.id!);
+      // Add selected first if not present (avoid transient loss of permission)
+      if (!originalGroups.some(g => g.id === groupId)) await addUserToGroup(groupId, user.id!);
+      // Remove all others afterwards
+      for (const g of originalGroups) {
+        if (g.id !== groupId) await removeUserFromGroup(g.id as string, user.id!);
       }
-      console.log('[group-assignment] Group assignment successful');
       setStatus(user.id!, 'success');
     } catch (err: any) {
-      console.error('[group-assignment] Error assigning group:', err);
-      
-      // Rollback optimistic update
+      console.error('[group-assignment] Error switching group:', err);
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, groups: originalGroups } : u));
-      
-      if (group.name === 'Administradores') {
-        if (checked) {
-          setAdminUsers(prev => prev - 1);
-        } else {
-          setAdminUsers(prev => prev + 1);
-        }
-      }
+      setStatus(user.id!, 'error');
+    }
       
       setStatus(user.id!, 'error');
     }

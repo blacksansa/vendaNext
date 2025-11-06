@@ -90,6 +90,7 @@ export default function GruposPage() {
     calcularPerformance,
     gerentes, // <- vem do model
     vendedoresDisponiveis, // <- ADICIONADO: vem do model (apenas vendedores livres)
+    model,
   } = useGruposModel()
 
   // Tudo visível, independente de role
@@ -98,6 +99,13 @@ export default function GruposPage() {
   useEffect(() => {
     if (editando) setDialogoEditarAberto(true)
   }, [editando])
+
+  // Evita abrir diálogo de edição automaticamente ao entrar na página por estado persistido
+  useEffect(() => {
+    setDialogoEditarAberto(false)
+    setEditando(null)
+    setDialogoCriarAberto(false)
+  }, [])
 
   // --- Handlers delegating to model (UI remains presentation-only) ---
   const handleCriarGrupo = async () => {
@@ -199,12 +207,12 @@ export default function GruposPage() {
           </div>
           <Dialog open={dialogoCriarAberto} onOpenChange={setDialogoCriarAberto}>
             <DialogTrigger asChild>
-              <Button>
+              <Button type="button" onClick={() => setDialogoCriarAberto(true)}>
                 <Plus className="mr-2 h-4 w-4" />
                 Novo Grupo
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent onEscapeKeyDown={() => setDialogoCriarAberto(false)} onPointerDownOutside={() => setDialogoCriarAberto(false)}>
               <DialogHeader>
                 <DialogTitle>Criar Novo Grupo</DialogTitle>
                 <DialogDescription>Configure um novo grupo de vendas com líder e meta mensal.</DialogDescription>
@@ -221,7 +229,7 @@ export default function GruposPage() {
                 </div>
                 <div className="grid gap-2">
                   <Label htmlFor="lider">Líder do Grupo</Label>
-                  <Select onValueChange={(value) => setNovoGrupo({ ...novoGrupo, lider: value })}>
+                  <Select onOpenChange={(open) => { if (open) model.fetchGrupos().catch(() => {}) }} onValueChange={(value) => setNovoGrupo({ ...novoGrupo, lider: value })}>
                     <SelectTrigger>
                       <SelectValue placeholder="Selecione um líder" />
                     </SelectTrigger>
@@ -255,7 +263,7 @@ export default function GruposPage() {
                 </div>
               </div>
               <DialogFooter>
-                <Button onClick={handleCriarGrupo}>Criar Grupo</Button>
+                <Button onClick={async () => { await handleCriarGrupo(); setDialogoCriarAberto(false); }}>Criar Grupo</Button>
               </DialogFooter>
             </DialogContent>
           </Dialog>
@@ -565,6 +573,7 @@ export default function GruposPage() {
                   <Label htmlFor="edit-lider">Líder do Grupo</Label>
                   {gerentes.length > 0 ? (
                     <Select
+                      onOpenChange={(open) => { if (open) model.fetchGrupos().catch(() => {}) }}
                       value={editando.liderUserId ? String(editando.liderUserId) : ""}
                       onValueChange={(value) => {
                         const selected = gerentes.find((g) => String(g.id) === value)

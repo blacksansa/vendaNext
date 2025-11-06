@@ -407,12 +407,38 @@ export default function UsuariosPage() {
     }
   });
 
-  const handleGroupAssignment = (user: User, groupId: string | number, checked: boolean | string | undefined) => {
-    const gid = String(groupId);
-    const isChecked = checked === true || checked === "true" || String(checked) === "1";
-    setStatus(user.id!, 'loading');
-    toggleGroupMutation.mutate({ userId: String(user.id), groupId: gid, assign: isChecked });
-  };
+  // (antigo setSingleGroupMutation removido)
+
+  const handleGroupAssignment = async (user: User, groupId: string | number) => {
+    const gid = String(groupId)
+    setStatus(user.id!, 'loading')
+    try {
+      const groupObj = userGroups.find(g => String(g.id) === gid)
+      if (!groupObj) throw new Error('Grupo não encontrado')
+      // Dados obrigatórios para validação (email não pode ser null)
+      const email = (user as any).email || (user as any).username || ''
+      if (!email) throw new Error('Email do usuário ausente')
+      const firstName = (user as any).firstName || (user as any).name?.split(' ')[0] || ''
+      const lastName = (user as any).lastName || (user as any).name?.split(' ').slice(1).join(' ') || ''
+      const enabled = (user as any).enabled !== undefined ? (user as any).enabled : true
+      // Optimistic UI
+      setUsers(prev => prev.map(u => String(u.id) === String(user.id) ? { ...u, groups: [groupObj] } : u))
+      // Atualiza usuário com campos mínimos exigidos + novo grupo
+      await updateUser(String(user.id), {
+        email,
+        firstName,
+        lastName,
+        enabled,
+        groups: [{ name: groupObj.name }]
+      } as any)
+      setStatus(String(user.id), 'success')
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+    } catch (e) {
+      console.error('[trocar-grupo] falha', e)
+      setStatus(String(user.id), 'error')
+      await queryClient.invalidateQueries({ queryKey: ['users'] })
+    }
+  }
 
   const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defaultContent: React.ReactNode) => {
     switch (status) {
@@ -656,7 +682,7 @@ export default function UsuariosPage() {
                           <DropdownMenuSub>
                             <DropdownMenuSubTrigger>
                               <Users className="mr-2 h-4 w-4" />
-                              Atribuir Grupo
+                              Trocar Grupo
                             </DropdownMenuSubTrigger>
                             <DropdownMenuPortal>
                               <DropdownMenuSubContent>
@@ -664,7 +690,7 @@ export default function UsuariosPage() {
                                   <DropdownMenuCheckboxItem
                                     key={group.id}
                                     checked={user.groups?.some((g) => g.id === group.id)}
-                                    onCheckedChange={(checked) => handleGroupAssignment(user, group.id, checked)}
+                                    onCheckedChange={() => handleGroupAssignment(user, group.id, true)}
                                   >
                                     {group.name}
                                   </DropdownMenuCheckboxItem>
