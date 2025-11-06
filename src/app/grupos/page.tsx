@@ -384,6 +384,19 @@ export default function GruposPage() {
                         <Settings className="h-4 w-4 mr-1" />
                         Gerenciar
                       </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="text-red-600"
+                        onClick={async () => {
+                          if (confirm("Tem certeza que deseja remover este grupo? Essa ação não pode ser desfeita.")) {
+                            await deletarGrupo(grupo.id)
+                          }
+                        }}
+                      >
+                        <Trash2 className="h-4 w-4 mr-1" />
+                        Remover
+                      </Button>
                     </div>
                   </CardContent>
                 </Card>
