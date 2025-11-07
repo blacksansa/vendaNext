@@ -313,7 +313,13 @@ class GrupoModel {
 
   updateEditando(patch: Partial<Grupo>) {
     if (!this.state.editando) return
-    this.setState({ editando: { ...this.state.editando, ...patch } })
+    const next = { ...this.state.editando, ...patch }
+    // Se escolher liderUserId mas nome ainda não resolvido, tenta resolver
+    if (patch.liderUserId && (!patch.lider || patch.lider === '(sem nome)')) {
+      const u = this.state.grupos.find(g => String(g.liderUserId) === String(patch.liderUserId))
+      if (u && u.lider) next.lider = u.lider
+    }
+    this.setState({ editando: next })
   }
 
   async criarGrupo(novoGrupo: Partial<Grupo>) {
@@ -552,6 +558,16 @@ export function useGruposModel() {
       grupoModel.fetchGrupos().catch((e) => console.error("fetchGrupos error", e))
     }
   }, [])
+
+  // WebSocket: refetch teams/leaders on team or user updates
+  const { on, off, isConnected } = require('@/contexts/websocket-context').useWebSocket()
+  useEffect(() => {
+    if (!isConnected) return
+    const handler = () => grupoModel.fetchGrupos().catch(() => {})
+    on('team:updated', handler)
+    on('user:updated', handler)
+    return () => { off('team:updated', handler); off('user:updated', handler) }
+  }, [isConnected])
 
   return {
     ...state,

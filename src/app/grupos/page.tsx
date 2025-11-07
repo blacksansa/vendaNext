@@ -573,13 +573,12 @@ export default function GruposPage() {
                   <Label htmlFor="edit-lider">Líder do Grupo</Label>
                   {gerentes.length > 0 ? (
                     <Select
-                      onOpenChange={(open) => { if (open) model.fetchGrupos().catch(() => {}) }}
                       value={editando.liderUserId ? String(editando.liderUserId) : ""}
                       onValueChange={(value) => {
                         const selected = gerentes.find((g) => String(g.id) === value)
                         updateEditando({
                           liderUserId: value,
-                          lider: selected?.nome ?? "",
+                          lider: selected?.nome ?? "(sem nome)",
                         })
                       }}
                     >

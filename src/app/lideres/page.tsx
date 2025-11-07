@@ -34,7 +34,7 @@ import {
   Activity,
   Loader2,
 } from "lucide-react"
-import { AlertCircle } from "lucide-react"
+import { AlertCircle, Kanban } from "lucide-react"
 import {
   XAxis,
   YAxis,
@@ -49,9 +49,21 @@ import {
 } from "recharts"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { getTeams, TeamDTO } from "@/services/team.service"
+import { getTeams, TeamDTO, updateTeam } from "@/services/team.service"
 import { getOpportunities } from "@/services/opportunity.service"
 import { Opportunity } from "@/lib/types"
+import { getSellers } from "@/services/seller.service"
+import { Label } from "@/components/ui/label"
+import { Input } from "@/components/ui/input"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { DndContext, closestCorners, PointerSensor, useSensor, useSensors, type DragEndEvent } from "@dnd-kit/core"
+import { SortableContext, verticalListSortingStrategy, useSortable, arrayMove } from "@dnd-kit/sortable"
+import { CSS } from "@dnd-kit/utilities"
+import { getPipelinesByTeam, createPipeline, updatePipeline, deletePipeline } from "@/services/pipeline.service"
+import { getStagesByPipeline, createStage, deleteStage, updateStage } from "@/services/stage.service"
+import { setDefaultPipeline } from "@/services/team.service"
+import { toast } from "sonner"
+import { Select as UiSelect, SelectContent as UiSelectContent, SelectItem as UiSelectItem, SelectTrigger as UiSelectTrigger, SelectValue as UiSelectValue } from "@/components/ui/select"
 
 interface TeamWithMetrics extends TeamDTO {
   totalVendas: number
@@ -63,6 +75,243 @@ interface TeamWithMetrics extends TeamDTO {
   taxaConversao: number
 }
 
+function toHexColor(c: any) {
+  if (typeof c === 'number') return `#${(c >>> 0).toString(16).padStart(6, '0').slice(-6)}`
+  if (typeof c === 'string' && c.startsWith('#')) return c
+  return '#6b7280'
+}
+function parseHexToNumber(hex: string) { try { return parseInt(hex.replace('#',''), 16) } catch { return 0 } }
+function DraggableStageItem({ stage, children }: any) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: String(stage.id) })
+  const style: any = { transform: CSS.Transform.toString(transform), transition, opacity: isDragging ? 0.6 : 1 }
+  return (<div ref={setNodeRef} style={style} {...attributes} {...listeners}>{children}</div>)
+}
+function ManageGroupPanel({ team, canEdit, allTeams, onSaved }: { team: TeamWithMetrics, canEdit: boolean, allTeams: TeamWithMetrics[], onSaved?: () => void }) {
+  const [quota, setQuota] = useState<number>(Number(team.quota || 0))
+  const [description, setDescription] = useState<string>(team.description || "")
+  const [status, setStatus] = useState<string>(team.active === false ? 'inativo' : 'ativo')
+  const [localSellers, setLocalSellers] = useState<any[]>(Array.isArray((team as any).sellers) ? ([...(team as any).sellers] as any[]) : [])
+  const [allSellers, setAllSellers] = useState<any[]>([])
+  const [addSellerId, setAddSellerId] = useState<string>("")
+  useEffect(() => { getSellers("", 0, 200).then(setAllSellers).catch(() => {}) }, [])
+  const sanitizeSellerIds = (ids: any[]): number[] => Array.from(new Set((ids||[]).map((v:any)=> typeof v==='object'? v.id : (typeof v==='string'&&/^\d+$/.test(v)? Number(v): v)).filter((v:any)=> Number.isFinite(v))))
+  const getTeamSellerIds = (t:any): number[] => {
+    if (!t) return []
+    const list = Array.isArray(t.sellerIds) ? t.sellerIds : Array.isArray(t.sellers) ? t.sellers.map((v:any)=> (v&&typeof v==='object')? v.id : v) : []
+    return sanitizeSellerIds(list)
+  }
+  const usedSellerIds = new Set(allTeams.flatMap((t:any)=> getTeamSellerIds(t)).map((id:any)=> String(id)))
+  const availableSellers = (allSellers||[]).filter((s:any)=> !usedSellerIds.has(String(s.id)))
+  const sellerDisplayName = (s:any) => s?.name || `${s?.user?.firstName ?? ''} ${s?.user?.lastName ?? ''}`.trim() || s?.user?.email || String(s?.id)
+  async function handleSave() {
+    try {
+      await updateTeam(Number(team.id), { quota: Number(quota||0), description, active: status === 'ativo' })
+      toast.success('Grupo atualizado')
+      onSaved && onSaved()
+    } catch { toast.error('Falha ao salvar grupo') }
+  }
+  async function handleAddSeller() {
+    if (!addSellerId) return
+    try {
+      const base = getTeamSellerIds(team)
+      const updated = sanitizeSellerIds([...(base||[]), Number(addSellerId)])
+      await updateTeam(Number(team.id), { sellerIds: updated })
+      const added = allSellers.find((s:any)=> String(s.id) === addSellerId)
+      setLocalSellers(prev => [...prev, added])
+      setAddSellerId("")
+      toast.success('Vendedor adicionado')
+      onSaved && onSaved()
+    } catch { toast.error('Falha ao adicionar vendedor') }
+  }
+  async function handleRemoveSeller(id:any) {
+    try {
+      const base = getTeamSellerIds(team)
+      const updated = sanitizeSellerIds((base||[]).filter((sid:any)=> String(sid) !== String(id)))
+      await updateTeam(Number(team.id), { sellerIds: updated })
+      setLocalSellers(prev => prev.filter((s:any)=> String(s.id) !== String(id)))
+      toast.success('Vendedor removido')
+      onSaved && onSaved()
+    } catch { toast.error('Falha ao remover vendedor') }
+  }
+  return (
+    <div className="space-y-4 border rounded p-3">
+      <div className="grid gap-3 md:grid-cols-3">
+        <div>
+          <Label>Meta Mensal (R$)</Label>
+          <Input type="number" value={String(quota)} onChange={e=>setQuota(Number(e.target.value||0))} />
+        </div>
+        <div>
+          <Label>Status</Label>
+          <UiSelect value={status} onValueChange={setStatus}>
+            <UiSelectTrigger><UiSelectValue /></UiSelectTrigger>
+            <UiSelectContent>
+              <UiSelectItem value="ativo">Ativo</UiSelectItem>
+              <UiSelectItem value="inativo">Inativo</UiSelectItem>
+            </UiSelectContent>
+          </UiSelect>
+        </div>
+        <div className="md:col-span-3">
+          <Label>Descrição</Label>
+          <Input value={description} onChange={e=>setDescription(e.target.value)} placeholder="Descrição do grupo" />
+        </div>
+      </div>
+      <div className="space-y-2">
+        <Label>Vendedores do Grupo</Label>
+        <div className="space-y-2">
+          {localSellers.length === 0 && <div className="text-sm text-muted-foreground">Nenhum vendedor no grupo</div>}
+          {localSellers.map((s:any)=> (
+            <div key={String(s.id)} className="flex items-center justify-between border rounded p-2">
+              <div>{sellerDisplayName(s)}</div>
+              {canEdit && <Button variant="outline" size="sm" onClick={()=>handleRemoveSeller(s.id)}>Remover</Button>}
+            </div>
+          ))}
+        </div>
+        {canEdit && (
+          <div className="flex gap-2 items-end">
+            <div className="flex-1">
+              <Label>Adicionar vendedor</Label>
+              <UiSelect value={addSellerId} onValueChange={setAddSellerId}>
+                <UiSelectTrigger><UiSelectValue placeholder="Selecione" /></UiSelectTrigger>
+                <UiSelectContent>
+                  {availableSellers.map((s:any)=> (
+                    <UiSelectItem key={String(s.id)} value={String(s.id)}>{sellerDisplayName(s)}</UiSelectItem>
+                  ))}
+                </UiSelectContent>
+              </UiSelect>
+            </div>
+            <Button onClick={handleAddSeller} disabled={!addSellerId}>Adicionar</Button>
+          </div>
+        )}
+      </div>
+      {canEdit && (
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={handleSave}>Salvar</Button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PipelineManagerForGroup({ teamId, canEdit }: { teamId: number, canEdit: boolean }) {
+  const [pipelines, setPipelines] = useState<any[]>([])
+  const [selectedPipelineId, setSelectedPipelineId] = useState<number | null>(null)
+  const [stages, setStages] = useState<any[]>([])
+  const [newPipelineName, setNewPipelineName] = useState("")
+  const [newStageName, setNewStageName] = useState("")
+  const [pipelineEditName, setPipelineEditName] = useState("")
+  const [pipelineEditActive, setPipelineEditActive] = useState(true)
+  const [showEdit, setShowEdit] = useState(false)
+  const [showNewPipeline, setShowNewPipeline] = useState(false)
+  const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false)
+  const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }))
+  useEffect(() => { (async () => { const ps = await getPipelinesByTeam(Number(teamId)); setPipelines(ps); const fid = ps[0]?.id ?? null; setSelectedPipelineId(fid); if(fid){ const st = await getStagesByPipeline(fid); setStages(st)} else setStages([]) })() }, [teamId])
+  useEffect(() => { if (!selectedPipelineId) { setStages([]); return } (async () => { const st = await getStagesByPipeline(selectedPipelineId); setStages(st); const sel = pipelines.find((p: any) => Number(p.id) === Number(selectedPipelineId)); setPipelineEditName(sel?.name || ""); setPipelineEditActive(sel?.active ?? true) })() }, [selectedPipelineId])
+  async function handleStageDragEnd(event: DragEndEvent) { const { active, over } = event; if (!over || active.id === over.id) return; const oi = stages.findIndex((s: any) => String(s.id) === String(active.id)); const ni = stages.findIndex((s: any) => String(s.id) === String(over.id)); if (oi===-1||ni===-1) return; const reordered = arrayMove(stages, oi, ni).map((s: any, i: number) => ({ ...s, position: i })); setStages(reordered); try { await Promise.all(reordered.map((s: any, i: number) => updateStage(s.id, { position: i }))) } catch (e) {} }
+  async function handleCreatePipeline(){ if(!newPipelineName.trim()) return; const code = `${newPipelineName.toUpperCase().replace(/[^A-Z0-9]/g,'_').substring(0,15)}_${Date.now().toString().slice(-6)}`; const created = await createPipeline({ name:newPipelineName, code, active:true, team:{ id: teamId } as any }); setNewPipelineName(""); const ps = await getPipelinesByTeam(Number(teamId)); setPipelines(ps); setSelectedPipelineId(created?.id ?? null) }
+  async function handleAddStage(){ if(!selectedPipelineId||!newStageName.trim()) return; await createStage({ name:newStageName, pipelineId:selectedPipelineId, position:stages.length }); setNewStageName(""); const st = await getStagesByPipeline(selectedPipelineId); setStages(st) }
+  async function handleRemoveStage(id:number){ await deleteStage(id); if(selectedPipelineId){ const st = await getStagesByPipeline(selectedPipelineId); setStages(st) } }
+  async function handleSaveSelectedPipeline(){ if(!selectedPipelineId) return; try { await updatePipeline(selectedPipelineId, { name: pipelineEditName||"", active: pipelineEditActive, team:{ id: teamId } as any }); const ps = await getPipelinesByTeam(Number(teamId)); setPipelines(ps) } catch(e){} }
+  async function handleDeleteSelectedPipeline(){ if(!selectedPipelineId) return; try { await deletePipeline(selectedPipelineId); const ps = await getPipelinesByTeam(Number(teamId)); setPipelines(ps); const nf = ps[0]?.id ?? null; setSelectedPipelineId(nf); const st = nf ? await getStagesByPipeline(nf) : []; setStages(st as any); toast.success("Pipeline deletada") } catch(e){ toast.error("Falha ao deletar") } finally { setConfirmDeleteOpen(false) } }
+  return (
+    <div className="space-y-4 border rounded p-3">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Pipeline selecionada</Label>
+          <Select value={selectedPipelineId?.toString()} onValueChange={(v) => setSelectedPipelineId(Number(v))}>
+            <SelectTrigger>
+              <SelectValue placeholder={pipelines.length ? "Escolha uma pipeline" : "Nenhuma pipeline cadastrada"} />
+            </SelectTrigger>
+            <SelectContent>
+              {pipelines.map((p:any)=>(<SelectItem key={p.id} value={String(p.id)}>{p.name}</SelectItem>))}
+            </SelectContent>
+          </Select>
+          {selectedPipelineId && canEdit && (
+            <div className="mt-3 flex gap-2 flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => setShowEdit(v=>!v)}>Editar</Button>
+              <Button size="sm" variant="outline" onClick={() => setConfirmDeleteOpen(true)}>Deletar</Button>
+              <Button size="sm" variant="outline" onClick={async()=>{ try{ await setDefaultPipeline(Number(teamId), Number(selectedPipelineId)); toast.success("Padrão atualizado") }catch{ toast.error("Falha ao definir padrão") } }}>Definir como Padrão</Button>
+            </div>
+          )}
+          {showEdit && canEdit && (
+            <div className="mt-4 space-y-2 border rounded p-3">
+              <Label>Editar Pipeline</Label>
+              <Input value={pipelineEditName} onChange={(e)=>setPipelineEditName(e.target.value)} placeholder="Nome" />
+              <div className="flex items-center gap-2">
+                <input id={`pl-active-${teamId}`} type="checkbox" checked={pipelineEditActive} onChange={(e)=>setPipelineEditActive(e.target.checked)} />
+                <Label htmlFor={`pl-active-${teamId}`}>Ativo</Label>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleSaveSelectedPipeline}>Salvar</Button>
+            </div>
+          )}
+        </div>
+        {canEdit && (
+          <div className="space-y-2">
+            <div className="flex items-end gap-2">
+              <Button variant="outline" onClick={() => setShowNewPipeline(v=>!v)}>Novo Pipeline</Button>
+            </div>
+            {showNewPipeline && (
+              <div className="flex gap-2 mt-2">
+                <Input placeholder="Nome da pipeline" value={newPipelineName} onChange={(e)=>setNewPipelineName(e.target.value)} />
+                <Button onClick={handleCreatePipeline} disabled={!newPipelineName.trim()}>Criar</Button>
+                <Button variant="ghost" onClick={()=>{ setShowNewPipeline(false); setNewPipelineName("") }}>Cancelar</Button>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+      <div className="space-y-4">
+        {!selectedPipelineId ? (
+          <div className="text-muted-foreground">Selecione ou crie uma pipeline para listar as etapas.</div>
+        ) : (
+          <>
+            <div className="flex gap-2 items-end">
+              <div className="flex-1">
+                <Label>Nova etapa</Label>
+                <Input placeholder="Ex: Prospecção" value={newStageName} onChange={(e)=>setNewStageName(e.target.value)} />
+              </div>
+              {canEdit && (<Button onClick={handleAddStage} disabled={!newStageName.trim()}>Adicionar</Button>)}
+            </div>
+            <DndContext sensors={sensors} collisionDetection={closestCorners} onDragEnd={handleStageDragEnd}>
+              <SortableContext items={stages.map((s:any)=>String(s.id))} strategy={verticalListSortingStrategy}>
+                <div className="space-y-2 max-h-80 overflow-auto">
+                  {stages.map((s:any, idx:number)=>(
+                    <DraggableStageItem key={s.id} stage={s}>
+                      <div className="flex items-center justify-between border rounded p-2">
+                        <div className="flex items-center gap-3">
+                          <div className="cursor-move select-none text-muted-foreground">≡</div>
+                          <input type="color" value={toHexColor(s.color)} onChange={(e)=>{ const val=e.target.value; setStages(prev=>prev.map((it:any)=> it.id===s.id? { ...it, color: parseHexToNumber(val)}:it)) }} />
+                          <Input className="h-8 w-48" value={s.name||''} onChange={(e)=>setStages(prev=>prev.map((it:any)=> it.id===s.id? { ...it, name: e.target.value }:it))} />
+                        </div>
+                        <div className="flex gap-2">
+                          {canEdit && (<Button variant="outline" size="sm" onClick={async()=>{ try{ await updateStage(s.id,{ name:s.name, color:s.color, position: idx }); const st = await getStagesByPipeline(selectedPipelineId!); setStages(st) }catch{}}}>Salvar</Button>)}
+                          {canEdit && (<Button variant="outline" size="sm" onClick={()=>handleRemoveStage(s.id)}>Remover</Button>)}
+                        </div>
+                      </div>
+                    </DraggableStageItem>
+                  ))}
+                  {stages.length===0 && (<div className="text-sm text-muted-foreground">Nenhuma etapa cadastrada.</div>)}
+                </div>
+              </SortableContext>
+            </DndContext>
+          </>
+        )}
+      </div>
+      <Dialog open={confirmDeleteOpen} onOpenChange={setConfirmDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirmar exclusão</DialogTitle>
+            <DialogDescription>Deseja deletar a pipeline selecionada?</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={()=>setConfirmDeleteOpen(false)}>Cancelar</Button>
+            <Button variant="outline" className="text-red-600" onClick={handleDeleteSelectedPipeline}>Deletar</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  )
+}
+
 export default function DashboardLideresPage() {
   const { user, roles, loading: authLoading } = useAuth()
   const { session, status } = useSession()
@@ -72,6 +321,8 @@ export default function DashboardLideresPage() {
   const [teams, setTeams] = useState<TeamWithMetrics[]>([])
   const [opportunities, setOpportunities] = useState<Opportunity[]>([])
   const [loading, setLoading] = useState(true)
+  const [openPipelineFor, setOpenPipelineFor] = useState<number | null>(null)
+  const [openManageFor, setOpenManageFor] = useState<number | null>(null)
 
   const isAdmin = roles?.includes("admin")
   const isLeader = roles?.includes("LeaderBoard") || roles?.includes("leader") || roles?.includes("lider")
@@ -594,7 +845,7 @@ export default function DashboardLideresPage() {
                                   </div>
                                 </TableCell>
                                 <TableCell>
-                                  <Button variant="outline" size="sm" onClick={() => window.location.href = `/grupos?id=${grupo.id}`}>
+                                  <Button variant="outline" size="sm" onClick={() => setOpenManageFor(prev => prev === Number(grupo.id) ? null : Number(grupo.id))}>
                                     <Users className="mr-2 h-4 w-4" />
                                     Ver
                                   </Button>
@@ -848,10 +1099,17 @@ export default function DashboardLideresPage() {
                                 )}
                               </div>
                               <div className="flex gap-2">
-                                <Button variant="outline" size="sm" onClick={() => window.location.href = `/grupos?id=${grupo.id}`}>
+                                <Button variant="outline" size="sm" onClick={() => setOpenManageFor(prev => prev === Number(grupo.id) ? null : Number(grupo.id))}>
                                   <Users className="mr-2 h-4 w-4" />
                                   Gerenciar
                                 </Button>
+                                {/* Apenas líder (não admin) pode editar estrutura da pipeline do seu grupo */}
+                                {(!isAdmin && (grupo.managerId === userKeycloakId || grupo.managerId === user?.email)) && (
+                                  <Button variant="outline" size="sm" onClick={() => setOpenPipelineFor(prev => prev === Number(grupo.id) ? null : Number(grupo.id))}>
+                                    <Kanban className="mr-2 h-4 w-4" />
+                                    {openPipelineFor === Number(grupo.id) ? 'Fechar Pipeline' : 'Configurar Pipeline'}
+                                  </Button>
+                                )}
                               </div>
                             </div>
 
@@ -890,12 +1148,23 @@ export default function DashboardLideresPage() {
                                 </Button>
                               )}
                             </div>
+
+                            {openManageFor === Number(grupo.id) && (
+                              <div className="mt-3">
+                                <ManageGroupPanel team={grupo} allTeams={teams} canEdit={!isAdmin && (grupo.managerId === userKeycloakId || grupo.managerId === user?.email)} onSaved={() => {}} />
+                              </div>
+                            )}
+                            {openPipelineFor === Number(grupo.id) && (
+                              <div className="mt-3">
+                                <PipelineManagerForGroup teamId={Number(grupo.id)} canEdit={!isAdmin && (grupo.managerId === userKeycloakId || grupo.managerId === user?.email)} />
+                              </div>
+                            )}
                           </div>
                         )
                       })}
 
                       {isAdmin && (
-                        <Button className="w-full bg-transparent" variant="outline" onClick={() => window.location.href = '/grupos'}>
+                        <Button className="w-full bg-transparent" variant="outline" onClick={() => setOpenManageFor(prev => prev === Number(gruposPermitidos[0]?.id) ? null : Number(gruposPermitidos[0]?.id))}>
                           <Users className="mr-2 h-4 w-4" />
                           Gerenciar Todos os Grupos
                         </Button>
@@ -912,15 +1181,15 @@ export default function DashboardLideresPage() {
                       <Button 
                         className="w-full justify-start bg-transparent" 
                         variant="outline"
-                        onClick={() => window.location.href = '/grupos'}
+                        onClick={() => setOpenManageFor(prev => prev === Number(gruposPermitidos[0]?.id) ? null : Number(gruposPermitidos[0]?.id))}
                       >
                         <Target className="mr-2 h-4 w-4" />
-                        Definir Metas de Grupos
+                        {openManageFor === Number(gruposPermitidos[0]?.id) ? 'Fechar Metas do Meu Grupo' : 'Definir Metas do Meu Grupo'}
                       </Button>
                       <Button 
                         className="w-full justify-start bg-transparent" 
                         variant="outline"
-                        onClick={() => window.location.href = '/pipeline'}
+                        onClick={() => setOpenPipelineFor(prev => prev === Number(gruposPermitidos[0]?.id) ? null : Number(gruposPermitidos[0]?.id))}
                       >
                         <Activity className="mr-2 h-4 w-4" />
                         Ver Pipeline Completo
@@ -928,7 +1197,7 @@ export default function DashboardLideresPage() {
                       <Button 
                         className="w-full justify-start bg-transparent" 
                         variant="outline"
-                        onClick={() => window.location.href = '/tarefas'}
+                        onClick={() => {/* implementar painel de tarefas se necessário */}}
                       >
                         <Calendar className="mr-2 h-4 w-4" />
                         Gerenciar Tarefas
@@ -936,7 +1205,7 @@ export default function DashboardLideresPage() {
                       <Button 
                         className="w-full justify-start bg-transparent" 
                         variant="outline"
-                        onClick={() => window.location.href = '/relatorios'}
+                        onClick={() => {/* implementar painel de relatórios se necessário */}}
                       >
                         <TrendingUp className="mr-2 h-4 w-4" />
                         Relatórios Detalhados
