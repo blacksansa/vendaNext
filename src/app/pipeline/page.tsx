@@ -118,6 +118,8 @@ export default function PipelinePage() {
   
   const [selectedDeal, setSelectedDeal] = useState<any>(null)
   const [isNewDealOpen, setIsNewDealOpen] = useState(false)
+  const [isEditing, setIsEditing] = useState(false)
+  const [editStageId, setEditStageId] = useState<number | null>(null)
   const [isDetailOpen, setIsDetailOpen] = useState(false)
   const [searchTerm, setSearchTerm] = useState("")
   const [filterStage, setFilterStage] = useState<string>("all")
@@ -381,6 +383,14 @@ export default function PipelinePage() {
       toast.error("Nome do cliente é obrigatório", { description: "Erro" })
       return
     }
+    if (!selectedPipelineId) {
+      toast.error("Selecione uma pipeline antes de criar", { description: "Erro" })
+      return
+    }
+    if (!newOppData.value || Number(newOppData.value) <= 0) {
+      toast.error("Informe um valor maior que zero", { description: "Valor obrigatório" })
+      return
+    }
 
     setCreatingOpportunity(true)
     try {
@@ -424,18 +434,32 @@ export default function PipelinePage() {
       }
 
       // Criar oportunidade com primeira etapa do pipeline selecionado
-      const newOpp = await createOpportunity({
+      const pipeline = pipelines.find(p => Number(p.id) === Number(selectedPipelineId))
+      const teamId = pipeline?.team?.id || pipeline?.team_id || null
+      // Tentar múltiplos payloads para compatibilidade com o backend
+      const base = {
         customer: { id: customer.id } as Customer,
-        status: "OPEN",
         stage: { id: stages[0].id } as Stage,
         contactDate: Date.now(),
-        items: [
-          {
-            product: { id: 1 } as any,
-            quantity: 1,
-          } as any
-        ],
-      } as any)
+      } as any
+      const priceNum = Number(newOppData.value || 0)
+      const item = { product: { id: 1 } as any, quantity: 1, price: priceNum, discount: 0 } as any
+      const payloads: any[] = [
+        { ...base, status: 0, pipelineId: pipeline ? Number(pipeline.id) : undefined, items: [item] },
+      ]
+      let newOpp: any = null
+      let lastErr: any = null
+      for (const [idx, p] of payloads.entries()) {
+        try {
+          console.log('[pipeline] createOpportunity attempt', idx + 1, p)
+          newOpp = await createOpportunity(p)
+          break
+        } catch (e: any) {
+          lastErr = e
+          console.error('[pipeline] createOpportunity attempt failed', idx + 1, e?.response?.data || e?.message)
+        }
+      }
+      if (!newOpp) throw lastErr
 
       toast.success("Oportunidade criada com sucesso", { description: "Sucesso!" })
       
@@ -789,113 +813,35 @@ export default function PipelinePage() {
                               </>
                             )}
 
-                            {stage.id === 2 && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "enviar_conteudo")}
-                                >
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  Conteúdo
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "adicionar_nota")}
-                                >
-                                  <MessageSquare className="h-3 w-3 mr-1" />
-                                  Nota
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "agendar_contato")}
-                                >
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  Agendar
-                                </Button>
-                              </>
-                            )}
+                            {/* Ações rápidas removidas até implementação real */}
 
-                            {stage.id === 3 && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "registrar_proposta")}
-                                >
-                                  <FileText className="h-3 w-3 mr-1" />
-                                  Proposta
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "marcar_reuniao")}
-                                >
-                                  <Calendar className="h-3 w-3 mr-1" />
-                                  Reunião
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "fechar_venda")}
-                                >
-                                  <CheckCircle className="h-3 w-3 mr-1" />
-                                  Fechar
-                                </Button>
-                              </>
-                            )}
-
-                            {stage.id === 4 && (
-                              <>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "upsell")}
-                                >
-                                  <TrendingUp className="h-3 w-3 mr-1" />
-                                  Upsell
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "feedback")}
-                                >
-                                  <Star className="h-3 w-3 mr-1" />
-                                  Feedback
-                                </Button>
-                                <Button
-                                  size="sm"
-                                  variant="ghost"
-                                  className="h-7 text-xs"
-                                  onClick={() => handleQuickAction(deal.id, "referral")}
-                                >
-                                  <UserPlus className="h-3 w-3 mr-1" />
-                                  Indicação
-                                </Button>
-                              </>
-                            )}
-
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              className="h-7 text-xs ml-auto"
-                              onClick={() => {
-                                setSelectedDeal(deal)
-                                setIsDetailOpen(true)
-                              }}
-                            >
-                              <Eye className="h-3 w-3" />
-                            </Button>
+                            <div className="flex items-center gap-1 ml-auto">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  setSelectedDeal(deal)
+                                  setIsEditing(false)
+                                  setIsDetailOpen(true)
+                                }}
+                              >
+                                <Eye className="h-3 w-3" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                className="h-7 text-xs"
+                                onClick={() => {
+                                  setSelectedDeal(deal)
+                                  setEditStageId(deal.stage)
+                                  setIsEditing(true)
+                                  setIsDetailOpen(true)
+                                }}
+                              >
+                                <Edit className="h-3 w-3" />
+                              </Button>
+                            </div>
                           </div>
                         </div>
                       </CardContent>
@@ -1066,12 +1012,10 @@ export default function PipelinePage() {
                 <Button variant="outline" onClick={() => setIsDetailOpen(false)}>
                   Fechar
                 </Button>
-                <ConditionalRender {...({ requiredPermissions: [{ module: "pipeline", action: "edit" }] } as any)}>
-                  <Button>
-                    <Edit className="mr-2 h-4 w-4" />
-                    Editar
-                  </Button>
-                </ConditionalRender>
+                <Button onClick={() => setIsEditing(v => !v)}>
+                  <Edit className="mr-2 h-4 w-4" />
+                  {isEditing ? 'Fechar Edição' : 'Editar'}
+                </Button>
               </div>
             </div>
           )}
@@ -1154,6 +1098,20 @@ export default function PipelinePage() {
                     <SelectItem value="baixa">Baixa</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="value">Valor (R$) *</Label>
+                <Input 
+                  id="value"
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  placeholder="0,00"
+                  value={String(newOppData.value ?? 0)}
+                  onChange={(e) => setNewOppData({ ...newOppData, value: Number(e.target.value || 0) })}
+                />
               </div>
             </div>
             <div className="space-y-2">

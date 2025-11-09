@@ -130,26 +130,37 @@ export default function TarefasKanban() {
       ? new Date(String(data.dueDate)).getTime()
       : undefined;
 
-    const newTask: Partial<Task> & { teamId?: number; customerId?: number } = {
+    // Backend /task aceita somente campos do modelo Task: title, description, dueDate, status, priority, assignedTo(id minimal), relatedEntity
+    // Removido envio de objetos completos de usuário e campos desconhecidos (teamId, customerId) que causavam 400.
+    const assignee = (data.assigneeId && !String(data.assigneeId).startsWith("__none"))
+      ? users.find(u => String(u.id) === String(data.assigneeId) || u.email === String(data.assigneeId))
+      : undefined;
+    // Montagem flexível: enviar campos planos se o backend exigir ids diretos
+    const teamId = (data.teamId && !String(data.teamId).startsWith("__none")) ? Number(data.teamId) : undefined;
+    const customerId = (data.customerId && !String(data.customerId).startsWith("__none")) ? Number(data.customerId) : undefined;
+
+    // Backend espera LocalDate (yyyy-MM-dd) e relacionamentos como objetos
+    const dueDateIso = data.dueDate ? new Date(String(data.dueDate)).toISOString().slice(0,10) : undefined;
+    const payload: any = {
       title: data.title as string,
-      description: data.description as string,
-      priority,
-      dueDate: dueDateTimestamp,
-      assignedTo: (data.assigneeId && !String(data.assigneeId).startsWith("__none"))
-        ? users.find(u => String(u.id) === String(data.assigneeId) || u.email === String(data.assigneeId))
-        : undefined,
-      teamId: (data.teamId && !String(data.teamId).startsWith("__none")) ? Number(data.teamId) : undefined,
-      customerId: (data.customerId && !String(data.customerId).startsWith("__none")) ? Number(data.customerId) : undefined,
       status: 'PENDING',
-    };
+      priority: (priority || 'MEDIUM'),
+      ...(data.description ? { description: String(data.description) } : {}),
+      ...(dueDateIso ? { dueDate: dueDateIso } : {}),
+      ...(assignee?.id ? { assigneeId: assignee.id } : {}),
+      ...(teamId ? { team: { id: teamId } } : {}),
+      ...(customerId ? { customer: { id: customerId } } : {}),
+    } as any;
 
     try {
-      await createTask(newTask);
+      await createTask(payload as any);
       setIsCreateDialogOpen(false);
-      fetchInitialData(); // Refetch all data
-    } catch (error) {
-      console.error("Failed to create task", error);
+      fetchInitialData();
+    } catch (e:any) {
+      console.error('[task] create failed', e?.response?.data || e?.message);
     }
+
+
   };
 
   if (loading) {
