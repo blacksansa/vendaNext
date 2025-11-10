@@ -135,7 +135,7 @@ export default function TarefasKanban() {
     // Backend /task aceita somente campos do modelo Task: title, description, dueDate, status, priority, assignedTo(id minimal), relatedEntity
     // Removido envio de objetos completos de usuário e campos desconhecidos (teamId, customerId) que causavam 400.
     const assignee = (data.assigneeId && !String(data.assigneeId).startsWith("__none"))
-      ? users.find(u => String(u.id) === String(data.assigneeId) || u.email === String(data.assigneeId))
+      ? users.find(u => String(u.id) === String(data.assigneeId))
       : undefined;
     // Montagem flexível: enviar campos planos se o backend exigir ids diretos
     const teamId = (data.teamId && !String(data.teamId).startsWith("__none")) ? Number(data.teamId) : undefined;
@@ -378,8 +378,8 @@ export default function TarefasKanban() {
                     {users.length === 0 ? (
                       <SelectItem value="__none_user" disabled>Nenhum usuário encontrado</SelectItem>
                     ) : (
-                      users.map(user => user.email ? (
-                          <SelectItem key={user.id || user.email} value={user.email}>{user.firstName} {user.lastName}</SelectItem>
+                      users.map(user => user.id ? (
+                          <SelectItem key={user.id} value={user.id}>{user.firstName} {user.lastName} ({user.email})</SelectItem>
                         ) : null)
                     )}
                   </SelectContent>
