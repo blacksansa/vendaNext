@@ -165,6 +165,34 @@ export default function TarefasKanban() {
 
   };
 
+  const handleEditTask = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!taskToEdit) return;
+    const formData = new FormData(event.currentTarget);
+    const data = Object.fromEntries(formData.entries());
+
+    const rawPriority = (data.priority as string) ?? '';
+    const allowedPriorities = ['LOW','MEDIUM','HIGH'] as const;
+    const priority = (allowedPriorities as readonly string[]).includes(rawPriority) ? rawPriority : undefined;
+    const dueDateIso = data.dueDate ? new Date(String(data.dueDate)).toISOString().slice(0,10) : undefined;
+
+    const payload: any = {
+      ...(data.title ? { title: String(data.title) } : {}),
+      ...(data.description ? { description: String(data.description) } : {}),
+      ...(dueDateIso ? { dueDate: dueDateIso } : {}),
+      ...(priority ? { priority } : {}),
+    };
+
+    try {
+      await updateTask(taskToEdit.id, payload);
+      setIsEditDialogOpen(false);
+      setTaskToEdit(null);
+      fetchInitialData();
+    } catch (err: any) {
+      console.error('[task] edit failed', err?.response?.data || err?.message);
+    }
+  };
+
   const openEditDialog = (task: Task) => {
     setTaskToEdit(task);
     setIsEditDialogOpen(true);
@@ -279,7 +307,7 @@ export default function TarefasKanban() {
         )}
       </div>
       
-      {/* Create Task Dialog (Now always rendered) */}
+      {/* Create Task Dialog */}
       <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
         <DialogContent className="sm:max-w-[425px]">
           <DialogHeader>
@@ -370,6 +398,51 @@ export default function TarefasKanban() {
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>Cancelar</Button>
               <Button type="submit">Salvar Tarefa</Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Task Dialog */}
+      <Dialog open={isEditDialogOpen} onOpenChange={(open) => { setIsEditDialogOpen(open); if (!open) setTaskToEdit(null); }}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Editar Tarefa</DialogTitle>
+            <DialogDescription>Atualize os dados da tarefa selecionada.</DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handleEditTask}>
+            <div className="grid gap-4 py-4">
+              <div className="grid gap-2">
+                <Label htmlFor="edit_title">Título</Label>
+                <Input id="edit_title" name="title" defaultValue={taskToEdit?.title || ''} required />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="edit_description">Descrição</Label>
+                <Textarea id="edit_description" name="description" defaultValue={taskToEdit?.description || ''} />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_dueDate">Data de Vencimento</Label>
+                  <Input id="edit_dueDate" name="dueDate" type="date" defaultValue={taskToEdit?.dueDate ? new Date(taskToEdit.dueDate).toISOString().slice(0,10) : ''} />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="edit_priority">Prioridade</Label>
+                  <Select name="priority" defaultValue={taskToEdit?.priority}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecione a prioridade" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="HIGH">Alta</SelectItem>
+                      <SelectItem value="MEDIUM">Média</SelectItem>
+                      <SelectItem value="LOW">Baixa</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter>
+              <Button type="button" variant="outline" onClick={() => { setIsEditDialogOpen(false); setTaskToEdit(null); }}>Cancelar</Button>
+              <Button type="submit">Salvar</Button>
             </DialogFooter>
           </form>
         </DialogContent>

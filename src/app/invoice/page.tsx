@@ -347,6 +347,25 @@ export default function OrdensPage() {
   const [sellers, setSellers] = useState<SellerDTO[]>([])
   const [sellersLoading, setSellersLoading] = useState(false)
   
+  // Carregar vendedores no mount para os filtros
+  useEffect(() => {
+    (async () => {
+      try {
+        setSellersLoading(true)
+        const sellerData = await getSellers("", 0, 200).catch(err => {
+          console.error("[OrdensPage] erro ao buscar sellers:", err)
+          return []
+        })
+        setSellers(Array.isArray(sellerData) ? sellerData : [])
+      } catch (err) {
+        console.error("[OrdensPage] erro ao buscar sellers", err)
+        setSellers([])
+      } finally {
+        setSellersLoading(false)
+      }
+    })()
+  }, [])
+  
   // Buscar dados quando abrir o modal de nova ordem
   useEffect(() => {
     if (!isNewOrderOpen) return
@@ -354,11 +373,10 @@ export default function OrdensPage() {
       try {
         setCustomersLoading(true)
         setProductsLoading(true)
-        setSellersLoading(true)
         
         console.log("[OrdensPage] buscando dados para nova ordem...")
         
-        const [customerData, productData, sellerData] = await Promise.all([
+        const [customerData, productData] = await Promise.all([
           listCustomers(0, 200, "").catch(err => {
             console.error("[OrdensPage] erro ao buscar customers:", err)
             return []
@@ -367,38 +385,29 @@ export default function OrdensPage() {
             console.error("[OrdensPage] erro ao buscar products:", err)
             return []
           }),
-          getSellers("", 0, 200).catch(err => {
-            console.error("[OrdensPage] erro ao buscar sellers:", err)
-            return []
-          }),
         ])
         
         console.log("[OrdensPage] dados brutos recebidos:", {
           customerData,
           productData,
-          sellerData,
         })
         
         console.log("[OrdensPage] dados carregados:", {
           customers: customerData?.length ?? 0,
           products: productData?.length ?? 0,
-          sellers: sellerData?.length ?? 0,
         })
         
         setCustomers(Array.isArray(customerData) ? customerData : [])
         setProducts(Array.isArray(productData) ? productData : [])
-        setSellers(Array.isArray(sellerData) ? sellerData : [])
         
         console.log("[OrdensPage] states atualizados")
       } catch (err) {
         console.error("[OrdensPage] erro ao buscar dados", err)
         setCustomers([])
         setProducts([])
-        setSellers([])
       } finally {
         setCustomersLoading(false)
         setProductsLoading(false)
-        setSellersLoading(false)
       }
     })()
   }, [isNewOrderOpen])
@@ -814,8 +823,11 @@ export default function OrdensPage() {
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">Todos os Vendedores</SelectItem>
-                <SelectItem value="João Silva">João Silva</SelectItem>
-                <SelectItem value="Maria Santos">Maria Santos</SelectItem>
+                {sellers.map((seller) => (
+                  <SelectItem key={seller.id} value={seller.name || seller.nickname || String(seller.id)}>
+                    {seller.name || seller.nickname || `Vendedor ${seller.id}`}
+                  </SelectItem>
+                ))}
               </SelectContent>
             </Select>
             <Button
