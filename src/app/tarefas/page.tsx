@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { getTasks, createTask, updateTask, deleteTask, getUsers, getTeams, getCustomers } from "@/lib/api.client";
 import { Task, User, Team, Customer } from "@/lib/types";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
 import TarefasLoading from "./loading";
 import { KanbanColumn } from "@/components/tarefas/KanbanColumn";
@@ -155,9 +155,14 @@ export default function TarefasKanban() {
     } as any;
 
     try {
-      await createTask(payload as any);
+      const newTask = await createTask(payload as any);
       setIsCreateDialogOpen(false);
-      fetchInitialData();
+      
+      // Atualizar estado local sem recarregar tudo
+      setTasks(prev => ({
+        ...prev,
+        PENDING: [...(prev.PENDING || []), newTask]
+      }));
     } catch (e:any) {
       console.error('[task] create failed', e?.response?.data || e?.message);
     }
@@ -184,10 +189,21 @@ export default function TarefasKanban() {
     };
 
     try {
-      await updateTask(taskToEdit.id, payload);
+      const updatedTask = await updateTask(taskToEdit.id, payload);
       setIsEditDialogOpen(false);
       setTaskToEdit(null);
-      fetchInitialData();
+      
+      // Atualizar estado local sem recarregar tudo
+      setTasks(prev => {
+        const newTasks = { ...prev };
+        Object.keys(newTasks).forEach(status => {
+          const statusKey = status as TaskStatus;
+          newTasks[statusKey] = (newTasks[statusKey] || []).map(t => 
+            t.id === updatedTask.id ? updatedTask : t
+          );
+        });
+        return newTasks;
+      });
     } catch (err: any) {
       console.error('[task] edit failed', err?.response?.data || err?.message);
     }
@@ -202,15 +218,20 @@ export default function TarefasKanban() {
     try {
       if (typeof window !== 'undefined' && !window.confirm('Deseja realmente deletar esta tarefa?')) return;
       await deleteTask(task.id);
-      await fetchInitialData();
+      
+      // Atualizar estado local sem recarregar tudo
+      setTasks(prev => {
+        const newTasks = { ...prev };
+        Object.keys(newTasks).forEach(status => {
+          const statusKey = status as TaskStatus;
+          newTasks[statusKey] = (newTasks[statusKey] || []).filter(t => t.id !== task.id);
+        });
+        return newTasks;
+      });
     } catch (e) {
       console.error('[task] delete failed', e);
     }
   };
-
-  if (loading) {
-    return <TarefasLoading />;
-  }
 
   const allTasks = Object.values(tasks).flat();
   const hasTasks = allTasks.length > 0;
@@ -238,26 +259,39 @@ export default function TarefasKanban() {
     tempoMedio,
   };
 
-  const responsaveis = allTasks.reduce((acc, task) => {
-    if (task.assignedTo) {
-        const assigneeName = `${task.assignedTo.firstName} ${task.assignedTo.lastName}`;
-        if (!acc.find(r => r.nome === assigneeName)) {
-            acc.push({ id: String(task.assignedTo.id), nome: assigneeName, tipo: 'vendedor', tarefas: 0, concluidas: 0 });
+  // Memo de responsáveis SEM mudar ordem de hooks (sempre presente)
+  const responsaveis = useMemo(() => {
+    const base = allTasks.reduce((acc, task) => {
+      if (task.assignedTo) {
+        const nome = `${task.assignedTo.firstName} ${task.assignedTo.lastName}`;
+        if (!acc.some(r => r.nome === nome)) {
+          acc.push({ id: String(task.assignedTo.id), nome, tipo: 'vendedor', tarefas: 0, concluidas: 0 });
         }
-    }
-    const team = (task as any).team;
-    if (team) {
-        if (!acc.find(r => r.nome === team.name)) {
-            acc.push({ id: team.id!.toString(), nome: team.name!, tipo: 'grupo', tarefas: 0, concluidas: 0 });
+      }
+      const team = (task as any).team;
+      if (team) {
+        if (!acc.some(r => r.nome === team.name)) {
+          acc.push({ id: String(team.id), nome: team.name, tipo: 'grupo', tarefas: 0, concluidas: 0 });
         }
-    }
-    return acc;
-  }, [] as { id: string; nome: string; tipo: string; tarefas: number; concluidas: number }[]).map(r => {
-    const userTasks = allTasks.filter(t => (t.assignedTo?.id ? String(t.assignedTo!.id) : undefined) === r.id || ((t as any).team?.id ? String((t as any).team.id) : undefined) === r.id);
-    r.tarefas = userTasks.length;
-    r.concluidas = userTasks.filter(t => t.status === 'DONE').length;
-    return r;
-  });
+      }
+      return acc;
+    }, [] as { id: string; nome: string; tipo: string; tarefas: number; concluidas: number }[]);
+
+    return base.map(r => {
+      const rel = allTasks.filter(t => (
+        t.assignedTo?.id && String(t.assignedTo.id) === r.id
+      ) || ((t as any).team?.id && String((t as any).team.id) === r.id));
+      return {
+        ...r,
+        tarefas: rel.length,
+        concluidas: rel.filter(t => t.status === 'DONE').length,
+      };
+    });
+  }, [allTasks]);
+
+  if (loading) {
+    return <TarefasLoading />;
+  }
 
   return (
     <SidebarInset>
@@ -267,7 +301,7 @@ export default function TarefasKanban() {
               <Separator orientation="vertical" className="mr-2 h-4" />
               <h1 className="text-lg font-semibold">Gerenciamento de Tarefas</h1>
           </div>
-          <Button onClick={() => { fetchInitialData(); setIsCreateDialogOpen(true); }}>
+          <Button onClick={() => setIsCreateDialogOpen(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Nova Tarefa
           </Button>

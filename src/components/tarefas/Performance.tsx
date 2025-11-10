@@ -29,10 +29,11 @@ export function Performance({ responsaveis }: PerformanceProps) {
                   <div className="flex items-center gap-2">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="bg-primary/10 text-primary text-xs">
-                        {responsavel.nome
+                        {(responsavel.nome || "?")
                           .split(" ")
                           .map((n) => n[0])
-                          .join("")}
+                          .join("")
+                          .toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div>
@@ -52,9 +53,9 @@ export function Performance({ responsaveis }: PerformanceProps) {
                     <span className="text-muted-foreground">Concluídas:</span>
                     <span className="font-medium">{responsavel.concluidas}</span>
                   </div>
-                  <Progress value={(responsavel.concluidas / responsavel.tarefas) * 100} className="h-2" />
+                  <Progress value={responsavel.tarefas > 0 ? (responsavel.concluidas / responsavel.tarefas) * 100 : 0} className="h-2" />
                   <p className="text-xs text-muted-foreground text-center">
-                    {Math.round((responsavel.concluidas / responsavel.tarefas) * 100)}% de conclusão
+                    {responsavel.tarefas > 0 ? Math.round((responsavel.concluidas / responsavel.tarefas) * 100) : 0}% de conclusão
                   </p>
                 </div>
               </CardContent>

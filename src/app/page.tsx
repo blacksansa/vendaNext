@@ -49,6 +49,12 @@ import { useState, useEffect } from "react";
 import { RoleGuard } from "@/components/role-guard"
 import { useAuth } from "@/hooks/use-auth"
 import { aiService, AIInsight } from "@/services/ai.service"
+import { getTasks, getMyTasks } from "@/services/task-order-approval-invoice.service"
+import { getTeams } from "@/services/team.service"
+import { fetchData } from "@/lib/api"
+import { listInvoices } from "@/services/invoice.service"
+import { getOpportunities } from "@/services/opportunity.service"
+import { getSellers } from "@/services/seller.service"
 
 export default function CRMDashboard() {
   const { user, roles } = useAuth()
@@ -66,6 +72,116 @@ export default function CRMDashboard() {
   const [novaTarefa, setNovaTarefa] = useState({ titulo: "", icone: "Users", url: "", cor: "blue", requiredRole: "manageTasks" })
   const [editandoTarefa, setEditandoTarefa] = useState<any>(null)
 
+  // Métricas principais (cards)
+  const [metrics, setMetrics] = useState({
+    customers: 0,
+    customersTrend: 0,
+    revenue: 0,
+    revenueTrend: 0,
+    activeOpportunities: 0,
+    activeOppTrend: 0,
+    conversionRate: 0,
+    conversionTrend: 0,
+  })
+
+  // Performance dos grupos
+  const [gruposVendedores, setGruposVendedores] = useState<any[]>([])
+
+  // Kanban tasks from backend (filtered by role)
+  const [kanban, setKanban] = useState<{ pendentes: any[]; emAndamento: any[]; concluidas: any[] }>({
+    pendentes: [],
+    emAndamento: [],
+    concluidas: [],
+  })
+
+  // Clientes recentes (dynamic)
+  const [recentCustomers, setRecentCustomers] = useState<any[]>([])
+
+  useEffect(() => {
+    loadKanbanTasks()
+    loadTopMetrics()
+    loadTeamsPerformance()
+    loadRecentCustomers()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [user?.id, Array.isArray(roles) ? roles.join("|") : ""]) // reload when user or roles change
+
+  const loadKanbanTasks = async () => {
+    try {
+      const isAdmin = roles?.includes("admin") || roles?.includes("manageUsers") || roles?.includes("manageSettings")
+      let tasks: any[] = []
+      if (isAdmin) {
+        tasks = await getTasks("", 0, 200)
+      } else {
+        let leaderTeamIds: number[] = []
+        try {
+          const teams = await getTeams("", 0, 200)
+          leaderTeamIds = (teams || []).filter((t: any) => t?.managerId === user?.id).map((t: any) => t.id)
+        } catch (_) {
+          leaderTeamIds = []
+        }
+        if (leaderTeamIds.length > 0) {
+          const all = await getTasks("", 0, 200)
+          tasks = all.filter((t: any) => (t?.team?.id && leaderTeamIds.includes(t.team.id)) || t?.assigneeId === user?.id)
+        } else {
+          tasks = await getMyTasks("", 0, 200)
+        }
+      }
+
+      const toView = (t: any) => ({
+        id: t.id,
+        titulo: t.title ?? t.titulo,
+        descricao: t.description ?? t.descricao,
+        responsavel: t?.team?.name ?? (t?.assignee ? [t.assignee?.firstName, t.assignee?.lastName].filter(Boolean).join(" ") : (t?.assigneeId ?? "")),
+        prioridade: t?.priority === "HIGH" ? "Alta" : t?.priority === "LOW" ? "Baixa" : "Média",
+        prazo: t?.dueDate ?? t?.prazo,
+        status: t?.status,
+      })
+
+      const pendentes = tasks.filter((t: any) => t?.status === "PENDING").map(toView)
+      const emAndamento = tasks.filter((t: any) => t?.status === "IN_PROGRESS").map(toView)
+      const concluidas = tasks.filter((t: any) => t?.status === "DONE").map(toView)
+      setKanban({ pendentes, emAndamento, concluidas })
+    } catch (e) {
+      console.error("Erro ao carregar tarefas:", e)
+      setKanban({ pendentes: [], emAndamento: [], concluidas: [] })
+    }
+  }
+
+  const loadTopMetrics = async () => {
+    try {
+      // Total de clientes
+      const customersCountRaw = await fetchData<any>(`/customer/count`, { params: { t: "" } })
+      const customers = typeof customersCountRaw === "number" ? customersCountRaw : Number(customersCountRaw) || 0
+
+      // Receita dos últimos 30 dias
+      const invoices = await listInvoices(0, 500, "")
+      const now = Date.now()
+      const windowMs = 30 * 24 * 3600 * 1000
+      const recent = (invoices as any[]).filter((i) => {
+        const d: any = (i as any).updatedAt ?? (i as any).issuanceDate ?? (i as any).createdAt
+        return d ? now - new Date(d).getTime() <= windowMs : false
+      })
+      const revenue = recent.reduce((sum, i: any) => sum + (i.netAmount ?? i.total ?? 0), 0)
+
+      // Oportunidades (ativas e taxa de conversão)
+      const opps = await getOpportunities("", 0, 500)
+      const active = (opps as any[]).filter((o: any) => o.status === "OPEN").length
+      const won = (opps as any[]).filter((o: any) => o.status === "WON").length
+      const totalOpp = (opps as any[]).length
+      const conversion = totalOpp > 0 ? (won / totalOpp) * 100 : 0
+
+      setMetrics((m) => ({
+        ...m,
+        customers,
+        revenue,
+        activeOpportunities: active,
+        conversionRate: conversion,
+      }))
+    } catch (e) {
+      console.error("Erro ao carregar métricas do topo:", e)
+    }
+  }
+
   const getIcone = (nomeIcone: string) => {
     const icones: Record<string, any> = {
       Users,
@@ -79,6 +195,91 @@ export default function CRMDashboard() {
       Activity,
     }
     return icones[nomeIcone] || Users
+  }
+
+  // Carrega clientes recentes do backend
+  const loadRecentCustomers = async () => {
+    try {
+      // usa listagem de clientes + ordenação local por createdAt/updatedAt quando disponível
+      const customers: any[] = await fetchData<any[]>(`/customer`, { params: { page: 0, size: 10, t: "" } })
+      const enriched = (customers || [])
+        .map((c: any) => ({
+          id: c.id,
+          name: c.name || c.companyName || `Cliente ${c.id}`,
+          email: c.primaryContactEmail || c.email || "",
+          status: c.active === false ? "Inativo" : "Ativo",
+          value: c.outstandingBalance != null ? `R$ ${Number(c.outstandingBalance).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}` : "",
+          avatar: (c.name || "").split(" ").map((s: string) => s[0]).slice(0, 2).join("") || "CL",
+          createdAt: c.createdAt ?? 0,
+        }))
+        .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+        .slice(0, 8)
+
+      setRecentCustomers(enriched)
+    } catch (e) {
+      console.error("Erro ao carregar clientes recentes:", e)
+      setRecentCustomers([])
+    }
+  }
+
+  // Carrega performance dos grupos com base nas invoices do mês e quota do time
+  const loadTeamsPerformance = async () => {
+    try {
+      const isAdmin = roles?.includes("admin") || roles?.includes("manageUsers") || roles?.includes("manageSettings") || roles?.includes("manageTeams")
+      const teams: any[] = await getTeams("", 0, 200)
+
+      let filteredTeams: any[] = teams
+      if (!isAdmin) {
+        const leaderTeams = (teams || []).filter((t: any) => t?.managerId === user?.id)
+        if (leaderTeams.length > 0) {
+          filteredTeams = leaderTeams
+        } else {
+          // vendedor comum: mostrar somente times em que participa
+          let sellerId: any = null
+          try {
+            const sellers: any[] = await getSellers("", 0, 500)
+            const me = sellers.find((s: any) => s?.user?.id === user?.id || s?.userId === user?.id)
+            sellerId = me?.id ?? null
+          } catch (_) {
+            sellerId = null
+          }
+          filteredTeams = sellerId == null ? [] : (teams || []).filter((t: any) => {
+            const sellerIds: any[] = Array.isArray(t?.sellers) ? t.sellers.map((s: any) => (typeof s === "object" ? s?.id : s)).filter(Boolean) : []
+            return sellerIds.includes(sellerId as any)
+          })
+        }
+      }
+
+      const invoices: any[] = await listInvoices(0, 1000, "")
+      const now = new Date()
+      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
+
+      const perf = filteredTeams.map((t: any) => {
+        const sellerIds: any[] = Array.isArray(t?.sellers) ? t.sellers.map((s: any) => (typeof s === "object" ? s?.id : s)).filter(Boolean) : []
+        const sold = invoices.filter((i: any) => {
+          const when = i.updatedAt ?? i.issuanceDate ?? i.createdAt
+          const ts = when ? new Date(when).getTime() : 0
+          return ts >= monthStart && (sellerIds.length === 0 || sellerIds.includes(i.sellerId))
+        }).reduce((sum: number, i: any) => sum + (i.netAmount ?? i.total ?? 0), 0)
+        const quota = Number(t.quota ?? 0)
+        const performance = quota > 0 ? (sold / quota) * 100 : 0
+        return {
+          id: t.id,
+          nome: t.name ?? t.nome ?? t.code,
+          administrador: t.managerId ?? "-",
+          membros: sellerIds.length,
+          metaMensal: quota,
+          vendidoMes: sold,
+          performance: Number.isFinite(performance) ? Number(performance.toFixed(1)) : 0,
+          status: t.active ? "Ativo" : "Inativo",
+        }
+      })
+
+      setGruposVendedores(perf)
+    } catch (e) {
+      console.error("Erro ao carregar performance dos grupos:", e)
+      setGruposVendedores([])
+    }
   }
 
   const adicionarTarefaRapida = () => {
@@ -148,79 +349,9 @@ export default function CRMDashboard() {
     }
   }
 
-  const gruposVendedores = [
-    {
-      id: 1,
-      nome: "Equipe Norte",
-      administrador: "Carlos Silva",
-      membros: 8,
-      metaMensal: 150000,
-      vendidoMes: 142000,
-      performance: 94.7,
-      status: "Ativo",
-    },
-    {
-      id: 2,
-      nome: "Equipe Sul",
-      administrador: "Ana Costa",
-      membros: 6,
-      metaMensal: 120000,
-      vendidoMes: 98000,
-      performance: 81.7,
-      status: "Ativo",
-    },
-    {
-      id: 3,
-      nome: "Equipe Digital",
-      administrador: "Pedro Santos",
-      membros: 4,
-      metaMensal: 80000,
-      vendidoMes: 85000,
-      performance: 106.3,
-      status: "Ativo",
-    },
-  ]
+  // gruposVendedores agora vem do backend via loadTeamsPerformance()
 
-  const tarefasKanban = {
-    pendentes: [
-      {
-        id: 1,
-        titulo: "Contatar leads da campanha Q4",
-        descricao: "Fazer follow-up com 15 leads gerados",
-        responsavel: "Equipe Norte",
-        prioridade: "Alta",
-        prazo: "2024-01-15",
-      },
-      {
-        id: 2,
-        titulo: "Apresentação para cliente ABC",
-        descricao: "Preparar proposta comercial",
-        responsavel: "João Silva",
-        prioridade: "Média",
-        prazo: "2024-01-18",
-      },
-    ],
-    emAndamento: [
-      {
-        id: 3,
-        titulo: "Negociação contrato XYZ",
-        descricao: "Revisar termos e condições",
-        responsavel: "Ana Costa",
-        prioridade: "Alta",
-        prazo: "2024-01-12",
-      },
-    ],
-    concluidas: [
-      {
-        id: 4,
-        titulo: "Treinamento novos vendedores",
-        descricao: "Onboarding da equipe",
-        responsavel: "Equipe Digital",
-        prioridade: "Baixa",
-        prazo: "2024-01-10",
-      },
-    ],
-  }
+  // Removido Kanban hardcoded: agora usamos estado 'kanban' carregado dinamicamente do backend
 
   return (
     <SidebarInset>
@@ -306,54 +437,58 @@ export default function CRMDashboard() {
         </RoleGuard>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+          {/* Total de Clientes */}
           <Card className="bg-gradient-to-br from-blue-500/10 to-blue-600/5 border-blue-200/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Total de Clientes</CardTitle>
               <Users className="h-4 w-4 text-blue-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">2.847</div>
+              <div className="text-2xl font-bold text-foreground">{metrics.customers}</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">+12,5%</span> do mês passado
+                <span className="text-green-500">{metrics.customersTrend >= 0 ? `+${metrics.customersTrend}%` : `${metrics.customersTrend}%`}</span> do mês passado
               </p>
             </CardContent>
           </Card>
 
+          {/* Receita */}
           <Card className="bg-gradient-to-br from-green-500/10 to-green-600/5 border-green-200/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Receita</CardTitle>
               <DollarSign className="h-4 w-4 text-green-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">R$ 45.231</div>
+              <div className="text-2xl font-bold text-foreground">R$ {metrics.revenue.toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">+8,2%</span> do mês passado
+                <span className="text-green-500">{metrics.revenueTrend >= 0 ? `+${metrics.revenueTrend}%` : `${metrics.revenueTrend}%`}</span> do mês passado
               </p>
             </CardContent>
           </Card>
 
+          {/* Negócios Ativos */}
           <Card className="bg-gradient-to-br from-orange-500/10 to-orange-600/5 border-orange-200/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Negócios Ativos</CardTitle>
               <TrendingUp className="h-4 w-4 text-orange-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">127</div>
+              <div className="text-2xl font-bold text-foreground">{metrics.activeOpportunities}</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">+3,1%</span> do mês passado
+                <span className="text-green-500">{metrics.activeOppTrend >= 0 ? `+${metrics.activeOppTrend}%` : `${metrics.activeOppTrend}%`}</span> do mês passado
               </p>
             </CardContent>
           </Card>
 
+          {/* Taxa de Conversão */}
           <Card className="bg-gradient-to-br from-purple-500/10 to-purple-600/5 border-purple-200/20">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
               <CardTitle className="text-sm font-medium text-muted-foreground">Taxa de Conversão</CardTitle>
               <Activity className="h-4 w-4 text-purple-500" />
             </CardHeader>
             <CardContent>
-              <div className="text-2xl font-bold text-foreground">24,8%</div>
+              <div className="text-2xl font-bold text-foreground">{metrics.conversionRate.toFixed(1)}%</div>
               <p className="text-xs text-muted-foreground">
-                <span className="text-green-500">+2,4%</span> do mês passado
+                <span className="text-green-500">{metrics.conversionTrend >= 0 ? `+${metrics.conversionTrend}%` : `${metrics.conversionTrend}%`}</span> do mês passado
               </p>
             </CardContent>
           </Card>
@@ -516,10 +651,10 @@ export default function CRMDashboard() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <Clock className="h-4 w-4 text-orange-500" />
-                    <h3 className="font-medium">Pendentes ({tarefasKanban.pendentes.length})</h3>
+                    <h3 className="font-medium">Pendentes ({kanban.pendentes.length})</h3>
                   </div>
                   <div className="space-y-3">
-                    {tarefasKanban.pendentes.map((tarefa) => (
+                    {kanban.pendentes.map((tarefa) => (
                       <Card key={tarefa.id} className="border-l-4 border-l-orange-500">
                         <CardContent className="p-4">
                           <div className="space-y-2">
@@ -555,10 +690,10 @@ export default function CRMDashboard() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <AlertCircle className="h-4 w-4 text-blue-500" />
-                    <h3 className="font-medium">Em Andamento ({tarefasKanban.emAndamento.length})</h3>
+                    <h3 className="font-medium">Em Andamento ({kanban.emAndamento.length})</h3>
                   </div>
                   <div className="space-y-3">
-                    {tarefasKanban.emAndamento.map((tarefa) => (
+                    {kanban.emAndamento.map((tarefa) => (
                       <Card key={tarefa.id} className="border-l-4 border-l-blue-500">
                         <CardContent className="p-4">
                           <div className="space-y-2">
@@ -594,10 +729,10 @@ export default function CRMDashboard() {
                 <div className="space-y-3">
                   <div className="flex items-center gap-2">
                     <CheckCircle className="h-4 w-4 text-green-500" />
-                    <h3 className="font-medium">Concluídas ({tarefasKanban.concluidas.length})</h3>
+                    <h3 className="font-medium">Concluídas ({kanban.concluidas.length})</h3>
                   </div>
                   <div className="space-y-3">
-                    {tarefasKanban.concluidas.map((tarefa) => (
+                    {kanban.concluidas.map((tarefa) => (
                       <Card key={tarefa.id} className="border-l-4 border-l-green-500 opacity-75">
                         <CardContent className="p-4">
                           <div className="space-y-2">
@@ -632,7 +767,7 @@ export default function CRMDashboard() {
                 <div className="flex items-center justify-between">
                   <div>
                     <CardTitle className="text-foreground">Clientes Recentes</CardTitle>
-                    <CardDescription>Últimas interações e atualizações de clientes</CardDescription>
+                    <CardDescription>Últimos clientes adicionados ou atualizados</CardDescription>
                   </div>
                   <Link href="/customers">
                     <Button variant="outline" size="sm">
@@ -643,38 +778,9 @@ export default function CRMDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {[
-                    {
-                      name: "Sarah Johnson",
-                      email: "sarah.j@empresa.com",
-                      status: "Ativo",
-                      value: "R$ 12.500",
-                      avatar: "SJ",
-                    },
-                    {
-                      name: "Michael Chen",
-                      email: "m.chen@startup.io",
-                      status: "Lead",
-                      value: "R$ 8.200",
-                      avatar: "MC",
-                    },
-                    {
-                      name: "Emma Wilson",
-                      email: "emma@design.co",
-                      status: "Ativo",
-                      value: "R$ 15.800",
-                      avatar: "EW",
-                    },
-                    {
-                      name: "David Rodriguez",
-                      email: "david.r@tech.com",
-                      status: "Prospecto",
-                      value: "R$ 5.400",
-                      avatar: "DR",
-                    },
-                  ].map((customer, index) => (
+                  {recentCustomers.map((customer) => (
                     <div
-                      key={index}
+                      key={customer.id}
                       className="flex items-center justify-between p-3 rounded-lg border border-border hover:bg-muted/50 transition-colors"
                     >
                       <div className="flex items-center gap-3">
