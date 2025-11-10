@@ -307,9 +307,6 @@ export function UsuariosPageClient({
       setUsers(prev => prev.map(u => u.id === user.id ? { ...u, groups: originalGroups } : u));
       setStatus(user.id!, 'error');
     }
-      
-      setStatus(user.id!, 'error');
-    }
   };
 
 const getButtonContent = (status: 'idle' | 'loading' | 'success' | 'error', defaultContent: React.ReactNode) => {

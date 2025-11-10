@@ -1,4 +1,4 @@
-import Api from "@/lib/api"
+import Api, { api } from "@/lib/api"
 
 export interface TeamDTO {
   id?: number
@@ -13,7 +13,6 @@ export interface TeamDTO {
 }
 
 const teamApi = new Api<TeamDTO, number>("/team")
-export { api as apiInstance } from "@/lib/api"
 
 // Debug simples por env
 const TEAM_DEBUG = process.env.NEXT_PUBLIC_DEBUG_TEAMS === "1"
@@ -157,7 +156,7 @@ export const deleteTeam = (id: number): Promise<void> =>
   teamApi.delete(id)
 
 export const setDefaultPipeline = async (teamId: number, pipelineId: number | null): Promise<TeamDTO> => {
-  return (await apiInstance.request<TeamDTO>({
+  return (await api.request<TeamDTO>({
     url: `/team/${teamId}/default-pipeline`,
     method: "PATCH",
     data: { pipelineId },

@@ -690,7 +690,7 @@ export default function UsuariosPage() {
                                   <DropdownMenuCheckboxItem
                                     key={group.id}
                                     checked={user.groups?.some((g) => g.id === group.id)}
-                                    onCheckedChange={() => handleGroupAssignment(user, group.id, true)}
+                                    onCheckedChange={() => handleGroupAssignment(user, group.id)}
                                   >
                                     {group.name}
                                   </DropdownMenuCheckboxItem>
