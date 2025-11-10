@@ -8,9 +8,11 @@ import { statusMap, TaskStatus } from "@/lib/status-map";
 interface KanbanColumnProps {
   status: TaskStatus;
   tasks: Task[];
+  onEditTask?: (t: Task) => void;
+  onDeleteTask?: (t: Task) => void;
 }
 
-export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
+export function KanbanColumn({ status, tasks, onEditTask, onDeleteTask }: KanbanColumnProps) {
   const statusInfo = statusMap[status];
   const Icon = statusInfo?.icon;
 
@@ -37,7 +39,7 @@ export function KanbanColumn({ status, tasks }: KanbanColumnProps) {
                       {...provided.draggableProps}
                       {...provided.dragHandleProps}
                     >
-                      <KanbanCard tarefa={tarefa} />
+                      <KanbanCard tarefa={tarefa} onEdit={onEditTask} onDelete={onDeleteTask} />
                     </div>
                   )}
                 </Draggable>

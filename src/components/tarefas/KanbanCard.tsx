@@ -3,13 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Task } from "@/lib/types";
-import { MoreHorizontal, Calendar, Clock } from "lucide-react";
+import { MoreHorizontal, Calendar, Clock, Pencil, Trash2 } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 interface KanbanCardProps {
   tarefa: Task;
+  onEdit?: (t: Task) => void;
+  onDelete?: (t: Task) => void;
 }
 
-export function KanbanCard({ tarefa }: KanbanCardProps) {
+export function KanbanCard({ tarefa, onEdit, onDelete }: KanbanCardProps) {
   // Map priority values from the Task type to labels and styles
   const priority = tarefa.priority;
   const priorityLabel =
@@ -52,9 +55,21 @@ export function KanbanCard({ tarefa }: KanbanCardProps) {
               {tarefa.dueDate ? new Date(tarefa.dueDate).toLocaleDateString() : 'N/A'}
             </div>
           </div>
-          <Button variant="ghost" size="sm" className="w-full">
-            <MoreHorizontal className="h-4 w-4" />
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-full" aria-label="Ações da tarefa">
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => onEdit?.(tarefa)}>
+                <Pencil className="h-4 w-4" /> Editar
+              </DropdownMenuItem>
+              <DropdownMenuItem variant="destructive" onClick={() => onDelete?.(tarefa)}>
+                <Trash2 className="h-4 w-4" /> Deletar
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </CardContent>
     </Card>

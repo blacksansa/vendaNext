@@ -4,7 +4,7 @@ import { SidebarInset, SidebarTrigger } from "@/components/ui/sidebar"
 import { Separator } from "@/components/ui/separator"
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getTasks, createTask, updateTask, getUsers, getTeams, getCustomers } from "@/lib/api.client";
+import { getTasks, createTask, updateTask, deleteTask, getUsers, getTeams, getCustomers } from "@/lib/api.client";
 import { Task, User, Team, Customer } from "@/lib/types";
 import { useEffect, useState } from "react";
 import { DragDropContext, DropResult } from "@hello-pangea/dnd";
@@ -31,6 +31,8 @@ export default function TarefasKanban() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
 
   const fetchInitialData = async () => {
     try {
@@ -163,6 +165,21 @@ export default function TarefasKanban() {
 
   };
 
+  const openEditDialog = (task: Task) => {
+    setTaskToEdit(task);
+    setIsEditDialogOpen(true);
+  };
+
+  const handleDeleteTask = async (task: Task) => {
+    try {
+      if (typeof window !== 'undefined' && !window.confirm('Deseja realmente deletar esta tarefa?')) return;
+      await deleteTask(task.id);
+      await fetchInitialData();
+    } catch (e) {
+      console.error('[task] delete failed', e);
+    }
+  };
+
   if (loading) {
     return <TarefasLoading />;
   }
@@ -243,7 +260,7 @@ export default function TarefasKanban() {
             <DragDropContext onDragEnd={onDragEnd}>
               <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {(Object.keys(tasks) as TaskStatus[]).map((status) => (
-                  <KanbanColumn key={status} status={status} tasks={tasks[status] || []} />
+                  <KanbanColumn key={status} status={status} tasks={tasks[status] || []} onEditTask={openEditDialog} onDeleteTask={handleDeleteTask} />
                 ))}
               </div>
             </DragDropContext>

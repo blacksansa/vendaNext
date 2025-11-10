@@ -118,11 +118,13 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         ...decoded, // Inclui todos os claims do token
       }
 
+      const computedExpiresAt = expiresAt ? parseInt(expiresAt) : (decoded.exp ? decoded.exp * 1000 : Date.now() + 300000)
+
       const sessionData: Session = {
         user,
         accessToken,
         refreshToken,
-        expiresAt: expiresAt ? parseInt(expiresAt) : Date.now() + 300000,
+        expiresAt: computedExpiresAt,
       }
 
       setSession(sessionData)
@@ -199,7 +201,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Monitora mudanças no localStorage (para sincronizar entre abas)
   useEffect(() => {
     const handleStorageChange = (e: StorageEvent) => {
-      if (e.key === 'access_token' || e.key === 'refresh_token') {
+      if (e.key === 'access_token' || e.key === 'refresh_token' || e.key === 'expires_at') {
         loadSession()
       }
     }
@@ -228,8 +230,8 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Checa a cada 5 minutos (não checa imediatamente)
-    const intervalId = setInterval(checkExpiration, 300000)
+    // Checa a cada 30s para evitar expiração precoce em tokens curtos
+    const intervalId = setInterval(checkExpiration, 30000)
     
     return () => clearInterval(intervalId)
   }, [session?.expiresAt, refreshSession, signOut])
