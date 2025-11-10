@@ -233,6 +233,7 @@ export default function TarefasKanban() {
     }
   };
 
+  // Evita alterar a ordem dos hooks: não retornar antes dos hooks abaixo
   const allTasks = Object.values(tasks).flat();
   const hasTasks = allTasks.length > 0;
 
@@ -259,9 +260,9 @@ export default function TarefasKanban() {
     tempoMedio,
   };
 
-  // Memo de responsáveis SEM mudar ordem de hooks (sempre presente)
-  const responsaveis = useMemo(() => {
-    const base = allTasks.reduce((acc, task) => {
+  // Derivar responsáveis SEM hooks adicionais condicionais
+  const responsaveis = (() => {
+    return allTasks.reduce((acc, task) => {
       if (task.assignedTo) {
         const nome = `${task.assignedTo.firstName} ${task.assignedTo.lastName}`;
         if (!acc.some(r => r.nome === nome)) {
@@ -275,23 +276,13 @@ export default function TarefasKanban() {
         }
       }
       return acc;
-    }, [] as { id: string; nome: string; tipo: string; tarefas: number; concluidas: number }[]);
-
-    return base.map(r => {
+    }, [] as { id: string; nome: string; tipo: string; tarefas: number; concluidas: number }[]).map(r => {
       const rel = allTasks.filter(t => (
         t.assignedTo?.id && String(t.assignedTo.id) === r.id
       ) || ((t as any).team?.id && String((t as any).team.id) === r.id));
-      return {
-        ...r,
-        tarefas: rel.length,
-        concluidas: rel.filter(t => t.status === 'DONE').length,
-      };
+      return { ...r, tarefas: rel.length, concluidas: rel.filter(t => t.status === 'DONE').length };
     });
-  }, [allTasks]);
-
-  if (loading) {
-    return <TarefasLoading />;
-  }
+  })();
 
   return (
     <SidebarInset>

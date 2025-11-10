@@ -254,6 +254,20 @@ export default function CRMDashboard() {
       const now = new Date()
       const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).getTime()
 
+      // Buscar sellers uma vez para mapear managerId -> nome
+      let sellersCache: any[] = []
+      try { sellersCache = await getSellers("", 0, 500) } catch (_) { sellersCache = [] }
+      const resolveLeader = (uid: any) => {
+        const s = sellersCache.find((x: any) => x?.user?.id === uid || x?.userId === uid)
+        if (s) {
+          const full = [s.user?.firstName, s.user?.lastName].filter(Boolean).join(" ")
+          return full || s.name || s.nickname || s.user?.email || uid
+        }
+        // Se uid parecer UUID, retorna '-' para evitar mostrar ID cru
+        if (typeof uid === 'string' && /[0-9a-fA-F-]{30,}/.test(uid)) return '-'
+        return uid || '-'
+      }
+
       const perf = filteredTeams.map((t: any) => {
         const sellerIds: any[] = Array.isArray(t?.sellers) ? t.sellers.map((s: any) => (typeof s === "object" ? s?.id : s)).filter(Boolean) : []
         const sold = invoices.filter((i: any) => {
@@ -263,10 +277,11 @@ export default function CRMDashboard() {
         }).reduce((sum: number, i: any) => sum + (i.netAmount ?? i.total ?? 0), 0)
         const quota = Number(t.quota ?? 0)
         const performance = quota > 0 ? (sold / quota) * 100 : 0
+
         return {
           id: t.id,
           nome: t.name ?? t.nome ?? t.code,
-          administrador: t.managerId ?? "-",
+          administrador: resolveLeader(t.managerId),
           membros: sellerIds.length,
           metaMensal: quota,
           vendidoMes: sold,
